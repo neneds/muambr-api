@@ -77,8 +77,8 @@ func (e *KuantoKustaExtractor) buildSearchURL(productName string) (string, error
 	params := url.Values{}
 	params.Add("q", productName)
 	
-	// Construct full URL
-	fullURL := fmt.Sprintf("%s/pesquisar?%s", baseURL, params.Encode())
+	// Construct full URL using /search endpoint
+	fullURL := fmt.Sprintf("%s/search?%s", baseURL, params.Encode())
 	return fullURL, nil
 }
 
@@ -121,8 +121,8 @@ func (e *KuantoKustaExtractor) extractWithPython(htmlContent string) ([]models.P
 		return nil, fmt.Errorf("failed to get script path: %w", err)
 	}
 
-	// Prepare the Python command
-	cmd := exec.Command("python3", "-c", fmt.Sprintf(`
+	// Prepare the Python command using the virtual environment
+	cmd := exec.Command("/Users/dennismerli/Documents/Projects/muambr-goapi/.venv/bin/python", "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
 from kuantokusta_page import extract_kuantokusta_products

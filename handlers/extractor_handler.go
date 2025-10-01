@@ -22,8 +22,8 @@ func NewExtractorHandler() *ExtractorHandler {
 
 // initializeExtractors initializes and registers all available extractors
 func initializeExtractors(registry *extractors.ExtractorRegistry) {
-	// Register Idealo extractor for Spain only
-	registry.RegisterExtractor(extractors.NewIdealoExtractor())
+	// Register Kelkoo extractor for Spain only
+	registry.RegisterExtractor(extractors.NewKelkooExtractor())
 	
 	// Register KuantoKusta extractor for Portugal only
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractor())

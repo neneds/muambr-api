@@ -65,30 +65,10 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		return
 	}
 
-	// If no extractors available yet, return mock data
+	// If no extractors available yet, return empty response
 	if len(comparisons) == 0 {
-		// TODO: Remove this mock data once actual extractors are implemented
-		var mockStoreSuffix string
-		if currentCountry != "" {
-			mockStoreSuffix = " (Available in " + currentCountry.GetCountryName() + ")"
-		}
-
-		comparisons = []models.ProductComparison{
-			{
-				Name:     "Sony WH-1000XM6 - Auriculares Bluetooth con cancelación activa de ruido - Negro nuevo",
-				Price:    "342.87",
-				Store:    "Store audio" + mockStoreSuffix,
-				Currency: baseCurrency,
-				URL:      "https://www.idealo.es/relocator/relocate?categoryId=2520&offerKey=3755ad8b44312650d3c97c23bb8c93b1&offerListId=206509478-27E3E95F56F555BCADFDD6FB2FBB0E79&pos=3&price=342.87&productid=206509477&sid=335485&type=offer",
-			},
-			{
-				Name:     productName + " - Premium variant",
-				Price:    "289.99",
-				Store:    "Electronics Store Plus" + mockStoreSuffix,
-				Currency: baseCurrency,
-				URL:      "https://example.com/product2",
-			},
-		}
+		c.JSON(http.StatusOK, gin.H{"data": []models.ProductComparison{}})
+		return
 	}
 
 	response := models.ComparisonResponse(comparisons)

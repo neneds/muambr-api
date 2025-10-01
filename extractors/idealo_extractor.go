@@ -14,40 +14,40 @@ import (
 	"muambr-api/models"
 )
 
-// IdealoExtractor implements the Extractor interface for Idealo price comparison site
-type IdealoExtractor struct {
+// KelkooExtractor implements the Extractor interface for Kelkoo price comparison site
+type KelkooExtractor struct {
 	countryCode models.Country
 }
 
-// NewIdealoExtractor creates a new Idealo extractor for Spain
-func NewIdealoExtractor() *IdealoExtractor {
-	return &IdealoExtractor{
-		countryCode: models.CountrySpain, // Idealo is Spain-specific
+// NewKelkooExtractor creates a new Kelkoo extractor for Spain
+func NewKelkooExtractor() *KelkooExtractor {
+	return &KelkooExtractor{
+		countryCode: models.CountrySpain, // Kelkoo is Spain-specific
 	}
 }
 
 // GetCountryCode returns the ISO country code this extractor supports
-func (e *IdealoExtractor) GetCountryCode() models.Country {
+func (e *KelkooExtractor) GetCountryCode() models.Country {
 	return e.countryCode
 }
 
 // GetMacroRegion returns the macro region this extractor supports
-func (e *IdealoExtractor) GetMacroRegion() models.MacroRegion {
+func (e *KelkooExtractor) GetMacroRegion() models.MacroRegion {
 	return e.countryCode.GetMacroRegion()
 }
 
 // BaseURL returns the base URL for the extractor's website
-func (e *IdealoExtractor) BaseURL() string {
-	return "https://www.idealo.es"
+func (e *KelkooExtractor) BaseURL() string {
+	return "https://www.kelkoo.es"
 }
 
 // GetIdentifier returns a static string identifier for this extractor
-func (e *IdealoExtractor) GetIdentifier() string {
-	return "idealo"
+func (e *KelkooExtractor) GetIdentifier() string {
+	return "kelkoo"
 }
 
-// GetComparisons extracts product comparisons from Idealo for the given product name
-func (e *IdealoExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
+// GetComparisons extracts product comparisons from Kelkoo for the given product name
+func (e *KelkooExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
 	// Build the search URL with query parameters
 	searchURL, err := e.buildSearchURL(productName)
 	if err != nil {
@@ -69,21 +69,21 @@ func (e *IdealoExtractor) GetComparisons(productName string) ([]models.ProductCo
 	return comparisons, nil
 }
 
-// buildSearchURL constructs the search URL with proper query parameters
-func (e *IdealoExtractor) buildSearchURL(productName string) (string, error) {
+// buildSearchURL constructs the search URL with proper query parameters for Kelkoo
+func (e *KelkooExtractor) buildSearchURL(productName string) (string, error) {
 	baseURL := e.BaseURL()
 	
-	// Build query parameters
+	// Build query parameters for Kelkoo using 'consulta' parameter
 	params := url.Values{}
-	params.Add("q", productName)
+	params.Add("consulta", productName)
 	
-	// Construct full URL
-	fullURL := fmt.Sprintf("%s/preisvergleich/MainSearchProductCategory.html?%s", baseURL, params.Encode())
+	// Construct full URL using Kelkoo search format
+	fullURL := fmt.Sprintf("%s/buscar?%s", baseURL, params.Encode())
 	return fullURL, nil
 }
 
 // fetchHTML makes an HTTP GET request and returns the HTML content
-func (e *IdealoExtractor) fetchHTML(url string) (string, error) {
+func (e *KelkooExtractor) fetchHTML(url string) (string, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -114,9 +114,9 @@ func (e *IdealoExtractor) fetchHTML(url string) (string, error) {
 }
 
 // extractWithPython calls the Python script to extract product data from HTML
-func (e *IdealoExtractor) extractWithPython(htmlContent string) ([]models.ProductComparison, error) {
+func (e *KelkooExtractor) extractWithPython(htmlContent string) ([]models.ProductComparison, error) {
 	// Get the absolute path to the Python script
-	scriptPath, err := filepath.Abs("extractors/pythonExtractors/idealo_page.py")
+	scriptPath, err := filepath.Abs("extractors/pythonExtractors/kelkoo_page.py")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get script path: %w", err)
 	}
@@ -125,11 +125,11 @@ func (e *IdealoExtractor) extractWithPython(htmlContent string) ([]models.Produc
 	cmd := exec.Command("python3", "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
-from idealo_page import extract_idealo_products
+from kelkoo_page import extract_kelkoo_products
 import json
 
 html_content = '''%s'''
-products = extract_idealo_products(html_content)
+products = extract_kelkoo_products(html_content)
 print(json.dumps(products))
 `, filepath.Dir(scriptPath), strings.ReplaceAll(htmlContent, "'", "\\'")))
 
