@@ -154,11 +154,17 @@ print(json.dumps(products))
 	// Convert to ProductComparison structs
 	var comparisons []models.ProductComparison
 	for _, product := range pythonProducts {
+		// Get currency with fallback to extractor's country currency
+		currency := getString(product["currency"])
+		if currency == "" {
+			currency = e.countryCode.GetCurrencyCode()
+		}
+		
 		comparison := models.ProductComparison{
 			Name:     getString(product["name"]),
 			Price:    getString(product["price"]),
 			Store:    getString(product["store"]),
-			Currency: getString(product["currency"]),
+			Currency: currency,
 			URL:      getString(product["url"]),
 		}
 		comparisons = append(comparisons, comparison)
