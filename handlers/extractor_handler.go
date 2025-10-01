@@ -52,14 +52,22 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 }
 
 // GetProductComparisons retrieves product comparisons using all available extractors
-func (h *ExtractorHandler) GetProductComparisons(productName string, targetCountry models.Country, currentCountry models.Country) ([]models.ProductComparison, error) {
+func (h *ExtractorHandler) GetProductComparisons(productName string, targetCountry models.Country, currentCountry models.Country, includeMacroRegion bool) ([]models.ProductComparison, error) {
 	var allComparisons []models.ProductComparison
 	
-	// Get extractors for the target country
-	countryExtractors := h.extractorRegistry.GetExtractorsForCountry(targetCountry)
+	var extractorsToUse []extractors.Extractor
 	
-	// Iterate through all extractors for this country
-	for _, extractor := range countryExtractors {
+	if includeMacroRegion && currentCountry != "" {
+		// Get all extractors from the same macro region as currentCountry
+		currentMacroRegion := currentCountry.GetMacroRegion()
+		extractorsToUse = h.extractorRegistry.GetExtractorsForMacroRegion(currentMacroRegion)
+	} else {
+		// Get extractors for the target country only
+		extractorsToUse = h.extractorRegistry.GetExtractorsForCountry(targetCountry)
+	}
+	
+	// Iterate through selected extractors
+	for _, extractor := range extractorsToUse {
 		// Extract comparisons from this extractor
 		comparisons, err := extractor.GetComparisons(productName)
 		if err != nil {

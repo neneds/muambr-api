@@ -48,6 +48,22 @@ func (r *ExtractorRegistry) GetExtractorsForCountry(country models.Country) []Ex
 	return r.extractors[country]
 }
 
+// GetExtractorsForMacroRegion returns all extractors available for a given macro region
+func (r *ExtractorRegistry) GetExtractorsForMacroRegion(macroRegion models.MacroRegion) []Extractor {
+	var macroRegionExtractors []Extractor
+	
+	// Iterate through all countries and their extractors
+	for _, extractors := range r.extractors {
+		for _, extractor := range extractors {
+			if extractor.GetMacroRegion() == macroRegion {
+				macroRegionExtractors = append(macroRegionExtractors, extractor)
+			}
+		}
+	}
+	
+	return macroRegionExtractors
+}
+
 // GetAllExtractors returns all registered extractors grouped by country
 func (r *ExtractorRegistry) GetAllExtractors() map[models.Country][]Extractor {
 	return r.extractors

@@ -19,13 +19,14 @@ func NewComparisonHandler() *ComparisonHandler {
 	}
 }
 
-// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US
+// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&macroregion=true
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	// Parse query parameters
 	productName := c.Query("name")
 	countryParam := c.Query("country")
 	currentCountryParam := c.Query("currentCountry")
 	baseCurrency := c.Query("currency")
+	macroRegionParam := c.Query("macroregion") == "true"
 
 	// Validate required parameters
 	if productName == "" {
@@ -58,7 +59,7 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	}
 
 	// Get product comparisons using the ExtractorHandler
-	comparisons, err := h.extractorHandler.GetProductComparisons(productName, country, currentCountry)
+	comparisons, err := h.extractorHandler.GetProductComparisons(productName, country, currentCountry, macroRegionParam)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get product comparisons"})
 		return
