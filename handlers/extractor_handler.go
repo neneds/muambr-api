@@ -23,7 +23,7 @@ func NewExtractorHandler() *ExtractorHandler {
 // initializeExtractors initializes and registers all available extractors
 func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// Register Idealo extractor for Spain only
-	registry.RegisterExtractor(extractors.NewIdealoExtractor(models.CountrySpain))
+	registry.RegisterExtractor(extractors.NewIdealoExtractor())
 	
 	// Register KuantoKusta extractor for Portugal only
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractor())
@@ -40,8 +40,8 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 	}
 	
 	// Parse and validate the provided country code
-	country, valid := models.ParseCountryFromISO(countryParam)
-	if !valid {
+	country, err := models.ParseCountryFromISO(countryParam)
+	if err != nil {
 		return "", &CountryValidationError{
 			Code:            countryParam,
 			SupportedCodes: []string{"PT", "US", "ES", "DE", "GB", "BR"},

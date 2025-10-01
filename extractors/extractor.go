@@ -8,10 +8,18 @@ import (
 type Extractor interface {
 	// GetCountryCode returns the ISO country code this extractor supports
 	GetCountryCode() models.Country
+
+	// GetMacroRegion returns the macro region this extractor supports
+	// e.g., "EU", "NA", "LATAM"
+	// This can be used for broader regional support if needed
+	GetMacroRegion() models.MacroRegion
 	
 	// GetIdentifier returns a static string identifier for this extractor
 	GetIdentifier() string
-	
+
+	// BaseURL returns the base URL for the extractor's website
+	BaseURL() string
+
 	// GetComparisons extracts product comparisons for the given product name
 	// Returns an array of ProductComparison objects
 	GetComparisons(productName string) ([]models.ProductComparison, error)

@@ -1,5 +1,7 @@
 package models
 
+import "fmt"
+
 // Country represents the country enum using ISO codes
 type Country string
 
@@ -10,6 +12,16 @@ const (
 	CountrySpain    Country = "ES"
 	CountryUK       Country = "GB"
 	CountryGermany  Country = "DE"
+)
+
+// MacroRegion represents broader regions for countries
+type MacroRegion string
+
+const (
+	MacroRegionEU    MacroRegion = "EU"
+	MacroRegionNA    MacroRegion = "NA"
+	MacroRegionLATAM MacroRegion = "LATAM"
+	MacroRegionNone  MacroRegion = "None"
 )
 
 // GetCurrencyCode returns the currency code for the country
@@ -28,7 +40,23 @@ func (c Country) GetCurrencyCode() string {
 	}
 }
 
-// GetCountryName returns the full country name
+// Get macro regions for countries
+func (c Country) GetMacroRegion() MacroRegion {
+	switch c {
+	case CountryBrazil:
+		return MacroRegionLATAM
+	case CountryUS:
+		return MacroRegionNA
+	case CountryPortugal, CountrySpain, CountryGermany:
+		return MacroRegionEU
+	case CountryUK:
+		return MacroRegionEU		
+	default:
+		return MacroRegionNone
+	}
+}
+
+// GetCountryName returns the human-readable country name
 func (c Country) GetCountryName() string {
 	switch c {
 	case CountryBrazil:
@@ -44,18 +72,17 @@ func (c Country) GetCountryName() string {
 	case CountryGermany:
 		return "Germany"
 	default:
-		return ""
+		return "Unknown"
 	}
 }
 
-// ParseCountryFromISO converts an ISO code to a Country
-func ParseCountryFromISO(isoCode string) (Country, bool) {
-	country := Country(isoCode)
-	switch country {
+// ParseCountryFromISO parses an ISO country code string into a Country enum
+func ParseCountryFromISO(isoCode string) (Country, error) {
+	switch Country(isoCode) {
 	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany:
-		return country, true
+		return Country(isoCode), nil
 	default:
-		return "", false
+		return "", fmt.Errorf("unsupported country ISO code: %s", isoCode)
 	}
 }
 

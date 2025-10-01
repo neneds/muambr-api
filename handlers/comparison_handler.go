@@ -39,8 +39,8 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	}
 
 	// Parse and validate ISO country code for comparison target
-	country, valid := models.ParseCountryFromISO(strings.ToUpper(countryParam))
-	if !valid {
+	country, err := models.ParseCountryFromISO(strings.ToUpper(countryParam))
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR"})
 		return
 	}
