@@ -28,6 +28,9 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// Register KuantoKusta extractor for Portugal only
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractor())
 	
+	// Register Mercado Livre extractor for Brazil only
+	registry.RegisterExtractor(extractors.NewMercadoLivreExtractor())
+	
 	// TODO: Add more extractors as they are implemented
 }
 

@@ -11,12 +11,20 @@ muambr-goapi/
 ├── models/                    # Data models
 │   └── models.go
 ├── handlers/                  # HTTP handlers
-│   └── comparison_handler.go
+│   ├── comparison_handler.go
+│   └── extractor_handler.go
 ├── routes/                    # Route definitions
 │   └── routes.go
-└── extractors/                # Python scrapers
-    ├── idealo_page.py
-    └── kuantokusta_page.py
+└── extractors/                # Product extractors
+    ├── extractor.go           # Extractor interface and registry
+    ├── utils.go               # Shared utilities
+    ├── kelkoo_extractor.go    # Spain (ES)
+    ├── kuantokusta_extractor.go  # Portugal (PT)
+    ├── mercadolivre_extractor.go # Brazil (BR)
+    └── pythonExtractors/      # Python scraping scripts
+        ├── kelkoo_page.py
+        ├── kuantokusta_page.py
+        └── mercadolivre_page.py
 ```
 
 ## API Endpoints
@@ -44,18 +52,18 @@ curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentC
 ```json
 [
   {
-    "name": "Sony WH-1000XM6 - Auriculares Bluetooth con cancelación activa de ruido - Negro nuevo",
-    "price": "342.87",
-    "store": "Store audio",
+    "name": "Sony WH-1000XM6 Wireless Headphones",
+    "price": "349.99",
+    "store": "Kelkoo Partner Store (Available in Spain)",
     "currency": "EUR",
-    "url": "https://www.idealo.es/relocator/relocate?categoryId=2520&offerKey=3755ad8b44312650d3c97c23bb8c93b1&offerListId=206509478-27E3E95F56F555BCADFDD6FB2FBB0E79&pos=3&price=342.87&productid=206509477&sid=335485&type=offer"
+    "url": "https://www.kelkoo.es/product/sony-xm6"
   },
   {
-    "name": "iPhone 15 - Premium variant",
-    "price": "289.99",
-    "store": "Electronics Store Plus",
-    "currency": "EUR",
-    "url": "https://example.com/product2"
+    "name": "Fone Sony Wh-1000xm6 Lançamento 2025",
+    "price": "3997",
+    "store": "Mercado Livre",
+    "currency": "BRL",
+    "url": "https://produto.mercadolivre.com.br/MLB-5450212900"
   }
 ]
 ```
@@ -67,6 +75,14 @@ curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentC
 - `DE` - Germany (EUR)
 - `GB` - United Kingdom (GBP)
 - `BR` - Brazil (BRL)
+
+**Supported Extractors:**
+- **Kelkoo** (Spain) - Price comparison platform for Spanish market
+  - URL Format: `https://www.kelkoo.es/buscar?consulta={product_name}`
+- **KuantoKusta** (Portugal) - Portuguese price comparison service
+  - URL Format: `https://www.kuantokusta.pt/search?q={product_name}`
+- **Mercado Livre** (Brazil) - Brazilian marketplace and price comparison
+  - URL Format: `https://lista.mercadolivre.com.br/{product-name}`
 
 ### Health Check
 
