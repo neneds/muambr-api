@@ -1,0 +1,214 @@
+{
+  "info": {
+    "name": "muambr-api Collection",
+    "description": "Product Comparison API Testing Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "description": "Base URL for the API (change to production URL when deployed)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Mercado Livre - Sony XM6",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=sony xm6&country=BR&currency=BRL",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "sony xm6"
+            },
+            {
+              "key": "country",
+              "value": "BR"
+            },
+            {
+              "key": "currency",
+              "value": "BRL"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "KuantoKusta - iPhone 15",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=iphone 15&country=PT&currency=EUR",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "iphone 15"
+            },
+            {
+              "key": "country",
+              "value": "PT"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Kelkoo - Samsung Galaxy",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=samsung galaxy s24&country=ES&currency=EUR",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "samsung galaxy s24"
+            },
+            {
+              "key": "country",
+              "value": "ES"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "With Current Country Context",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=macbook pro&country=PT&currentCountry=BR&currency=EUR",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "macbook pro"
+            },
+            {
+              "key": "country",
+              "value": "PT"
+            },
+            {
+              "key": "currentCountry",
+              "value": "BR"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Invalid Country",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=test&country=XX&currency=USD",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "test"
+            },
+            {
+              "key": "country",
+              "value": "XX"
+            },
+            {
+              "key": "currency",
+              "value": "USD"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Error - Missing Parameters",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=test",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "test"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Special Characters Test",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=café expresso&country=PT&currency=EUR",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "café expresso"
+            },
+            {
+              "key": "country",
+              "value": "PT"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
