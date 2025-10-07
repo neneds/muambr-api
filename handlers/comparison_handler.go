@@ -21,14 +21,29 @@ func NewComparisonHandler() *ComparisonHandler {
 	}
 }
 
-// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&macroregion=true&limit=10
+// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&limit=10
+//
+// Query Parameters:
+// - name (required): Product name to search for
+// - country (required): User's base/home country ISO code (PT, US, ES, DE, GB, BR)
+// - currentCountry (optional): User's current location ISO code - if different from base country
+// - currency (optional): Target currency for price conversion - defaults to base country's currency
+// - limit (optional): Maximum number of results to return - defaults to 10
+//
+// Extractor Selection Rules:
+// 1. Always use extractors from the base country (country parameter)
+// 2. If currentCountry is provided and different from base country, append extractors from current country
+// 3. This allows users to see products from both their home country and current location
+//
+// Currency Conversion:
+// - Products with different currencies than the target currency will include a convertedPrice field
+// - Store names include availability context: "Store (Available for BaseCountry) - Browsing from CurrentCountry"
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	// Parse query parameters
 	productName := c.Query("name")
 	countryParam := c.Query("country")
 	currentCountryParam := c.Query("currentCountry")
 	baseCurrency := c.Query("currency")
-	macroRegionParam := c.Query("macroregion") == "true"
 	
 	// Parse limit parameter with default value of 10
 	limit := 10
@@ -49,27 +64,27 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		return
 	}
 
-	// Parse and validate ISO country code for comparison target
-	country, err := models.ParseCountryFromISO(strings.ToUpper(countryParam))
+	// Parse and validate ISO country code for user's base country
+	baseCountry, err := models.ParseCountryFromISO(strings.ToUpper(countryParam))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR"})
 		return
 	}
 
-	// Detect and validate current country using ExtractorHandler
+	// Detect and validate current country (where user is currently located) using ExtractorHandler
 	currentCountry, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(currentCountryParam))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	
-	// Use country's default currency if not provided
+	// Use base country's default currency if not provided
 	if baseCurrency == "" {
-		baseCurrency = country.GetCurrencyCode()
+		baseCurrency = baseCountry.GetCurrencyCode()
 	}
 
 	// Get product comparisons using the ExtractorHandler
-	comparisons, err := h.extractorHandler.GetProductComparisons(productName, country, currentCountry, macroRegionParam)
+	comparisons, err := h.extractorHandler.GetProductComparisons(productName, baseCountry, &currentCountry, baseCurrency)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get product comparisons"})
 		return

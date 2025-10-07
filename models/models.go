@@ -86,13 +86,20 @@ func ParseCountryFromISO(isoCode string) (Country, error) {
 	}
 }
 
+// ConvertedPrice represents a price converted to a different currency
+type ConvertedPrice struct {
+	Price    string `json:"price"`
+	Currency string `json:"currency"`
+}
+
 // ProductComparison represents a single product offer from comparison sites
 type ProductComparison struct {
-	Name     string `json:"name"`
-	Price    string `json:"price"`
-	Store    string `json:"store"`
-	Currency string `json:"currency"`
-	URL      string `json:"url"`
+	Name           string          `json:"name"`
+	Price          string          `json:"price"`
+	Store          string          `json:"store"`
+	Currency       string          `json:"currency"`
+	URL            string          `json:"url"`
+	ConvertedPrice *ConvertedPrice `json:"convertedPrice,omitempty"`
 }
 
 // ComparisonResponse represents the response for product comparisons

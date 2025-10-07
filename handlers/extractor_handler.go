@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"muambr-api/extractors"
 	"muambr-api/models"
 )
@@ -54,60 +57,148 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 	return country, nil
 }
 
-// GetProductComparisons retrieves product comparisons using all available extractors
-func (h *ExtractorHandler) GetProductComparisons(productName string, targetCountry models.Country, currentCountry models.Country, includeMacroRegion bool) ([]models.ProductComparison, error) {
-	var allComparisons []models.ProductComparison
+// GetProductComparisons retrieves product comparisons using available extractors
+func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string) ([]models.ProductComparison, error) {
+	var allResults []models.ProductComparison
 	
-	var extractorsToUse []extractors.Extractor
+	// Always use extractors from the base country (country parameter)
+	extractorsToUse := h.extractorRegistry.GetExtractorsForCountry(baseCountry)
 	
-	if includeMacroRegion && currentCountry != "" {
-		// Get all extractors from the same macro region as currentCountry
-		currentMacroRegion := currentCountry.GetMacroRegion()
-		extractorsToUse = h.extractorRegistry.GetExtractorsForMacroRegion(currentMacroRegion)
-	} else {
-		// Get extractors for the target country only
-		extractorsToUse = h.extractorRegistry.GetExtractorsForCountry(targetCountry)
+	// If currentCountry is available and different from baseCountry, append extractors from current country
+	if currentCountry != nil && *currentCountry != baseCountry {
+		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
+		extractorsToUse = append(extractorsToUse, currentCountryExtractors...)
 	}
-	
-	// Iterate through selected extractors
+
+	// Execute all selected extractors
 	for _, extractor := range extractorsToUse {
-		// Extract comparisons from this extractor
-		comparisons, err := extractor.GetComparisons(productName)
+		results, err := extractor.GetComparisons(searchTerm)
 		if err != nil {
 			// Log error but continue with other extractors
-			// TODO: Add proper logging
 			continue
 		}
-		
-		// Apply current country context to results
-		comparisons = h.applyCurrentCountryContext(comparisons, currentCountry)
-		
-		// Add to overall results
-		allComparisons = append(allComparisons, comparisons...)
+		allResults = append(allResults, results...)
 	}
 	
-	return allComparisons, nil
+	// Apply currency conversion if needed
+	if targetCurrency != "" {
+		allResults = h.applyCountryContextAndCurrencyConversion(allResults, baseCountry, currentCountry, targetCurrency)
+	}
+	
+	return allResults, nil
 }
 
-// applyCurrentCountryContext applies current country context to comparison results
-func (h *ExtractorHandler) applyCurrentCountryContext(comparisons []models.ProductComparison, currentCountry models.Country) []models.ProductComparison {
-	if currentCountry == "" {
-		return comparisons
-	}
+// applyCountryContextAndCurrencyConversion applies country context and currency conversion to comparison results
+func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons []models.ProductComparison, baseCountry models.Country, currentCountry *models.Country, targetCurrency string) []models.ProductComparison {
 	
-	// Apply current country context (shipping, availability, etc.)
+	// Apply country context and currency conversion
 	for i := range comparisons {
-		// TODO: Implement actual current country logic:
-		// - Check shipping availability to current country
-		// - Calculate shipping costs
-		// - Apply regional restrictions
-		// - Convert currencies if needed
+		// Add availability context based on base country (user's home country)
+		comparisons[i].Store += " (Available for " + baseCountry.GetCountryName() + ")"
 		
-		// For now, just add availability context to store name
-		comparisons[i].Store += " (Available in " + currentCountry.GetCountryName() + ")"
+		// If user is in a different country than their base country, add location context
+		if currentCountry != nil && *currentCountry != baseCountry {
+			comparisons[i].Store += " - Browsing from " + currentCountry.GetCountryName()
+		}
+		
+		// Apply currency conversion: convert from product's currency to target currency
+		if targetCurrency != "" && comparisons[i].Currency != targetCurrency {
+			convertedPrice := h.convertCurrency(comparisons[i].Price, comparisons[i].Currency, targetCurrency)
+			if convertedPrice != nil {
+				comparisons[i].ConvertedPrice = convertedPrice
+			}
+		}
 	}
 	
 	return comparisons
+}
+
+// convertCurrency converts a price from one currency to another
+// TODO: This is a placeholder implementation. In production, integrate with a real currency conversion API
+func (h *ExtractorHandler) convertCurrency(price string, fromCurrency string, toCurrency string) *models.ConvertedPrice {
+	if fromCurrency == toCurrency {
+		return nil // No conversion needed
+	}
+	
+	// TODO: Implement real currency conversion using an external API like:
+	// - ExchangeRate-API
+	// - Fixer.io
+	// - CurrencyLayer
+	// - European Central Bank API
+	
+	// For now, return a placeholder conversion
+	// This should be replaced with actual API calls
+	mockExchangeRates := map[string]map[string]float64{
+		"BRL": {
+			"EUR": 0.18,  // 1 BRL = 0.18 EUR (approximate)
+			"USD": 0.20,  // 1 BRL = 0.20 USD (approximate)
+		},
+		"EUR": {
+			"BRL": 5.55,  // 1 EUR = 5.55 BRL (approximate)
+			"USD": 1.10,  // 1 EUR = 1.10 USD (approximate)
+		},
+		"USD": {
+			"BRL": 5.00,  // 1 USD = 5.00 BRL (approximate)
+			"EUR": 0.91,  // 1 USD = 0.91 EUR (approximate)
+		},
+	}
+	
+	// Parse the price (remove any non-numeric characters except decimal point)
+	priceFloat := parsePrice(price)
+	if priceFloat <= 0 {
+		return nil
+	}
+	
+	// Get exchange rate
+	if rates, exists := mockExchangeRates[fromCurrency]; exists {
+		if rate, rateExists := rates[toCurrency]; rateExists {
+			convertedAmount := priceFloat * rate
+			return &models.ConvertedPrice{
+				Price:    fmt.Sprintf("%.2f", convertedAmount),
+				Currency: toCurrency,
+			}
+		}
+	}
+	
+	// If no exchange rate found, return nil
+	return nil
+}
+
+// parsePrice parses a price string and returns the numeric value
+func parsePrice(priceStr string) float64 {
+	// Remove common currency symbols and formatting
+	cleaned := priceStr
+	
+	// Remove currency symbols
+	cleaned = strings.ReplaceAll(cleaned, "€", "")
+	cleaned = strings.ReplaceAll(cleaned, "$", "")
+	cleaned = strings.ReplaceAll(cleaned, "R$", "")
+	cleaned = strings.ReplaceAll(cleaned, "£", "")
+	cleaned = strings.ReplaceAll(cleaned, "¥", "")
+	
+	// Remove spaces
+	cleaned = strings.TrimSpace(cleaned)
+	
+	// Handle different decimal separators
+	// Convert European format (1.234,56) to US format (1234.56)
+	if strings.Contains(cleaned, ",") && strings.Contains(cleaned, ".") {
+		// Format like 1.234,56 -> 1234.56
+		parts := strings.Split(cleaned, ",")
+		if len(parts) == 2 {
+			integerPart := strings.ReplaceAll(parts[0], ".", "")
+			cleaned = integerPart + "." + parts[1]
+		}
+	} else if strings.Contains(cleaned, ",") && !strings.Contains(cleaned, ".") {
+		// Format like 1234,56 -> 1234.56
+		cleaned = strings.ReplaceAll(cleaned, ",", ".")
+	}
+	
+	// Parse as float
+	if value, err := strconv.ParseFloat(cleaned, 64); err == nil {
+		return value
+	}
+	
+	return 0
 }
 
 // CountryValidationError represents an error in country code validation

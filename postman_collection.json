@@ -244,6 +244,41 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "Currency Conversion Test",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=macbook pro&country=PT&currentCountry=BR&currency=EUR&limit=3",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "macbook pro"
+            },
+            {
+              "key": "country",
+              "value": "PT"
+            },
+            {
+              "key": "currentCountry",
+              "value": "BR"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            },
+            {
+              "key": "limit",
+              "value": "3"
+            }
+          ]
+        }
+      },
+      "response": []
     }
   ]
 }
