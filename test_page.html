@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>muambr-api Tester</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+        .response {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            min-height: 100px;
+            border: 2px solid #ddd;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        .quick-tests {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .status.online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 muambr-api Tester</h1>
+        
+        <div id="status" class="status">Checking server status...</div>
+
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:8080" placeholder="API Base URL">
+        </div>
+
+        <div class="quick-tests">
+            <h3 style="width: 100%; margin: 0 0 15px 0;">Quick Tests:</h3>
+            <button class="btn btn-secondary" onclick="testHealth()">Health Check</button>
+            <button class="btn btn-secondary" onclick="testBrazil()">Brazil (Sony XM6)</button>
+            <button class="btn btn-secondary" onclick="testPortugal()">Portugal (iPhone 15)</button>
+            <button class="btn btn-secondary" onclick="testSpain()">Spain (Samsung)</button>
+            <button class="btn btn-secondary" onclick="testError()">Error Test</button>
+        </div>
+
+        <form onsubmit="testCustom(event)">
+            <div class="form-group">
+                <label for="productName">Product Name:</label>
+                <input type="text" id="productName" value="sony xm6" placeholder="Enter product name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="country">Country:</label>
+                <select id="country" required>
+                    <option value="BR">🇧🇷 Brazil (BR)</option>
+                    <option value="PT">🇵🇹 Portugal (PT)</option>
+                    <option value="ES">🇪🇸 Spain (ES)</option>
+                    <option value="US">🇺🇸 United States (US)</option>
+                    <option value="DE">🇩🇪 Germany (DE)</option>
+                    <option value="GB">🇬🇧 United Kingdom (GB)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="currency">Currency:</label>
+                <select id="currency" required>
+                    <option value="BRL">BRL (Brazilian Real)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                    <option value="USD">USD (US Dollar)</option>
+                    <option value="GBP">GBP (British Pound)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="currentCountry">Current Country (Optional):</label>
+                <select id="currentCountry">
+                    <option value="">Not specified</option>
+                    <option value="BR">🇧🇷 Brazil</option>
+                    <option value="PT">🇵🇹 Portugal</option>
+                    <option value="ES">🇪🇸 Spain</option>
+                    <option value="US">🇺🇸 United States</option>
+                    <option value="DE">🇩🇪 Germany</option>
+                    <option value="GB">🇬🇧 United Kingdom</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn">🔍 Search Products</button>
+        </form>
+
+        <div id="response" class="response" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Check server status on load
+        window.onload = function() {
+            checkServerStatus();
+        };
+
+        async function checkServerStatus() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            const statusDiv = document.getElementById('status');
+            
+            try {
+                const response = await fetch(`${baseUrl}/health`);
+                if (response.ok) {
+                    statusDiv.className = 'status online';
+                    statusDiv.textContent = '✅ Server is online and responding';
+                } else {
+                    statusDiv.className = 'status offline';
+                    statusDiv.textContent = `❌ Server responded with status ${response.status}`;
+                }
+            } catch (error) {
+                statusDiv.className = 'status offline';
+                statusDiv.textContent = '❌ Server is offline or unreachable';
+            }
+        }
+
+        async function makeRequest(url, description) {
+            const responseDiv = document.getElementById('response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response loading';
+            responseDiv.textContent = `⏳ ${description}...`;
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const endTime = Date.now();
+                const responseTime = endTime - startTime;
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ ${description} (${responseTime}ms)\n\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ ${description} failed (${responseTime}ms)\nStatus: ${response.status}\n\n${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `❌ ${description} failed\nError: ${error.message}`;
+            }
+        }
+
+        function testHealth() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            makeRequest(`${baseUrl}/health`, 'Health Check');
+        }
+
+        function testBrazil() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            makeRequest(`${baseUrl}/api/comparisons?name=sony%20xm6&country=BR&currency=BRL`, 'Brazil - Sony XM6');
+        }
+
+        function testPortugal() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            makeRequest(`${baseUrl}/api/comparisons?name=iphone%2015&country=PT&currency=EUR`, 'Portugal - iPhone 15');
+        }
+
+        function testSpain() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            makeRequest(`${baseUrl}/api/comparisons?name=samsung%20galaxy&country=ES&currency=EUR`, 'Spain - Samsung Galaxy');
+        }
+
+        function testError() {
+            const baseUrl = document.getElementById('baseUrl').value;
+            makeRequest(`${baseUrl}/api/comparisons?name=test&country=XX&currency=USD`, 'Error Test - Invalid Country');
+        }
+
+        function testCustom(event) {
+            event.preventDefault();
+            
+            const baseUrl = document.getElementById('baseUrl').value;
+            const productName = encodeURIComponent(document.getElementById('productName').value);
+            const country = document.getElementById('country').value;
+            const currency = document.getElementById('currency').value;
+            const currentCountry = document.getElementById('currentCountry').value;
+            
+            let url = `${baseUrl}/api/comparisons?name=${productName}&country=${country}&currency=${currency}`;
+            if (currentCountry) {
+                url += `&currentCountry=${currentCountry}`;
+            }
+            
+            makeRequest(url, `Custom Search - ${document.getElementById('productName').value}`);
+        }
+
+        // Auto-update currency based on country selection
+        document.getElementById('country').onchange = function() {
+            const country = this.value;
+            const currencySelect = document.getElementById('currency');
+            
+            const currencyMap = {
+                'BR': 'BRL',
+                'PT': 'EUR',
+                'ES': 'EUR',
+                'DE': 'EUR',
+                'US': 'USD',
+                'GB': 'GBP'
+            };
+            
+            if (currencyMap[country]) {
+                currencySelect.value = currencyMap[country];
+            }
+        };
+    </script>
+</body>
+</html>

@@ -8,154 +8,92 @@ def extract_kelkoo_products(html_string):
     
     # Check if the page is blocked by anti-bot protection
     if "Please enable JS" in html_string or "captcha" in html_string.lower():
-        # Website is blocking us, return sample products
-        return [
-            {
-                "name": "Sony WH-1000XM6 Wireless Headphones - Kelkoo Protected",
-                "price": "349.99", 
-                "store": "Kelkoo Partner Store (Available in Spain)",
-                "currency": "EUR",
-                "url": "https://www.kelkoo.es"
-            }
-        ]
+        return products
 
-    # Find product containers - Kelkoo typically uses product card layouts
-    # Look for common selectors that might contain product information
-    product_selectors = [
-        'div[class*="product"]',
-        'div[class*="item"]',
-        'div[class*="card"]',
-        'div[class*="offer"]',
-        'li[class*="product"]',
-        'article[class*="product"]'
-    ]
+    # Kelkoo uses JSON-LD structured data for products
+    # Find all script tags with type="application/ld+json"
+    json_ld_scripts = soup.find_all('script', type='application/ld+json')
     
-    for selector in product_selectors:
-        product_cards = soup.select(selector)
-        if product_cards:
-            break
-    
-    if not product_cards:
-        # Fallback: try to find any divs with price information
-        product_cards = soup.find_all('div', string=re.compile(r'€|\$|EUR'))
-        if not product_cards:
-            product_cards = soup.find_all('div', class_=re.compile(r'product|item|offer', re.I))
-
-    for card in product_cards:
+    for script in json_ld_scripts:
         try:
-            # Extract product name
-            name = None
-            name_selectors = [
-                'h3', 'h4', 'h2', 'h1',
-                '[class*="title"]', '[class*="name"]', 
-                'a[title]', 'img[alt]'
-            ]
-            
-            for name_sel in name_selectors:
-                name_element = card.select_one(name_sel)
-                if name_element:
-                    if name_element.name == 'img':
-                        name = name_element.get('alt', '').strip()
-                    elif name_element.name == 'a':
-                        name = name_element.get('title', name_element.get_text(strip=True))
-                    else:
-                        name = name_element.get_text(strip=True)
-                    if name and len(name) > 5:  # Filter out very short names
-                        break
-            
-            # Extract price
-            price = None
-            currency = "EUR"  # Default for Spain
-            
-            price_selectors = [
-                '[class*="price"]', '[class*="cost"]', '[class*="amount"]',
-                'span:contains("€")', 'div:contains("€")'
-            ]
-            
-            for price_sel in price_selectors:
-                price_element = card.select_one(price_sel)
-                if price_element:
-                    price_text = price_element.get_text(strip=True)
-                    # Extract price and currency using regex
-                    price_match = re.search(r'([\d.,]+)\s*([€$£]|EUR|USD|GBP)?', price_text)
-                    if price_match:
-                        price = price_match.group(1).replace(',', '.')
-                        currency_symbol = price_match.group(2)
-                        if currency_symbol:
-                            if currency_symbol in ['€', 'EUR']:
-                                currency = 'EUR'
-                            elif currency_symbol in ['$', 'USD']:
-                                currency = 'USD'
-                            elif currency_symbol in ['£', 'GBP']:
-                                currency = 'GBP'
-                        break
-            
-            # Extract store name
-            store = "Kelkoo Partner Store"
-            store_selectors = [
-                '[class*="shop"]', '[class*="store"]', '[class*="merchant"]',
-                '[class*="vendor"]', 'img[alt*="tienda"]', 'img[alt*="shop"]'
-            ]
-            
-            for store_sel in store_selectors:
-                store_element = card.select_one(store_sel)
-                if store_element:
-                    if store_element.name == 'img':
-                        store_name = store_element.get('alt', '').strip()
-                    else:
-                        store_name = store_element.get_text(strip=True)
-                    if store_name and len(store_name) > 2:
-                        store = store_name
-                        break
-            
-            # Extract URL
-            url = "https://www.kelkoo.es"
-            link_element = card.select_one('a[href]')
-            if link_element:
-                href = link_element.get('href', '')
-                if href.startswith('http'):
-                    url = href
-                elif href.startswith('/'):
-                    url = "https://www.kelkoo.es" + href
-                else:
-                    url = "https://www.kelkoo.es/" + href
-            
-            # Only add products with valid name and price
-            if name and price:
-                products.append({
-                    "name": name,
-                    "price": price,
-                    "store": store + " (Available in Spain)",
-                    "currency": currency,
-                    "url": url
-                })
+            if not script.string:
+                continue
                 
-        except (AttributeError, ValueError, KeyError):
-            # Skip problematic cards
+            data = json.loads(script.string)
+            
+            # Handle both single objects and arrays
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                if '@graph' in data:
+                    items = data['@graph']
+                elif '@type' in data:
+                    items = [data]
+                else:
+                    continue
+            else:
+                continue
+            
+            # Extract products from JSON-LD data
+            for item in items:
+                try:
+                    if item.get('@type') == 'Product':
+                        name = item.get('name', '').strip()
+                        if not name or len(name) < 5:
+                            continue
+                            
+                        # Extract offer information
+                        offers = item.get('offers', {})
+                        if isinstance(offers, list):
+                            # Take the first offer if it's a list
+                            offers = offers[0] if offers else {}
+                            
+                        price = offers.get('price', '')
+                        currency = offers.get('priceCurrency', 'EUR')
+                        
+                        # Convert price to string format
+                        if isinstance(price, (int, float)):
+                            price = str(float(price))
+                        elif isinstance(price, str):
+                            # Extract numeric price if it's a string
+                            price_match = re.search(r'(\d+[.,]?\d*)', str(price))
+                            if price_match:
+                                price = price_match.group(1).replace(',', '.')
+                            else:
+                                continue
+                        else:
+                            continue
+                            
+                        # Extract seller information
+                        seller = offers.get('seller', {})
+                        if isinstance(seller, dict):
+                            store_name = seller.get('name', 'Kelkoo Partner Store')
+                        else:
+                            store_name = 'Kelkoo Partner Store'
+                            
+                        # Get product URL
+                        product_url = item.get('url', offers.get('url', 'https://www.kelkoo.es'))
+                        
+                        # Clean up product name (remove excessive details)
+                        name = re.sub(r'\s+', ' ', name).strip()
+                        if len(name) > 80:
+                            name = name[:77] + "..."
+                            
+                        products.append({
+                            'name': name,
+                            'price': price,
+                            'store': store_name,
+                            'currency': currency,
+                            'url': product_url
+                        })
+                        
+                except (KeyError, TypeError, ValueError):
+                    continue
+                    
+        except (json.JSONDecodeError, TypeError):
             continue
-    
-    # If no products found or site blocked, return sample products
-    if not products:
-        products.extend([
-            {
-                "name": "Sony WH-1000XM6 Wireless Headphones",
-                "price": "349.99", 
-                "store": "Kelkoo Electronics (Available in Spain)",
-                "currency": "EUR",
-                "url": "https://www.kelkoo.es/buscar?consulta=sony+1000xm6"
-            },
-            {
-                "name": "Sony WH-1000XM6 Black Edition", 
-                "price": "329.99",
-                "store": "Kelkoo Audio Store (Available in Spain)",
-                "currency": "EUR", 
-                "url": "https://www.kelkoo.es/buscar?consulta=sony+1000xm6"
-            }
-        ])
-    
-    return products
 
-# Test function for debugging
+    return products# Test function for debugging
 if __name__ == "__main__":
     # Test with sample HTML
     test_html = """
