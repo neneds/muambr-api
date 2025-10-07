@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -121,8 +122,14 @@ func (e *MercadoLivreExtractor) extractWithPython(htmlContent string) ([]models.
 		return nil, fmt.Errorf("failed to get script path: %w", err)
 	}
 
-	// Prepare the Python command using the virtual environment
-	cmd := exec.Command("/Users/dennismerli/Documents/Projects/muambr-goapi/.venv/bin/python", "-c", fmt.Sprintf(`
+	// Get Python path from environment or use default
+	pythonPath := os.Getenv("PYTHON_PATH")
+	if pythonPath == "" {
+		pythonPath = "python3" // Default for production environments like Render
+	}
+
+	// Prepare the Python command
+	cmd := exec.Command(pythonPath, "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
 from mercadolivre_page import extract_mercadolivre_products

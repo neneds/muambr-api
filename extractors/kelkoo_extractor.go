@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -121,8 +122,14 @@ func (e *KelkooExtractor) extractWithPython(htmlContent string) ([]models.Produc
 		return nil, fmt.Errorf("failed to get script path: %w", err)
 	}
 
-	// Prepare the Python command using the virtual environment
-	cmd := exec.Command("/Users/dennismerli/Documents/Projects/muambr-goapi/.venv/bin/python", "-c", fmt.Sprintf(`
+	// Get Python path from environment or use default
+	pythonPath := os.Getenv("PYTHON_PATH")
+	if pythonPath == "" {
+		pythonPath = "python3" // Default for production environments like Render
+	}
+
+	// Prepare the Python command
+	cmd := exec.Command(pythonPath, "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
 from kelkoo_page import extract_kelkoo_products

@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"muambr-api/routes"
 
 	"github.com/gin-gonic/gin"
@@ -36,9 +37,15 @@ func main() {
 	// Setup API routes
 	routes.SetupRoutes(r)
 
-	// Start server on port 8080
-	log.Println("Starting Product Comparison API server on :8080")
-	if err := r.Run(":8080"); err != nil {
+	// Get port from environment variable (required for Render.com)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // Default for local development
+	}
+
+	// Start server
+	log.Printf("Starting Product Comparison API server on port %s", port)
+	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
 }
