@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"muambr-api/models"
 	"github.com/gin-gonic/gin"
@@ -19,7 +21,7 @@ func NewComparisonHandler() *ComparisonHandler {
 	}
 }
 
-// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&macroregion=true
+// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&macroregion=true&limit=10
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	// Parse query parameters
 	productName := c.Query("name")
@@ -27,6 +29,14 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	currentCountryParam := c.Query("currentCountry")
 	baseCurrency := c.Query("currency")
 	macroRegionParam := c.Query("macroregion") == "true"
+	
+	// Parse limit parameter with default value of 10
+	limit := 10
+	if limitParam := c.Query("limit"); limitParam != "" {
+		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
+			limit = parsedLimit
+		}
+	}
 
 	// Validate required parameters
 	if productName == "" {
@@ -69,6 +79,30 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 	if len(comparisons) == 0 {
 		c.JSON(http.StatusOK, gin.H{"data": []models.ProductComparison{}})
 		return
+	}
+
+	// Sort products by price (smallest first)
+	sort.Slice(comparisons, func(i, j int) bool {
+		priceI, errI := strconv.ParseFloat(comparisons[i].Price, 64)
+		priceJ, errJ := strconv.ParseFloat(comparisons[j].Price, 64)
+		
+		// If parsing fails, put those items at the end
+		if errI != nil && errJ != nil {
+			return false
+		}
+		if errI != nil {
+			return false
+		}
+		if errJ != nil {
+			return true
+		}
+		
+		return priceI < priceJ
+	})
+
+	// Apply limit
+	if limit > 0 && len(comparisons) > limit {
+		comparisons = comparisons[:limit]
 	}
 
 	response := models.ComparisonResponse(comparisons)

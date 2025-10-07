@@ -31,7 +31,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=sony xm6&country=BR&currency=BRL",
+          "raw": "{{base_url}}/api/comparisons?name=sony xm6&country=BR&currency=BRL&limit=5",
           "host": ["{{base_url}}"],
           "path": ["api", "comparisons"],
           "query": [
@@ -46,6 +46,10 @@
             {
               "key": "currency",
               "value": "BRL"
+            },
+            {
+              "key": "limit",
+              "value": "5"
             }
           ]
         }
@@ -204,6 +208,37 @@
             {
               "key": "currency",
               "value": "EUR"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Limit Test - 3 results",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/comparisons?name=iphone 15&country=PT&currency=EUR&limit=3",
+          "host": ["{{base_url}}"],
+          "path": ["api", "comparisons"],
+          "query": [
+            {
+              "key": "name",
+              "value": "iphone 15"
+            },
+            {
+              "key": "country",
+              "value": "PT"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            },
+            {
+              "key": "limit",
+              "value": "3"
             }
           ]
         }
