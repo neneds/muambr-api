@@ -122,25 +122,6 @@ def extract_mercadolivre_products(html_string):
                 # Skip problematic cards
                 continue
 
-    # If no products found, return sample products
-    if not products:
-        products.extend([
-            {
-                'name': 'Sony WH-1000XM6 Wireless Headphones',
-                'price': '3997.00',
-                'store': 'Mercado Livre (Available in Brazil)',
-                'currency': 'BRL',
-                'url': 'https://www.mercadolivre.com.br/buscar/sony-xm6'
-            },
-            {
-                'name': 'Sony WH-1000XM5 Noise Canceling',
-                'price': '2538.69',
-                'store': 'Mercado Livre (Available in Brazil)',
-                'currency': 'BRL',
-                'url': 'https://www.mercadolivre.com.br/buscar/sony-xm6'
-            }
-        ])
-    
     return products
 
 # Test function for debugging

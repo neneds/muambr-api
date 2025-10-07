@@ -125,7 +125,13 @@ func (e *MercadoLivreExtractor) extractWithPython(htmlContent string) ([]models.
 	// Get Python path from environment or use default
 	pythonPath := os.Getenv("PYTHON_PATH")
 	if pythonPath == "" {
-		pythonPath = "python3" // Default for production environments like Render
+		// Check if we're in development with a virtual environment
+		venvPath := "/Users/dennismerli/Documents/Projects/muambr-goapi/.venv/bin/python"
+		if _, err := os.Stat(venvPath); err == nil {
+			pythonPath = venvPath
+		} else {
+			pythonPath = "python3" // Default for production environments like Render
+		}
 	}
 
 	// Prepare the Python command
