@@ -6,9 +6,15 @@ import (
 	"muambr-api/routes"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (for local development)
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found or error loading .env file (this is OK in production)")
+	}
+
 	// Create Gin router with default middleware (logger and recovery)
 	r := gin.Default()
 

@@ -2,15 +2,15 @@ package handlers
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"muambr-api/extractors"
 	"muambr-api/models"
+	"muambr-api/utils"
 )
 
 // ExtractorHandler handles country detection and price extraction coordination
 type ExtractorHandler struct {
-	extractorRegistry *extractors.ExtractorRegistry
+	extractorRegistry   *extractors.ExtractorRegistry
+	exchangeRateService *utils.ExchangeRateService
 }
 
 // NewExtractorHandler creates a new ExtractorHandler with initialized extractors
@@ -19,7 +19,8 @@ func NewExtractorHandler() *ExtractorHandler {
 	initializeExtractors(registry)
 	
 	return &ExtractorHandler{
-		extractorRegistry: registry,
+		extractorRegistry:   registry,
+		exchangeRateService: utils.NewExchangeRateService(),
 	}
 }
 
@@ -113,92 +114,24 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 	return comparisons
 }
 
-// convertCurrency converts a price from one currency to another
-// TODO: This is a placeholder implementation. In production, integrate with a real currency conversion API
+// convertCurrency converts a price from one currency to another using real exchange rates with caching
 func (h *ExtractorHandler) convertCurrency(price string, fromCurrency string, toCurrency string) *models.ConvertedPrice {
 	if fromCurrency == toCurrency {
 		return nil // No conversion needed
 	}
 	
-	// TODO: Implement real currency conversion using an external API like:
-	// - ExchangeRate-API
-	// - Fixer.io
-	// - CurrencyLayer
-	// - European Central Bank API
-	
-	// For now, return a placeholder conversion
-	// This should be replaced with actual API calls
-	mockExchangeRates := map[string]map[string]float64{
-		"BRL": {
-			"EUR": 0.18,  // 1 BRL = 0.18 EUR (approximate)
-			"USD": 0.20,  // 1 BRL = 0.20 USD (approximate)
-		},
-		"EUR": {
-			"BRL": 5.55,  // 1 EUR = 5.55 BRL (approximate)
-			"USD": 1.10,  // 1 EUR = 1.10 USD (approximate)
-		},
-		"USD": {
-			"BRL": 5.00,  // 1 USD = 5.00 BRL (approximate)
-			"EUR": 0.91,  // 1 USD = 0.91 EUR (approximate)
-		},
-	}
-	
-	// Parse the price (remove any non-numeric characters except decimal point)
-	priceFloat := parsePrice(price)
-	if priceFloat <= 0 {
+	// Use the exchange rate service to convert the price
+	convertedPriceStr, err := h.exchangeRateService.ConvertPriceString(price, fromCurrency, toCurrency)
+	if err != nil {
+		// Log error and return nil - this will allow the product to still be shown without conversion
+		fmt.Printf("Currency conversion failed from %s to %s for price %s: %v\n", fromCurrency, toCurrency, price, err)
 		return nil
 	}
 	
-	// Get exchange rate
-	if rates, exists := mockExchangeRates[fromCurrency]; exists {
-		if rate, rateExists := rates[toCurrency]; rateExists {
-			convertedAmount := priceFloat * rate
-			return &models.ConvertedPrice{
-				Price:    fmt.Sprintf("%.2f", convertedAmount),
-				Currency: toCurrency,
-			}
-		}
+	return &models.ConvertedPrice{
+		Price:    convertedPriceStr,
+		Currency: toCurrency,
 	}
-	
-	// If no exchange rate found, return nil
-	return nil
-}
-
-// parsePrice parses a price string and returns the numeric value
-func parsePrice(priceStr string) float64 {
-	// Remove common currency symbols and formatting
-	cleaned := priceStr
-	
-	// Remove currency symbols
-	cleaned = strings.ReplaceAll(cleaned, "€", "")
-	cleaned = strings.ReplaceAll(cleaned, "$", "")
-	cleaned = strings.ReplaceAll(cleaned, "R$", "")
-	cleaned = strings.ReplaceAll(cleaned, "£", "")
-	cleaned = strings.ReplaceAll(cleaned, "¥", "")
-	
-	// Remove spaces
-	cleaned = strings.TrimSpace(cleaned)
-	
-	// Handle different decimal separators
-	// Convert European format (1.234,56) to US format (1234.56)
-	if strings.Contains(cleaned, ",") && strings.Contains(cleaned, ".") {
-		// Format like 1.234,56 -> 1234.56
-		parts := strings.Split(cleaned, ",")
-		if len(parts) == 2 {
-			integerPart := strings.ReplaceAll(parts[0], ".", "")
-			cleaned = integerPart + "." + parts[1]
-		}
-	} else if strings.Contains(cleaned, ",") && !strings.Contains(cleaned, ".") {
-		// Format like 1234,56 -> 1234.56
-		cleaned = strings.ReplaceAll(cleaned, ",", ".")
-	}
-	
-	// Parse as float
-	if value, err := strconv.ParseFloat(cleaned, 64); err == nil {
-		return value
-	}
-	
-	return 0
 }
 
 // CountryValidationError represents an error in country code validation
