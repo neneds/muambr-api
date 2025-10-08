@@ -1,18 +1,23 @@
 package main
 
 import (
-	"log"
 	"os"
 	"muambr-api/routes"
+	"muambr-api/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Initialize logger
+	if err := utils.InitDevelopmentLogger(); err != nil {
+		panic("Failed to initialize logger: " + err.Error())
+	}
+
 	// Load .env file if it exists (for local development)
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found or error loading .env file (this is OK in production)")
+		utils.Info("No .env file found or error loading .env file (this is OK in production)")
 	}
 
 	// Create Gin router with default middleware (logger and recovery)
@@ -36,7 +41,7 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "ok",
-			"message": "Product Comparison API is running",
+			"message": "Muambr API is running",
 		})
 	})
 
@@ -50,8 +55,8 @@ func main() {
 	}
 
 	// Start server
-	log.Printf("Starting Product Comparison API server on port %s", port)
+	utils.Info("Starting Product Comparison API server", utils.String("port", port))
 	if err := r.Run(":" + port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		utils.Fatal("Failed to start server", utils.Error(err))
 	}
 }

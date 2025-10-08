@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"strconv"
 	"muambr-api/extractors"
 	"muambr-api/models"
@@ -136,14 +135,22 @@ func (h *ExtractorHandler) convertCurrency(price float64, fromCurrency string, t
 	convertedPriceStr, err := h.exchangeRateService.ConvertPriceString(priceStr, fromCurrency, toCurrency)
 	if err != nil {
 		// Log error and return nil - this will allow the product to still be shown without conversion
-		fmt.Printf("Currency conversion failed from %s to %s for price %.2f: %v\n", fromCurrency, toCurrency, price, err)
+		utils.Warn("Currency conversion failed", 
+			utils.String("fromCurrency", fromCurrency),
+			utils.String("toCurrency", toCurrency),
+			utils.Float64("price", price),
+			utils.Error(err),
+		)
 		return nil
 	}
 	
 	// Convert back to float64
 	convertedPrice, err := strconv.ParseFloat(convertedPriceStr, 64)
 	if err != nil {
-		fmt.Printf("Failed to parse converted price %s: %v\n", convertedPriceStr, err)
+		utils.LogError("Failed to parse converted price", 
+			utils.String("convertedPriceStr", convertedPriceStr),
+			utils.Error(err),
+		)
 		return nil
 	}
 	

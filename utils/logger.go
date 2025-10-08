@@ -55,8 +55,8 @@ func Bool(key string, value bool) Field {
 	return Field{Key: key, Value: value}
 }
 
-// ErrorField creates an error field
-func ErrorField(err error) Field {
+// Error creates an error field
+func Error(err error) Field {
 	return Field{Key: "error", Value: err}
 }
 
@@ -196,7 +196,7 @@ func Warn(msg string, fields ...Field) {
 	GetLogger().Warn(msg, fields...)
 }
 
-func Error(msg string, fields ...Field) {
+func LogError(msg string, fields ...Field) {
 	GetLogger().Error(msg, fields...)
 }
 

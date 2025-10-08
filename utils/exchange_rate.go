@@ -44,7 +44,7 @@ func NewExchangeRateService() *ExchangeRateService {
 	apiKey := os.Getenv("EXCHANGE_RATE_API_KEY")
 	if apiKey == "" {
 		// Log warning but don't fail - fall back to mock rates
-		fmt.Println("Warning: EXCHANGE_RATE_API_KEY not set, using mock exchange rates")
+		Warn("EXCHANGE_RATE_API_KEY not set, using mock exchange rates")
 	}
 
 	return &ExchangeRateService{
@@ -72,12 +72,12 @@ func (s *ExchangeRateService) GetExchangeRates(baseCurrency string) (map[string]
 	if err != nil {
 		// If API fails and we have expired cache, use it anyway
 		if exists {
-			fmt.Printf("Warning: Exchange rate API failed, using expired cache for %s\n", baseCurrency)
+			Warn("Exchange rate API failed, using expired cache", String("baseCurrency", baseCurrency))
 			return cached.Rates, nil
 		}
 		
 		// If no cache and API fails, return mock rates
-		fmt.Printf("Warning: Exchange rate API failed and no cache available, using mock rates for %s\n", baseCurrency)
+		Warn("Exchange rate API failed and no cache available, using mock rates", String("baseCurrency", baseCurrency))
 		return s.getMockRates(baseCurrency), nil
 	}
 
