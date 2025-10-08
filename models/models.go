@@ -88,8 +88,8 @@ func ParseCountryFromISO(isoCode string) (Country, error) {
 
 // ConvertedPrice represents a price converted to a different currency
 type ConvertedPrice struct {
-	Price    string `json:"price"`
-	Currency string `json:"currency"`
+	Price    float64 `json:"price"`
+	Currency string  `json:"currency"`
 }
 
 // ProductComparison represents a single product offer matching Swift client expectations

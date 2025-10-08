@@ -42,8 +42,6 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 // DetectCountryCode detects and validates the country code for the currentCountry parameter
 func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Country, error) {
 	if countryParam == "" {
-		// TODO: Implement IP-based country detection as fallback
-		// For now, return empty country (no detection)
 		return "", nil
 	}
 	
@@ -109,7 +107,7 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 			if convertedPrice != nil {
 				// Set the converted price field instead of modifying the original price
 				comparisons[i].ConvertedPrice = &models.ConvertedPrice{
-					Price:    strconv.FormatFloat(convertedPrice.Amount, 'f', 2, 64),
+					Price:    convertedPrice.Amount,
 					Currency: convertedPrice.Currency,
 				}
 			}

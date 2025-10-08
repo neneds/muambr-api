@@ -140,16 +140,12 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		
 		// Use converted price if available for comparison i
 		if comparisons[i].ConvertedPrice != nil {
-			if convertedI, err := strconv.ParseFloat(comparisons[i].ConvertedPrice.Price, 64); err == nil {
-				priceI = convertedI
-			}
+			priceI = comparisons[i].ConvertedPrice.Price
 		}
 		
 		// Use converted price if available for comparison j
 		if comparisons[j].ConvertedPrice != nil {
-			if convertedJ, err := strconv.ParseFloat(comparisons[j].ConvertedPrice.Price, 64); err == nil {
-				priceJ = convertedJ
-			}
+			priceJ = comparisons[j].ConvertedPrice.Price
 		}
 		
 		return priceI < priceJ
