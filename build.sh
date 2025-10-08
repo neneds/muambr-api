@@ -3,20 +3,23 @@ set -e  # Exit on any error
 
 echo "Starting build process for muambr-api..."
 
-# Install Python dependencies
-echo "Installing Python dependencies..."
+# Create a local Python packages directory
+mkdir -p ./python_packages
+
+# Install Python dependencies to local directory
+echo "Installing Python dependencies to local directory..."
 if command -v pip3 &> /dev/null; then
     echo "Using pip3 to install dependencies..."
-    pip3 install -r requirements.txt
+    pip3 install -r requirements.txt --target ./python_packages
 elif command -v pip &> /dev/null; then
     echo "Using pip to install dependencies..."  
-    pip install -r requirements.txt
+    pip install -r requirements.txt --target ./python_packages
 else
     echo "Using python3 -m pip to install dependencies..."
-    python3 -m pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt --target ./python_packages
 fi
 
-echo "Python dependencies installed successfully!"
+echo "Python dependencies installed successfully to ./python_packages!"
 
 # Install Go dependencies
 echo "Installing Go dependencies..."

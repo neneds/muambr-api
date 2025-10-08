@@ -211,9 +211,13 @@ func (e *MercadoLivreExtractor) extractWithPython(htmlContent string) ([]models.
 		utils.String("extractor", "mercadolivre"),
 		utils.String("temp_file", tempFile.Name()))
 
+	// Get current working directory for local packages
+	workDir, _ := os.Getwd()
+	
 	// Prepare the Python command using the temporary file
 	cmd := exec.Command(pythonPath, "-c", fmt.Sprintf(`
 import sys
+sys.path.append('%s')
 sys.path.append('%s')
 try:
     from mercadolivre_page import extract_mercadolivre_products
@@ -227,7 +231,7 @@ except ImportError as e:
     print('{"error": "Missing Python dependencies", "details": "' + str(e) + '"}')
 except Exception as e:
     print('{"error": "Python extraction failed", "details": "' + str(e) + '"}')
-`, filepath.Dir(scriptPath), tempFile.Name()))
+`, filepath.Dir(scriptPath), filepath.Join(workDir, "python_packages"), tempFile.Name()))
 
 	// Execute the Python script
 	var out bytes.Buffer
