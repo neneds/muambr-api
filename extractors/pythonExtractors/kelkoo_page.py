@@ -55,10 +55,31 @@ def extract_kelkoo_products(html_string):
                         if isinstance(price, (int, float)):
                             price = str(float(price))
                         elif isinstance(price, str):
-                            # Extract numeric price if it's a string
-                            price_match = re.search(r'(\d+[.,]?\d*)', str(price))
+                            # Extract numeric price handling European formatting
+                            price_match = re.search(r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)', str(price))
                             if price_match:
-                                price = price_match.group(1).replace(',', '.')
+                                price_str = price_match.group(1)
+                                # Handle European formatting: 1.049,99 -> 1049.99
+                                if ',' in price_str and '.' in price_str:
+                                    # European format with thousands separator
+                                    price = price_str.replace('.', '').replace(',', '.')
+                                elif ',' in price_str:
+                                    # Only comma (could be decimal or thousands)
+                                    parts = price_str.split(',')
+                                    if len(parts) == 2 and len(parts[1]) == 2:
+                                        # Decimal comma: 1049,99 -> 1049.99
+                                        price = price_str.replace(',', '.')
+                                    else:
+                                        # Thousands comma: 1,049 -> 1049
+                                        price = price_str.replace(',', '')
+                                else:
+                                    # Only dots or plain number
+                                    if '.' in price_str and len(price_str.split('.')[-1]) == 2:
+                                        # Decimal dot: 1049.99
+                                        price = price_str
+                                    else:
+                                        # Thousands separator: 1.049 -> 1049
+                                        price = price_str.replace('.', '')
                             else:
                                 continue
                         else:

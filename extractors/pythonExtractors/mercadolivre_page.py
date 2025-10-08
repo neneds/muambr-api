@@ -83,10 +83,29 @@ def extract_mercadolivre_products(html_string):
                     price_element = card.select_one(price_sel)
                     if price_element:
                         price_text = price_element.get_text(strip=True)
-                        # Remove thousand separators (dots) and keep only numbers
-                        price_match = re.search(r'[\d.,]+', price_text)
+                        # Extract price handling Brazilian format (R$ 3.997,99)
+                        price_match = re.search(r'([\d.,]+)', price_text)
                         if price_match:
-                            price = price_match.group(0).replace('.', '').replace(',', '.')
+                            price_str = price_match.group(0)
+                            # Handle Brazilian formatting: 3.997,99 -> 3997.99
+                            if ',' in price_str and '.' in price_str:
+                                # Brazilian format with thousands separator: 3.997,99 -> 3997.99
+                                price = price_str.replace('.', '').replace(',', '.')
+                            elif ',' in price_str:
+                                # Only comma - treat as decimal separator: 3997,99 -> 3997.99
+                                price = price_str.replace(',', '.')
+                            elif '.' in price_str:
+                                # Check if it's thousands separator or decimal
+                                parts = price_str.split('.')
+                                if len(parts) == 2 and len(parts[1]) == 2:
+                                    # Decimal point: 3997.99
+                                    price = price_str
+                                else:
+                                    # Thousands separator: 3.997 -> 3997
+                                    price = price_str.replace('.', '')
+                            else:
+                                # Plain number: 3997
+                                price = price_str
                             
                             # Check for currency symbol
                             currency_element = card.select_one('span.andes-money-amount__currency-symbol')
