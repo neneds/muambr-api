@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -220,8 +221,8 @@ print(json.dumps(products))
 			continue
 		}
 
-		// Generate unique ID
-		id := fmt.Sprintf("kelkoo_%d", len(comparisons)+1)
+		// Generate unique UUID
+		id := uuid.New().String()
 		
 		// Extract store URL safely
 		storeURL := utils.GetString(product["url"])

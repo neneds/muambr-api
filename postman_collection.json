@@ -55,16 +55,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=sony xm6&country=BR&currency=BRL&limit=5",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=sony xm6&baseCountry=BR&currency=BRL&limit=5",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "sony xm6"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "BR"
             },
             {
@@ -85,16 +85,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=sony xm6&country=BR&currency=BRL&limit=5",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=sony xm6&baseCountry=BR&currency=BRL&limit=5",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
                   "value": "sony xm6"
                 },
                 {
-                  "key": "country",
+                  "key": "baseCountry",
                   "value": "BR"
                 },
                 {
@@ -118,7 +118,7 @@
             }
           ],
           "cookie": [],
-          "body": "[\n  {\n    \"name\": \"Fone De Ouvido On-ear Sony Zx Series Mdr-zx110 Mdr-zx110 Preto\",\n    \"price\": \"121\",\n    \"store\": \"Mercado Livre (Available for Brazil)\",\n    \"currency\": \"BRL\",\n    \"url\": \"https://www.mercadolivre.com.br/fone-de-ouvido-on-ear-sony-zx-series-mdr-zx110-mdr-zx110-preto/p/MLB6072236\"\n  },\n  {\n    \"name\": \"Fone De Ouvido On-ear Sony Zx Series Mdr-zx110 Mdr-zx110 Branco\",\n    \"price\": \"121\",\n    \"store\": \"Mercado Livre (Available for Brazil)\",\n    \"currency\": \"BRL\",\n    \"url\": \"https://www.mercadolivre.com.br/fone-de-ouvido-on-ear-sony-zx-series-mdr-zx110-mdr-zx110-branco/p/MLB6072235\"\n  },\n  {\n    \"name\": \"Fone De Ouvido Sony Mdr-zx110 Headphone Dobrável (preto) Preto\",\n    \"price\": \"138.57\",\n    \"store\": \"Mercado Livre (Available for Brazil)\",\n    \"currency\": \"BRL\",\n    \"url\": \"https://www.mercadolivre.com.br/fone-de-ouvido-sony-mdrzx110-headphone-dobravel-preto/up/MLBU1100575710\"\n  }\n]"
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"ml-br-001\",\n      \"productName\": \"Fone De Ouvido On-ear Sony Zx Series Mdr-zx110 Preto\",\n      \"price\": 121.00,\n      \"currency\": \"BRL\",\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/fone-de-ouvido-on-ear-sony-zx-series-mdr-zx110-mdr-zx110-preto/p/MLB6072236\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"ml-br-002\",\n      \"productName\": \"Fone De Ouvido On-ear Sony Zx Series Mdr-zx110 Branco\",\n      \"price\": 121.00,\n      \"currency\": \"BRL\",\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/fone-de-ouvido-on-ear-sony-zx-series-mdr-zx110-mdr-zx110-branco/p/MLB6072235\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"ml-br-003\",\n      \"productName\": \"Fone De Ouvido Sony Mdr-zx110 Headphone Dobrável Preto\",\n      \"price\": 138.57,\n      \"currency\": \"BRL\",\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/fone-de-ouvido-sony-mdrzx110-headphone-dobravel-preto/up/MLBU1100575710\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 3\n}"
         }
       ]
     },
@@ -128,16 +128,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=iphone 15&country=PT&currency=EUR",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currency=EUR",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "iphone 15"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "PT"
             },
             {
@@ -154,16 +154,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=iphone 15&country=PT&currency=EUR",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currency=EUR",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
                   "value": "iphone 15"
                 },
                 {
-                  "key": "country",
+                  "key": "baseCountry",
                   "value": "PT"
                 },
                 {
@@ -183,7 +183,7 @@
             }
           ],
           "cookie": [],
-          "body": "[\n  {\n    \"name\": \"iPhone 15 128GB Azul\",\n    \"price\": \"899.00\",\n    \"store\": \"KuantoKusta (Available for Portugal)\",\n    \"currency\": \"EUR\",\n    \"url\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\"\n  },\n  {\n    \"name\": \"iPhone 15 256GB Rosa\",\n    \"price\": \"999.00\",\n    \"store\": \"KuantoKusta (Available for Portugal)\",\n    \"currency\": \"EUR\",\n    \"url\": \"https://www.kuantokusta.pt/p/12346/iphone-15-256gb-rosa\"\n  }\n]"
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-001\",\n      \"productName\": \"iPhone 15 128GB Azul\",\n      \"price\": 899.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"kk-pt-002\",\n      \"productName\": \"iPhone 15 256GB Rosa\",\n      \"price\": 999.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/12346/iphone-15-256gb-rosa\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
         }
       ]
     },
@@ -193,16 +193,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=samsung galaxy s24&country=ES&currency=EUR",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=samsung galaxy s24&baseCountry=ES&currency=EUR",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "samsung galaxy s24"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "ES"
             },
             {
@@ -219,16 +219,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=samsung galaxy s24&country=ES&currency=EUR",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=samsung galaxy s24&baseCountry=ES&currency=EUR",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
                   "value": "samsung galaxy s24"
                 },
                 {
-                  "key": "country",
+                  "key": "baseCountry",
                   "value": "ES"
                 },
                 {
@@ -248,7 +248,7 @@
             }
           ],
           "cookie": [],
-          "body": "{\n  \"data\": []\n}"
+          "body": "{\n  \"success\": true,\n  \"message\": \"No comparisons found for this product\",\n  \"comparisons\": [],\n  \"totalResults\": 0\n}"
         }
       ]
     },
@@ -258,20 +258,20 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=macbook pro&country=PT&currentCountry=BR&currency=EUR",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=macbook pro&baseCountry=PT&currentUserCountry=BR&currency=EUR",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "macbook pro"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "PT"
             },
             {
-              "key": "currentCountry",
+              "key": "currentUserCountry",
               "value": "BR"
             },
             {
@@ -288,20 +288,20 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=macbook pro&country=PT&currentCountry=BR&currency=EUR",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=macbook pro&baseCountry=PT&currentUserCountry=BR&currency=EUR",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
                   "value": "macbook pro"
                 },
                 {
-                  "key": "country",
+                  "key": "baseCountry",
                   "value": "PT"
                 },
                 {
-                  "key": "currentCountry",
+                  "key": "currentUserCountry",
                   "value": "BR"
                 },
                 {
@@ -321,7 +321,7 @@
             }
           ],
           "cookie": [],
-          "body": "[\n  {\n    \"name\": \"MacBook Pro 14 M3 512GB\",\n    \"price\": \"2299.00\",\n    \"store\": \"KuantoKusta (Available for Portugal) - Browsing from Brazil\",\n    \"currency\": \"EUR\",\n    \"url\": \"https://www.kuantokusta.pt/p/54321/macbook-pro-14-m3-512gb\"\n  },\n  {\n    \"name\": \"MacBook Pro 16 M3 1TB Silver\",\n    \"price\": \"6890\",\n    \"store\": \"Mercado Livre (Available for Portugal) - Browsing from Brazil\",\n    \"currency\": \"BRL\",\n    \"url\": \"https://www.mercadolivre.com.br/macbook-pro-16-m3-1tb-silver/p/MLB98765\",\n    \"convertedPrice\": {\n      \"price\": \"1290.45\",\n      \"currency\": \"EUR\"\n    }\n  }\n]"
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-003\",\n      \"productName\": \"MacBook Pro 14 M3 512GB\",\n      \"price\": 2299.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/54321/macbook-pro-14-m3-512gb\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"ml-br-004\",\n      \"productName\": \"MacBook Pro 16 M3 1TB Silver\",\n      \"price\": 6890.00,\n      \"currency\": \"BRL\",\n      \"convertedPrice\": {\n        \"price\": 1290.45,\n        \"currency\": \"EUR\"\n      },\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/macbook-pro-16-m3-1tb-silver/p/MLB98765\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
         }
       ]
     },
@@ -331,16 +331,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=test&country=XX&currency=USD",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=test&baseCountry=XX&currency=USD",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "test"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "XX"
             },
             {
@@ -357,16 +357,16 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=test&country=XX&currency=USD",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=test&baseCountry=XX&currency=USD",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
                   "value": "test"
                 },
                 {
-                  "key": "country",
+                  "key": "baseCountry",
                   "value": "XX"
                 },
                 {
@@ -386,7 +386,7 @@
             }
           ],
           "cookie": [],
-          "body": "{\n  \"error\": \"Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR\"\n}"
+          "body": "{\n  \"success\": false,\n  \"message\": \"Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR\",\n  \"comparisons\": [],\n  \"totalResults\": 0\n}"
         }
       ]
     },
@@ -396,9 +396,9 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=test",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=test",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
@@ -407,7 +407,66 @@
           ]
         }
       },
-      "response": []
+      "response": [
+        {
+          "name": "Missing Base Country Parameter Error",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=test",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "comparisons", "search"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "test"
+                }
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)\",\n  \"comparisons\": [],\n  \"totalResults\": 0\n}"
+        },
+        {
+          "name": "Missing Product Name Parameter Error",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comparisons/search?baseCountry=PT",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "comparisons", "search"],
+              "query": [
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                }
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": false,\n  \"message\": \"Product name is required\",\n  \"comparisons\": [],\n  \"totalResults\": 0\n}"
+        }
+      ]
     },
     {
       "name": "Special Characters Test",
@@ -415,16 +474,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=café expresso&country=PT&currency=EUR",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=café expresso&baseCountry=PT&currency=EUR",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "café expresso"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "PT"
             },
             {
@@ -442,16 +501,16 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=iphone 15&country=PT&currency=EUR&limit=3",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currency=EUR&limit=3",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "iphone 15"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "PT"
             },
             {
@@ -473,20 +532,20 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/comparisons?name=macbook pro&country=PT&currentCountry=BR&currency=EUR&limit=3",
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=macbook pro&baseCountry=PT&currentUserCountry=BR&currency=EUR&limit=3",
           "host": ["{{base_url}}"],
-          "path": ["api", "comparisons"],
+          "path": ["api", "v1", "comparisons", "search"],
           "query": [
             {
               "key": "name",
               "value": "macbook pro"
             },
             {
-              "key": "country",
+              "key": "baseCountry",
               "value": "PT"
             },
             {
-              "key": "currentCountry",
+              "key": "currentUserCountry",
               "value": "BR"
             },
             {
@@ -502,24 +561,40 @@
       },
       "response": [
         {
-          "name": "Missing Country Parameter Error",
+          "name": "Currency Conversion Success",
           "originalRequest": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/comparisons?name=test",
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=macbook pro&baseCountry=PT&currentUserCountry=BR&currency=EUR&limit=3",
               "host": ["{{base_url}}"],
-              "path": ["api", "comparisons"],
+              "path": ["api", "v1", "comparisons", "search"],
               "query": [
                 {
                   "key": "name",
-                  "value": "test"
+                  "value": "macbook pro"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                },
+                {
+                  "key": "currentUserCountry",
+                  "value": "BR"
+                },
+                {
+                  "key": "currency",
+                  "value": "EUR"
+                },
+                {
+                  "key": "limit",
+                  "value": "3"
                 }
               ]
             }
           },
-          "status": "Bad Request",
-          "code": 400,
+          "status": "OK",
+          "code": 200,
           "_postman_previewlanguage": "json",
           "header": [
             {
@@ -528,7 +603,7 @@
             }
           ],
           "cookie": [],
-          "body": "{\n  \"error\": \"Country ISO code is required (e.g., PT, US, ES, DE, GB, BR)\"\n}"
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-005\",\n      \"productName\": \"MacBook Pro 14 M3 Pro 512GB Space Black\",\n      \"price\": 2299.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/54325/macbook-pro-14-m3-pro-512gb\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"ml-br-005\",\n      \"productName\": \"MacBook Pro 13 M2 256GB\",\n      \"price\": 8999.00,\n      \"currency\": \"BRL\",\n      \"convertedPrice\": {\n        \"price\": 1685.23,\n        \"currency\": \"EUR\"\n      },\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/macbook-pro-13-m2-256gb/p/MLB98766\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
         }
       ]
     },
