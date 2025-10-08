@@ -46,9 +46,31 @@ def extract_kuantokusta_products(html_string):
                 if parent:
                     # Look for price patterns in the parent's text
                     parent_text = parent.get_text()
-                    price_match = re.search(r'desde\s*(\d+[.,]?\d*)', parent_text)
+                    # Match European price format: 1.049,99 or 1049,99 or 1049.99
+                    price_match = re.search(r'desde\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)', parent_text)
                     if price_match:
-                        price = price_match.group(1).replace(',', '.')
+                        price_str = price_match.group(1)
+                        # Handle European formatting: 1.049,99 -> 1049.99
+                        if ',' in price_str and '.' in price_str:
+                            # European format with thousands separator
+                            price = price_str.replace('.', '').replace(',', '.')
+                        elif ',' in price_str:
+                            # Only comma (could be decimal or thousands)
+                            parts = price_str.split(',')
+                            if len(parts) == 2 and len(parts[1]) == 2:
+                                # Decimal comma: 1049,99 -> 1049.99
+                                price = price_str.replace(',', '.')
+                            else:
+                                # Thousands comma: 1,049 -> 1049
+                                price = price_str.replace(',', '')
+                        else:
+                            # Only dots or plain number
+                            if '.' in price_str and len(price_str.split('.')[-1]) == 2:
+                                # Decimal dot: 1049.99
+                                price = price_str
+                            else:
+                                # Thousands separator: 1.049 -> 1049
+                                price = price_str.replace('.', '')
                         break
                     parent = parent.parent
                 else:
@@ -58,9 +80,30 @@ def extract_kuantokusta_products(html_string):
             if not price:
                 # Try to find any price-like pattern in the link's vicinity
                 link_text = link.get_text(strip=True)
-                price_match = re.search(r'(\d+[.,]?\d*)€?', link_text)
+                price_match = re.search(r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)€?', link_text)
                 if price_match:
-                    price = price_match.group(1).replace(',', '.')
+                    price_str = price_match.group(1)
+                    # Handle European formatting: 1.049,99 -> 1049.99
+                    if ',' in price_str and '.' in price_str:
+                        # European format with thousands separator
+                        price = price_str.replace('.', '').replace(',', '.')
+                    elif ',' in price_str:
+                        # Only comma (could be decimal or thousands)
+                        parts = price_str.split(',')
+                        if len(parts) == 2 and len(parts[1]) == 2:
+                            # Decimal comma: 1049,99 -> 1049.99
+                            price = price_str.replace(',', '.')
+                        else:
+                            # Thousands comma: 1,049 -> 1049
+                            price = price_str.replace(',', '')
+                    else:
+                        # Only dots or plain number
+                        if '.' in price_str and len(price_str.split('.')[-1]) == 2:
+                            # Decimal dot: 1049.99
+                            price = price_str
+                        else:
+                            # Thousands separator: 1.049 -> 1049
+                            price = price_str.replace('.', '')
                 else:
                     price = "0.00"  # Placeholder to indicate data extraction is working
             
