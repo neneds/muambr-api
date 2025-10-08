@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"muambr-api/models"
+	"muambr-api/utils"
 )
 
 // KelkooExtractor implements the Extractor interface for Kelkoo price comparison site
@@ -169,13 +170,13 @@ print(json.dumps(products))
 	var comparisons []models.ProductComparison
 	for _, product := range pythonProducts {
 		// Get currency with fallback to extractor's country currency
-		currency := getString(product["currency"])
+		currency := utils.GetString(product["currency"])
 		if currency == "" {
 			currency = e.countryCode.GetCurrencyCode()
 		}
 		
 		// Parse price as float64
-		priceStr := getString(product["price"])
+		priceStr := utils.GetString(product["price"])
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			// Skip invalid price entries
@@ -186,7 +187,7 @@ print(json.dumps(products))
 		id := fmt.Sprintf("kelkoo_%d", len(comparisons)+1)
 		
 		// Extract store URL safely
-		storeURL := getString(product["url"])
+		storeURL := utils.GetString(product["url"])
 		var storeURLPtr *string
 		if storeURL != "" {
 			storeURLPtr = &storeURL
@@ -194,10 +195,10 @@ print(json.dumps(products))
 		
 		comparison := models.ProductComparison{
 			ID:          id,
-			ProductName: getString(product["name"]),
+			ProductName: utils.GetString(product["name"]),
 			Price:       price,
 			Currency:    currency,
-			StoreName:   getString(product["store"]),
+			StoreName:   utils.GetString(product["store"]),
 			StoreURL:    storeURLPtr,
 			Country:     string(e.countryCode),
 		}
