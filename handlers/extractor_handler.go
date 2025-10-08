@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
@@ -95,18 +96,22 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 	// Apply country context and currency conversion
 	for i := range comparisons {
 		// Add availability context based on base country (user's home country)
-		comparisons[i].Store += " (Available for " + baseCountry.GetCountryName() + ")"
+		comparisons[i].StoreName += " (Available for " + baseCountry.GetCountryName() + ")"
 		
 		// If user is in a different country than their base country, add location context
 		if currentCountry != nil && *currentCountry != baseCountry {
-			comparisons[i].Store += " - Browsing from " + currentCountry.GetCountryName()
+			comparisons[i].StoreName += " - Browsing from " + currentCountry.GetCountryName()
 		}
 		
 		// Apply currency conversion: convert from product's currency to target currency
 		if targetCurrency != "" && comparisons[i].Currency != targetCurrency {
 			convertedPrice := h.convertCurrency(comparisons[i].Price, comparisons[i].Currency, targetCurrency)
 			if convertedPrice != nil {
-				comparisons[i].ConvertedPrice = convertedPrice
+				// Set the converted price field instead of modifying the original price
+				comparisons[i].ConvertedPrice = &models.ConvertedPrice{
+					Price:    strconv.FormatFloat(convertedPrice.Amount, 'f', 2, 64),
+					Currency: convertedPrice.Currency,
+				}
 			}
 		}
 	}
@@ -114,22 +119,38 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 	return comparisons
 }
 
+// ConvertedPriceResult represents the result of currency conversion
+type ConvertedPriceResult struct {
+	Amount   float64
+	Currency string
+}
+
 // convertCurrency converts a price from one currency to another using real exchange rates with caching
-func (h *ExtractorHandler) convertCurrency(price string, fromCurrency string, toCurrency string) *models.ConvertedPrice {
+func (h *ExtractorHandler) convertCurrency(price float64, fromCurrency string, toCurrency string) *ConvertedPriceResult {
 	if fromCurrency == toCurrency {
 		return nil // No conversion needed
 	}
 	
+	// Convert float64 to string for the exchange rate service
+	priceStr := strconv.FormatFloat(price, 'f', 2, 64)
+	
 	// Use the exchange rate service to convert the price
-	convertedPriceStr, err := h.exchangeRateService.ConvertPriceString(price, fromCurrency, toCurrency)
+	convertedPriceStr, err := h.exchangeRateService.ConvertPriceString(priceStr, fromCurrency, toCurrency)
 	if err != nil {
 		// Log error and return nil - this will allow the product to still be shown without conversion
-		fmt.Printf("Currency conversion failed from %s to %s for price %s: %v\n", fromCurrency, toCurrency, price, err)
+		fmt.Printf("Currency conversion failed from %s to %s for price %.2f: %v\n", fromCurrency, toCurrency, price, err)
 		return nil
 	}
 	
-	return &models.ConvertedPrice{
-		Price:    convertedPriceStr,
+	// Convert back to float64
+	convertedPrice, err := strconv.ParseFloat(convertedPriceStr, 64)
+	if err != nil {
+		fmt.Printf("Failed to parse converted price %s: %v\n", convertedPriceStr, err)
+		return nil
+	}
+	
+	return &ConvertedPriceResult{
+		Amount:   convertedPrice,
 		Currency: toCurrency,
 	}
 }

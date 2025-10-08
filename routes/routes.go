@@ -12,11 +12,14 @@ func SetupRoutes(r *gin.Engine) {
 	comparisonHandler := handlers.NewComparisonHandler()
 	adminHandler := handlers.NewAdminHandler()
 
-	// API group
-	api := r.Group("/api")
+	// API v1 group - matches Swift client expectations
+	v1 := r.Group("/api/v1")
 	{
-		// GET /api/comparisons?name=productName&country=PT&currentCountry=US
-		api.GET("/comparisons", comparisonHandler.GetComparisons)
+		comparisons := v1.Group("/comparisons")
+		{
+			// GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currentUserCountry=US
+			comparisons.GET("/search", comparisonHandler.GetComparisons)
+		}
 	}
 
 	// Admin group for utility endpoints

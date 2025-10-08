@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"muambr-api/models"
@@ -173,12 +174,32 @@ print(json.dumps(products))
 			currency = e.countryCode.GetCurrencyCode()
 		}
 		
+		// Parse price as float64
+		priceStr := getString(product["price"])
+		price, err := strconv.ParseFloat(priceStr, 64)
+		if err != nil {
+			// Skip invalid price entries
+			continue
+		}
+
+		// Generate unique ID
+		id := fmt.Sprintf("kuantokusta_%d", len(comparisons)+1)
+		
+		// Extract store URL safely
+		storeURL := getString(product["url"])
+		var storeURLPtr *string
+		if storeURL != "" {
+			storeURLPtr = &storeURL
+		}
+		
 		comparison := models.ProductComparison{
-			Name:     getString(product["name"]),
-			Price:    getString(product["price"]),
-			Store:    getString(product["store"]),
-			Currency: currency,
-			URL:      getString(product["url"]),
+			ID:          id,
+			ProductName: getString(product["name"]),
+			Price:       price,
+			Currency:    currency,
+			StoreName:   getString(product["store"]),
+			StoreURL:    storeURLPtr,
+			Country:     string(e.countryCode),
 		}
 		comparisons = append(comparisons, comparison)
 	}

@@ -21,29 +21,29 @@ func NewComparisonHandler() *ComparisonHandler {
 	}
 }
 
-// GetComparisons handles GET /api/comparisons?name=productName&country=PT&currency=EUR&currentCountry=US&limit=10
+// GetComparisons handles GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currency=EUR&currentUserCountry=US&limit=10
 //
-// Query Parameters:
+// Query Parameters (matching Swift client expectations):
 // - name (required): Product name to search for
-// - country (required): User's base/home country ISO code (PT, US, ES, DE, GB, BR)
-// - currentCountry (optional): User's current location ISO code - if different from base country
+// - baseCountry (required): User's base/home country ISO code (PT, US, ES, DE, GB, BR)
+// - currentUserCountry (optional): User's current location ISO code - if different from base country
 // - currency (optional): Target currency for price conversion - defaults to base country's currency
 // - limit (optional): Maximum number of results to return - defaults to 10
 //
 // Extractor Selection Rules:
-// 1. Always use extractors from the base country (country parameter)
-// 2. If currentCountry is provided and different from base country, append extractors from current country
+// 1. Always use extractors from the base country (baseCountry parameter)
+// 2. If currentUserCountry is provided and different from base country, append extractors from current country
 // 3. This allows users to see products from both their home country and current location
 //
 // Currency Conversion:
 // - Products with different currencies than the target currency will include a convertedPrice field
 // - Store names include availability context: "Store (Available for BaseCountry) - Browsing from CurrentCountry"
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
-	// Parse query parameters
+	// Parse query parameters (matching Swift API expectations)
 	productName := c.Query("name")
-	countryParam := c.Query("country")
-	currentCountryParam := c.Query("currentCountry")
-	baseCurrency := c.Query("currency")
+	baseCountryParam := c.Query("baseCountry")
+	currentUserCountryParam := c.Query("currentUserCountry")
+	currency := c.Query("currency")
 	
 	// Parse limit parameter with default value of 10
 	limit := 10
@@ -55,61 +55,101 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 
 	// Validate required parameters
 	if productName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Product name is required"})
+		errorMsg := "Product name is required"
+		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
+			Success:      false,
+			Message:      &errorMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 
-	if countryParam == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Country ISO code is required (e.g., PT, US, ES, DE, GB, BR)"})
+	if baseCountryParam == "" {
+		errorMsg := "Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)"
+		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
+			Success:      false,
+			Message:      &errorMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 
 	// Parse and validate ISO country code for user's base country
-	baseCountry, err := models.ParseCountryFromISO(strings.ToUpper(countryParam))
+	baseCountry, err := models.ParseCountryFromISO(strings.ToUpper(baseCountryParam))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR"})
+		errorMsg := "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR"
+		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
+			Success:      false,
+			Message:      &errorMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 
 	// Detect and validate current country (where user is currently located) using ExtractorHandler
-	currentCountry, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(currentCountryParam))
+	currentCountry, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(currentUserCountryParam))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		errorMsg := err.Error()
+		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
+			Success:      false,
+			Message:      &errorMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 	
 	// Use base country's default currency if not provided
-	if baseCurrency == "" {
-		baseCurrency = baseCountry.GetCurrencyCode()
+	if currency == "" {
+		currency = baseCountry.GetCurrencyCode()
 	}
 
 	// Get product comparisons using the ExtractorHandler
-	comparisons, err := h.extractorHandler.GetProductComparisons(productName, baseCountry, &currentCountry, baseCurrency)
+	comparisons, err := h.extractorHandler.GetProductComparisons(productName, baseCountry, &currentCountry, currency)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get product comparisons"})
+		errorMsg := "Failed to get product comparisons"
+		c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
+			Success:      false,
+			Message:      &errorMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 
-	// If no extractors available yet, return empty response
+	// If no extractors available yet, return empty successful response
 	if len(comparisons) == 0 {
-		c.JSON(http.StatusOK, gin.H{"data": []models.ProductComparison{}})
+		successMsg := "No comparisons found for this product"
+		c.JSON(http.StatusOK, models.ProductComparisonResponse{
+			Success:      true,
+			Message:      &successMsg,
+			Comparisons:  []models.ProductComparison{},
+			TotalResults: 0,
+		})
 		return
 	}
 
 	// Sort products by price (smallest first)
+	// Use converted price if available, otherwise use original price
 	sort.Slice(comparisons, func(i, j int) bool {
-		priceI, errI := strconv.ParseFloat(comparisons[i].Price, 64)
-		priceJ, errJ := strconv.ParseFloat(comparisons[j].Price, 64)
+		priceI := comparisons[i].Price
+		priceJ := comparisons[j].Price
 		
-		// If parsing fails, put those items at the end
-		if errI != nil && errJ != nil {
-			return false
+		// Use converted price if available for comparison i
+		if comparisons[i].ConvertedPrice != nil {
+			if convertedI, err := strconv.ParseFloat(comparisons[i].ConvertedPrice.Price, 64); err == nil {
+				priceI = convertedI
+			}
 		}
-		if errI != nil {
-			return false
-		}
-		if errJ != nil {
-			return true
+		
+		// Use converted price if available for comparison j
+		if comparisons[j].ConvertedPrice != nil {
+			if convertedJ, err := strconv.ParseFloat(comparisons[j].ConvertedPrice.Price, 64); err == nil {
+				priceJ = convertedJ
+			}
 		}
 		
 		return priceI < priceJ
@@ -120,6 +160,11 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		comparisons = comparisons[:limit]
 	}
 
-	response := models.ComparisonResponse(comparisons)
-	c.JSON(http.StatusOK, response)
+	// Return response in expected Swift API format
+	c.JSON(http.StatusOK, models.ProductComparisonResponse{
+		Success:      true,
+		Message:      nil,
+		Comparisons:  comparisons,
+		TotalResults: len(comparisons),
+	})
 }

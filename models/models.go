@@ -92,15 +92,28 @@ type ConvertedPrice struct {
 	Currency string `json:"currency"`
 }
 
-// ProductComparison represents a single product offer from comparison sites
+// ProductComparison represents a single product offer matching Swift client expectations
 type ProductComparison struct {
-	Name           string          `json:"name"`
-	Price          string          `json:"price"`
-	Store          string          `json:"store"`
+	ID             string          `json:"id"`
+	ProductName    string          `json:"productName"`
+	Price          float64         `json:"price"`
 	Currency       string          `json:"currency"`
-	URL            string          `json:"url"`
 	ConvertedPrice *ConvertedPrice `json:"convertedPrice,omitempty"`
+	StoreName      string          `json:"storeName"`
+	StoreURL       *string         `json:"storeURL,omitempty"`
+	Description    *string         `json:"description,omitempty"`
+	Country        string          `json:"country"`
+	Condition      *string         `json:"condition,omitempty"`
+	ImageURL       *string         `json:"imageURL,omitempty"`
+	LastUpdated    *string         `json:"lastUpdated,omitempty"`
 }
 
-// ComparisonResponse represents the response for product comparisons
-type ComparisonResponse []ProductComparison
+// ProductComparisonResponse represents the API response format expected by Swift client
+type ProductComparisonResponse struct {
+	Success      bool                `json:"success"`
+	Message      *string             `json:"message,omitempty"`
+	Comparisons  []ProductComparison `json:"comparisons"`
+	TotalResults int                 `json:"totalResults"`
+}
+
+
