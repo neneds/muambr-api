@@ -92,13 +92,8 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 	
 	// Apply country context and currency conversion
 	for i := range comparisons {
-		// Add availability context based on base country (user's home country)
-		comparisons[i].StoreName += " (Available for " + baseCountry.GetCountryName() + ")"
-		
-		// If user is in a different country than their base country, add location context
-		if currentCountry != nil && *currentCountry != baseCountry {
-			comparisons[i].StoreName += " - Browsing from " + currentCountry.GetCountryName()
-		}
+		// Add simple country context: "StoreName - CountryCode"
+		comparisons[i].StoreName += " - " + string(baseCountry)
 		
 		// Apply currency conversion: convert from product's currency to target currency
 		if targetCurrency != "" && comparisons[i].Currency != targetCurrency {

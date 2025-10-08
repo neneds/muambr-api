@@ -24,7 +24,7 @@ def extract_mercadolivre_products(html_string):
                             products.append({
                                 'name': name,
                                 'price': str(price),
-                                'store': 'Mercado Livre',
+                                'store': 'MercadoLivre',
                                 'currency': offers.get('priceCurrency', 'BRL'),
                                 'url': url
                             })
@@ -132,7 +132,7 @@ def extract_mercadolivre_products(html_string):
                     products.append({
                         'name': name,
                         'price': price,
-                        'store': 'Mercado Livre',
+                        'store': 'MercadoLivre',
                         'currency': currency,
                         'url': url
                     })

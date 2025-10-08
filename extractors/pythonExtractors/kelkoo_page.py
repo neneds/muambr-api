@@ -85,12 +85,8 @@ def extract_kelkoo_products(html_string):
                         else:
                             continue
                             
-                        # Extract seller information
-                        seller = offers.get('seller', {})
-                        if isinstance(seller, dict):
-                            store_name = seller.get('name', 'Kelkoo Partner Store')
-                        else:
-                            store_name = 'Kelkoo Partner Store'
+                        # Use consistent store name for Kelkoo
+                        store_name = 'Kelkoo'
                             
                         # Get product URL
                         product_url = item.get('url', offers.get('url', 'https://www.kelkoo.es'))
