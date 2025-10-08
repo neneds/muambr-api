@@ -156,9 +156,16 @@ func (e *KuantoKustaExtractor) fetchHTML(url string) (string, error) {
 
 // extractWithPython calls the Python script to extract product data from HTML
 func (e *KuantoKustaExtractor) extractWithPython(htmlContent string) ([]models.ProductComparison, error) {
+	utils.Info("Starting Python extraction for KuantoKusta",
+		utils.String("extractor", "kuantokusta"),
+		utils.Int("html_size_bytes", len(htmlContent)))
+
 	// Get the absolute path to the Python script
 	scriptPath, err := filepath.Abs("extractors/pythonExtractors/kuantokusta_page.py")
 	if err != nil {
+		utils.LogError("Failed to get Python script path for KuantoKusta",
+			utils.String("extractor", "kuantokusta"),
+			utils.Error(err))
 		return nil, fmt.Errorf("failed to get script path: %w", err)
 	}
 
@@ -174,16 +181,26 @@ func (e *KuantoKustaExtractor) extractWithPython(htmlContent string) ([]models.P
 		}
 	}
 
-	// Prepare the Python command
+	utils.Info("Using Python interpreter for KuantoKusta extraction",
+		utils.String("extractor", "kuantokusta"),
+		utils.String("python_path", pythonPath),
+		utils.String("script_path", scriptPath))
+
+	// Prepare the Python command with error handling for missing dependencies
 	cmd := exec.Command(pythonPath, "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
-from kuantokusta_page import extract_kuantokusta_products
-import json
-
-html_content = '''%s'''
-products = extract_kuantokusta_products(html_content)
-print(json.dumps(products))
+try:
+    from kuantokusta_page import extract_kuantokusta_products
+    import json
+    
+    html_content = '''%s'''
+    products = extract_kuantokusta_products(html_content)
+    print(json.dumps(products))
+except ImportError as e:
+    print('{"error": "Missing Python dependencies", "details": "' + str(e) + '"}')
+except Exception as e:
+    print('{"error": "Python extraction failed", "details": "' + str(e) + '"}')
 `, filepath.Dir(scriptPath), strings.ReplaceAll(htmlContent, "'", "\\'")))
 
 	// Execute the Python script
@@ -192,17 +209,54 @@ print(json.dumps(products))
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 
+	utils.Info("Executing Python extraction script for KuantoKusta",
+		utils.String("extractor", "kuantokusta"))
+
 	err = cmd.Run()
 	if err != nil {
+		utils.LogError("Python script execution failed for KuantoKusta",
+			utils.String("extractor", "kuantokusta"),
+			utils.String("python_path", pythonPath),
+			utils.String("stderr", stderr.String()),
+			utils.String("stdout", out.String()),
+			utils.Error(err))
 		return nil, fmt.Errorf("Python script execution failed: %w, stderr: %s", err, stderr.String())
+	}
+
+	utils.Info("Python script executed successfully for KuantoKusta",
+		utils.String("extractor", "kuantokusta"),
+		utils.String("python_stdout", out.String()),
+		utils.String("python_stderr", stderr.String()))
+
+	// Check if Python output contains error messages
+	outputStr := out.String()
+	if strings.Contains(outputStr, `"error":`) {
+		var errorResp map[string]interface{}
+		if json.Unmarshal(out.Bytes(), &errorResp) == nil {
+			if errorMsg, ok := errorResp["error"].(string); ok {
+				utils.Warn("Python script returned error for KuantoKusta",
+					utils.String("extractor", "kuantokusta"),
+					utils.String("error_type", errorMsg),
+					utils.String("error_details", utils.GetString(errorResp["details"])))
+				return []models.ProductComparison{}, nil // Return empty results instead of failing
+			}
+		}
 	}
 
 	// Parse the JSON output from Python
 	var pythonProducts []map[string]interface{}
 	err = json.Unmarshal(out.Bytes(), &pythonProducts)
 	if err != nil {
+		utils.LogError("Failed to parse Python JSON output for KuantoKusta",
+			utils.String("extractor", "kuantokusta"),
+			utils.String("python_output", out.String()),
+			utils.Error(err))
 		return nil, fmt.Errorf("failed to parse Python output: %w", err)
 	}
+
+	utils.Info("Successfully parsed Python output for KuantoKusta",
+		utils.String("extractor", "kuantokusta"),
+		utils.Int("products_found", len(pythonProducts)))
 
 	// Convert to ProductComparison structs
 	var comparisons []models.ProductComparison

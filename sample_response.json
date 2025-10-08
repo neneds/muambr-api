@@ -1,0 +1,96 @@
+{
+  "success": true,
+  "comparisons": [
+    {
+      "id": "kuantokusta_2",
+      "productName": "Apple Iphone 16 Pro 63 128Gb Black Titanium",
+      "price": 1.022,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406812/apple-iphone-16-pro-63-128gb-black-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_24",
+      "productName": "Apple Iphone 16 Pro 63 128Gb Desert Titanium",
+      "price": 1.022,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406815/apple-iphone-16-pro-63-128gb-desert-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_46",
+      "productName": "Apple Iphone 16 Pro 63 128Gb Natural Titanium",
+      "price": 1.022,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406814/apple-iphone-16-pro-63-128gb-natural-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_11",
+      "productName": "Apple Iphone 16 Pro 63 128Gb White Titanium",
+      "price": 1.022,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406813/apple-iphone-16-pro-63-128gb-white-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_41",
+      "productName": "Apple Iphone Air 65 256Gb Space Black",
+      "price": 1.086,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11928791/apple-iphone-air-65-256gb-space-black?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_44",
+      "productName": "Apple Iphone Air 65 256Gb Sky Blue",
+      "price": 1.086,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11928800/apple-iphone-air-65-256gb-sky-blue?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_26",
+      "productName": "Apple Iphone 15 Pro Max 67 256Gb Blue Titanium",
+      "price": 1.092,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/10379596/apple-iphone-15-pro-max-67-256gb-blue-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_23",
+      "productName": "Apple Iphone 16 Pro 63 256Gb Natural Titanium",
+      "price": 1.098,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11808426/apple-iphone-16-pro-63-256gb-natural-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_22",
+      "productName": "Apple Iphone 16 Pro 63 256Gb Black Titanium",
+      "price": 1.12,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406816/apple-iphone-16-pro-63-256gb-black-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    },
+    {
+      "id": "kuantokusta_4",
+      "productName": "Apple Iphone 16 Pro Max 69 256Gb Desert Titanium",
+      "price": 1.165,
+      "currency": "EUR",
+      "storeName": "KuantoKusta (Available for Portugal) - Browsing from Unknown",
+      "storeURL": "https://www.kuantokusta.pt/p/11406853/apple-iphone-16-pro-max-69-256gb-desert-titanium?queryId=cb2aa00d45c2db025fab3c632f9af008",
+      "country": "PT"
+    }
+  ],
+  "totalResults": 10
+}
