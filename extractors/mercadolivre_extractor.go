@@ -87,9 +87,18 @@ func (e *MercadoLivreExtractor) buildSearchURL(productName string) (string, erro
 
 // fetchHTML makes an HTTP GET request and returns the HTML content
 func (e *MercadoLivreExtractor) fetchHTML(url string) (string, error) {
+	utils.Info("Starting HTTP request to MercadoLivre", 
+		utils.String("url", url),
+		utils.String("extractor", "mercadolivre"),
+		utils.String("base_domain", e.BaseURL()))
+
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		utils.LogError("Failed to create HTTP request for MercadoLivre", 
+			utils.String("url", url),
+			utils.String("extractor", "mercadolivre"),
+			utils.Error(err))
 		return "", err
 	}
 
@@ -100,18 +109,46 @@ func (e *MercadoLivreExtractor) fetchHTML(url string) (string, error) {
 
 	resp, err := client.Do(req)
 	if err != nil {
+		utils.LogError("HTTP request execution failed for MercadoLivre - possible anti-bot protection", 
+			utils.String("url", url),
+			utils.String("extractor", "mercadolivre"),
+			utils.String("base_domain", e.BaseURL()),
+			utils.String("user_agent", req.Header.Get("User-Agent")),
+			utils.Error(err))
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		utils.Warn("HTTP request returned non-200 status code from MercadoLivre - possible anti-bot protection",
+			utils.String("url", url),
+			utils.String("extractor", "mercadolivre"),
+			utils.String("base_domain", e.BaseURL()),
+			utils.Int("status_code", resp.StatusCode),
+			utils.String("status", resp.Status),
+			utils.String("user_agent", req.Header.Get("User-Agent")))
 		return "", fmt.Errorf("HTTP request failed with status: %d", resp.StatusCode)
 	}
 
+	utils.Info("Successfully received HTTP response from MercadoLivre",
+		utils.String("url", url),
+		utils.String("extractor", "mercadolivre"),
+		utils.Int("status_code", resp.StatusCode),
+		utils.Any("content_length", resp.ContentLength))
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		utils.LogError("Failed to read response body from MercadoLivre", 
+			utils.String("url", url),
+			utils.String("extractor", "mercadolivre"),
+			utils.Error(err))
 		return "", err
 	}
+
+	utils.Info("Successfully fetched HTML content from MercadoLivre",
+		utils.String("url", url),
+		utils.String("extractor", "mercadolivre"),
+		utils.Int("content_size_bytes", len(body)))
 
 	return string(body), nil
 }
