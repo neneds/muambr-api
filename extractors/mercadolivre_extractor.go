@@ -186,7 +186,32 @@ func (e *MercadoLivreExtractor) extractWithPython(htmlContent string) ([]models.
 		utils.String("python_path", pythonPath),
 		utils.String("script_path", scriptPath))
 
-	// Prepare the Python command with error handling for missing dependencies
+	// Create a temporary file to store the HTML content to avoid "argument list too long" error
+	tempFile, err := os.CreateTemp("", "mercadolivre_html_*.html")
+	if err != nil {
+		utils.LogError("Failed to create temporary file for MercadoLivre HTML",
+			utils.String("extractor", "mercadolivre"),
+			utils.Error(err))
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer os.Remove(tempFile.Name()) // Clean up temp file
+	defer tempFile.Close()
+
+	// Write HTML content to temporary file
+	if _, err := tempFile.WriteString(htmlContent); err != nil {
+		utils.LogError("Failed to write HTML to temporary file for MercadoLivre",
+			utils.String("extractor", "mercadolivre"),
+			utils.String("temp_file", tempFile.Name()),
+			utils.Error(err))
+		return nil, fmt.Errorf("failed to write HTML to temp file: %w", err)
+	}
+	tempFile.Close() // Close file so Python can read it
+
+	utils.Info("Created temporary HTML file for MercadoLivre extraction",
+		utils.String("extractor", "mercadolivre"),
+		utils.String("temp_file", tempFile.Name()))
+
+	// Prepare the Python command using the temporary file
 	cmd := exec.Command(pythonPath, "-c", fmt.Sprintf(`
 import sys
 sys.path.append('%s')
@@ -194,14 +219,15 @@ try:
     from mercadolivre_page import extract_mercadolivre_products
     import json
     
-    html_content = '''%s'''
+    with open('%s', 'r', encoding='utf-8') as f:
+        html_content = f.read()
     products = extract_mercadolivre_products(html_content)
     print(json.dumps(products))
 except ImportError as e:
     print('{"error": "Missing Python dependencies", "details": "' + str(e) + '"}')
 except Exception as e:
     print('{"error": "Python extraction failed", "details": "' + str(e) + '"}')
-`, filepath.Dir(scriptPath), strings.ReplaceAll(htmlContent, "'", "\\'")))
+`, filepath.Dir(scriptPath), tempFile.Name()))
 
 	// Execute the Python script
 	var out bytes.Buffer
@@ -210,7 +236,8 @@ except Exception as e:
 	cmd.Stderr = &stderr
 
 	utils.Info("Executing Python extraction script for MercadoLivre",
-		utils.String("extractor", "mercadolivre"))
+		utils.String("extractor", "mercadolivre"),
+		utils.String("temp_file", tempFile.Name()))
 
 	err = cmd.Run()
 	if err != nil {
