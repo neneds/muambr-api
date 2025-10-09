@@ -101,25 +101,11 @@ func (e *MagaluExtractor) fetchHTML(url string) (string, error) {
 		utils.String("extractor", "magalu"),
 		utils.String("base_domain", e.BaseURL()))
 
-	// Create HTTP client with timeout
-	client := &http.Client{}
-
-	// Create request with proper headers to avoid being blocked
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// Set headers to mimic a real browser
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "pt-BR,pt;q=0.8,en;q=0.5,en-US;q=0.3")
-	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
-	req.Header.Set("DNT", "1")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("Upgrade-Insecure-Requests", "1")
-
-	resp, err := client.Do(req)
+	// Configure anti-bot protection
+	config := utils.DefaultAntiBotConfig(e.BaseURL())
+	
+	// Make request with anti-bot protection
+	resp, err := utils.MakeAntiBotRequest(url, config)
 	if err != nil {
 		utils.LogError("HTTP request failed for Magazine Luiza", 
 			utils.String("url", url),
@@ -135,8 +121,7 @@ func (e *MagaluExtractor) fetchHTML(url string) (string, error) {
 			utils.String("extractor", "magalu"),
 			utils.String("base_domain", e.BaseURL()),
 			utils.Int("status_code", resp.StatusCode),
-			utils.String("status", resp.Status),
-			utils.String("user_agent", req.Header.Get("User-Agent")))
+			utils.String("status", resp.Status))
 		return "", fmt.Errorf("HTTP request failed with status: %d", resp.StatusCode)
 	}
 

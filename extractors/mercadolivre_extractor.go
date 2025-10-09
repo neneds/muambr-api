@@ -93,28 +93,16 @@ func (e *MercadoLivreExtractor) fetchHTML(url string) (string, error) {
 		utils.String("extractor", "mercadolivre"),
 		utils.String("base_domain", e.BaseURL()))
 
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		utils.LogError("Failed to create HTTP request for MercadoLivre", 
-			utils.String("url", url),
-			utils.String("extractor", "mercadolivre"),
-			utils.Error(err))
-		return "", err
-	}
-
-	// Add headers to mimic a real browser
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3")
-
-	resp, err := client.Do(req)
+	// Configure anti-bot protection
+	config := utils.DefaultAntiBotConfig(e.BaseURL())
+	
+	// Make request with anti-bot protection
+	resp, err := utils.MakeAntiBotRequest(url, config)
 	if err != nil {
 		utils.LogError("HTTP request execution failed for MercadoLivre - possible anti-bot protection", 
 			utils.String("url", url),
 			utils.String("extractor", "mercadolivre"),
 			utils.String("base_domain", e.BaseURL()),
-			utils.String("user_agent", req.Header.Get("User-Agent")),
 			utils.Error(err))
 		return "", err
 	}
@@ -126,8 +114,7 @@ func (e *MercadoLivreExtractor) fetchHTML(url string) (string, error) {
 			utils.String("extractor", "mercadolivre"),
 			utils.String("base_domain", e.BaseURL()),
 			utils.Int("status_code", resp.StatusCode),
-			utils.String("status", resp.Status),
-			utils.String("user_agent", req.Header.Get("User-Agent")))
+			utils.String("status", resp.Status))
 		return "", fmt.Errorf("HTTP request failed with status: %d", resp.StatusCode)
 	}
 

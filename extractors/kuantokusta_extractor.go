@@ -93,28 +93,16 @@ func (e *KuantoKustaExtractor) fetchHTML(url string) (string, error) {
 		utils.String("extractor", "kuantokusta"),
 		utils.String("base_domain", e.BaseURL()))
 
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		utils.LogError("Failed to create HTTP request for KuantoKusta", 
-			utils.String("url", url),
-			utils.String("extractor", "kuantokusta"),
-			utils.Error(err))
-		return "", err
-	}
-
-	// Add headers to mimic a real browser
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "pt-PT,pt;q=0.8,en-US;q=0.5,en;q=0.3")
-
-	resp, err := client.Do(req)
+	// Create anti-bot configuration for KuantoKusta
+	config := utils.DefaultAntiBotConfig(e.BaseURL())
+	
+	// Make request using anti-bot utility
+	resp, err := utils.MakeAntiBotRequest(url, config)
 	if err != nil {
 		utils.LogError("HTTP request execution failed for KuantoKusta - possible anti-bot protection", 
 			utils.String("url", url),
 			utils.String("extractor", "kuantokusta"),
 			utils.String("base_domain", e.BaseURL()),
-			utils.String("user_agent", req.Header.Get("User-Agent")),
 			utils.Error(err))
 		return "", err
 	}
@@ -126,8 +114,7 @@ func (e *KuantoKustaExtractor) fetchHTML(url string) (string, error) {
 			utils.String("extractor", "kuantokusta"),
 			utils.String("base_domain", e.BaseURL()),
 			utils.Int("status_code", resp.StatusCode),
-			utils.String("status", resp.Status),
-			utils.String("user_agent", req.Header.Get("User-Agent")))
+			utils.String("status", resp.Status))
 		return "", fmt.Errorf("HTTP request failed with status: %d", resp.StatusCode)
 	}
 
