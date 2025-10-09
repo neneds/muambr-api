@@ -151,7 +151,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 
 // processComparisonsByCountry groups results by country, sorts by price, and applies per-country limits
 func (h *ComparisonHandler) processComparisonsByCountry(comparisons []models.ProductComparison, limit int) []models.ProductComparison {
-	// Group comparisons by country (extracted from store name format: "StoreName - CountryCode")
+	// Group comparisons by country using the Country field from ProductComparison model
 	countryGroups := h.groupComparisonsByCountry(comparisons)
 	
 	// Process each country group: sort by price and apply limit
@@ -164,25 +164,20 @@ func (h *ComparisonHandler) processComparisonsByCountry(comparisons []models.Pro
 	return finalResults
 }
 
-// groupComparisonsByCountry groups product comparisons by country code extracted from store names
+// groupComparisonsByCountry groups product comparisons by country using the Country field
 func (h *ComparisonHandler) groupComparisonsByCountry(comparisons []models.ProductComparison) map[string][]models.ProductComparison {
 	countryGroups := make(map[string][]models.ProductComparison)
 	
 	for _, comparison := range comparisons {
-		countryCode := h.extractCountryCodeFromStoreName(comparison.StoreName)
+		// Use the Country field directly from the ProductComparison model
+		countryCode := comparison.Country
+		if countryCode == "" {
+			countryCode = "Unknown" // Fallback for empty country
+		}
 		countryGroups[countryCode] = append(countryGroups[countryCode], comparison)
 	}
 	
 	return countryGroups
-}
-
-// extractCountryCodeFromStoreName extracts country code from store name format "StoreName - CountryCode"
-func (h *ComparisonHandler) extractCountryCodeFromStoreName(storeName string) string {
-	parts := strings.Split(storeName, " - ")
-	if len(parts) >= 2 {
-		return parts[len(parts)-1] // Get the last part as country code
-	}
-	return "Unknown" // Fallback for unexpected format
 }
 
 // sortAndLimitCountryComparisons sorts a country's comparisons by price (smallest first) and applies limit
