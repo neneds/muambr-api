@@ -14,6 +14,21 @@ type ComparisonHandler struct {
 	extractorHandler *ExtractorHandler
 }
 
+// ComparisonRequest represents the validated request parameters for product comparison
+type ComparisonRequest struct {
+	ProductName    string
+	BaseCountry    models.Country
+	CurrentCountry models.Country
+	Currency       string
+	Limit          int
+}
+
+// ComparisonError represents an error with HTTP status code and message
+type ComparisonError struct {
+	StatusCode int
+	Message    string
+}
+
 // NewComparisonHandler creates a new ComparisonHandler
 func NewComparisonHandler() *ComparisonHandler {
 	return &ComparisonHandler{
@@ -39,7 +54,41 @@ func NewComparisonHandler() *ComparisonHandler {
 // - Products with different currencies than the target currency will include a convertedPrice field
 // - Store names include availability context: "Store (Available for BaseCountry) - Browsing from CurrentCountry"
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
-	// Parse query parameters (matching Swift API expectations)
+	// Parse and validate request parameters
+	params, validationErr := h.parseAndValidateRequest(c)
+	if validationErr != nil {
+		h.sendErrorResponse(c, validationErr)
+		return
+	}
+
+	// Get product comparisons from extractors
+	comparisons, err := h.extractorHandler.GetProductComparisons(
+		params.ProductName, 
+		params.BaseCountry, 
+		&params.CurrentCountry, 
+		params.Currency,
+	)
+	if err != nil {
+		h.sendInternalErrorResponse(c, "Failed to get product comparisons")
+		return
+	}
+
+	// Handle empty results
+	if len(comparisons) == 0 {
+		h.sendEmptyResultsResponse(c)
+		return
+	}
+
+	// Apply per-country sorting and limiting
+	processedComparisons := h.processComparisonsByCountry(comparisons, params.Limit)
+
+	// Return successful response
+	h.sendSuccessResponse(c, processedComparisons)
+}
+
+// parseAndValidateRequest extracts and validates all request parameters
+func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*ComparisonRequest, *ComparisonError) {
+	// Parse query parameters
 	productName := c.Query("name")
 	baseCountryParam := c.Query("baseCountry")
 	currentUserCountryParam := c.Query("currentUserCountry")
@@ -55,51 +104,35 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 
 	// Validate required parameters
 	if productName == "" {
-		errorMsg := "Product name is required"
-		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
-			Success:      false,
-			Message:      &errorMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
+		return nil, &ComparisonError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Product name is required",
+		}
 	}
 
 	if baseCountryParam == "" {
-		errorMsg := "Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)"
-		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
-			Success:      false,
-			Message:      &errorMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
+		return nil, &ComparisonError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)",
+		}
 	}
 
 	// Parse and validate ISO country code for user's base country
 	baseCountry, err := models.ParseCountryFromISO(strings.ToUpper(baseCountryParam))
 	if err != nil {
-		errorMsg := "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR"
-		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
-			Success:      false,
-			Message:      &errorMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
+		return nil, &ComparisonError{
+			StatusCode: http.StatusBadRequest,
+			Message:    "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR",
+		}
 	}
 
-	// Detect and validate current country (where user is currently located) using ExtractorHandler
+	// Detect and validate current country (where user is currently located)
 	currentCountry, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(currentUserCountryParam))
 	if err != nil {
-		errorMsg := err.Error()
-		c.JSON(http.StatusBadRequest, models.ProductComparisonResponse{
-			Success:      false,
-			Message:      &errorMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
+		return nil, &ComparisonError{
+			StatusCode: http.StatusBadRequest,
+			Message:    err.Error(),
+		}
 	}
 	
 	// Use base country's default currency if not provided
@@ -107,56 +140,109 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		currency = baseCountry.GetCurrencyCode()
 	}
 
-	// Get product comparisons using the ExtractorHandler
-	comparisons, err := h.extractorHandler.GetProductComparisons(productName, baseCountry, &currentCountry, currency)
-	if err != nil {
-		errorMsg := "Failed to get product comparisons"
-		c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
-			Success:      false,
-			Message:      &errorMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
-	}
+	return &ComparisonRequest{
+		ProductName:    productName,
+		BaseCountry:    baseCountry,
+		CurrentCountry: currentCountry,
+		Currency:       currency,
+		Limit:          limit,
+	}, nil
+}
 
-	// If no extractors available yet, return empty successful response
-	if len(comparisons) == 0 {
-		successMsg := "No comparisons found for this product"
-		c.JSON(http.StatusOK, models.ProductComparisonResponse{
-			Success:      true,
-			Message:      &successMsg,
-			Comparisons:  []models.ProductComparison{},
-			TotalResults: 0,
-		})
-		return
+// processComparisonsByCountry groups results by country, sorts by price, and applies per-country limits
+func (h *ComparisonHandler) processComparisonsByCountry(comparisons []models.ProductComparison, limit int) []models.ProductComparison {
+	// Group comparisons by country (extracted from store name format: "StoreName - CountryCode")
+	countryGroups := h.groupComparisonsByCountry(comparisons)
+	
+	// Process each country group: sort by price and apply limit
+	var finalResults []models.ProductComparison
+	for _, countryComparisons := range countryGroups {
+		processedCountryResults := h.sortAndLimitCountryComparisons(countryComparisons, limit)
+		finalResults = append(finalResults, processedCountryResults...)
 	}
+	
+	return finalResults
+}
 
-	// Sort products by price (smallest first)
-	// Use converted price if available, otherwise use original price
+// groupComparisonsByCountry groups product comparisons by country code extracted from store names
+func (h *ComparisonHandler) groupComparisonsByCountry(comparisons []models.ProductComparison) map[string][]models.ProductComparison {
+	countryGroups := make(map[string][]models.ProductComparison)
+	
+	for _, comparison := range comparisons {
+		countryCode := h.extractCountryCodeFromStoreName(comparison.StoreName)
+		countryGroups[countryCode] = append(countryGroups[countryCode], comparison)
+	}
+	
+	return countryGroups
+}
+
+// extractCountryCodeFromStoreName extracts country code from store name format "StoreName - CountryCode"
+func (h *ComparisonHandler) extractCountryCodeFromStoreName(storeName string) string {
+	parts := strings.Split(storeName, " - ")
+	if len(parts) >= 2 {
+		return parts[len(parts)-1] // Get the last part as country code
+	}
+	return "Unknown" // Fallback for unexpected format
+}
+
+// sortAndLimitCountryComparisons sorts a country's comparisons by price (smallest first) and applies limit
+func (h *ComparisonHandler) sortAndLimitCountryComparisons(comparisons []models.ProductComparison, limit int) []models.ProductComparison {
+	// Sort by price (smallest first), using converted price if available
 	sort.Slice(comparisons, func(i, j int) bool {
-		priceI := comparisons[i].Price
-		priceJ := comparisons[j].Price
-		
-		// Use converted price if available for comparison i
-		if comparisons[i].ConvertedPrice != nil {
-			priceI = comparisons[i].ConvertedPrice.Price
-		}
-		
-		// Use converted price if available for comparison j
-		if comparisons[j].ConvertedPrice != nil {
-			priceJ = comparisons[j].ConvertedPrice.Price
-		}
-		
+		priceI := h.getEffectivePrice(comparisons[i])
+		priceJ := h.getEffectivePrice(comparisons[j])
 		return priceI < priceJ
 	})
-
+	
 	// Apply limit
 	if limit > 0 && len(comparisons) > limit {
-		comparisons = comparisons[:limit]
+		return comparisons[:limit]
 	}
+	
+	return comparisons
+}
 
-	// Return response in expected Swift API format
+// getEffectivePrice returns the converted price if available, otherwise the original price
+func (h *ComparisonHandler) getEffectivePrice(comparison models.ProductComparison) float64 {
+	if comparison.ConvertedPrice != nil {
+		return comparison.ConvertedPrice.Price
+	}
+	return comparison.Price
+}
+
+// sendErrorResponse sends a standardized error response
+func (h *ComparisonHandler) sendErrorResponse(c *gin.Context, compErr *ComparisonError) {
+	c.JSON(compErr.StatusCode, models.ProductComparisonResponse{
+		Success:      false,
+		Message:      &compErr.Message,
+		Comparisons:  []models.ProductComparison{},
+		TotalResults: 0,
+	})
+}
+
+// sendInternalErrorResponse sends a 500 internal server error response
+func (h *ComparisonHandler) sendInternalErrorResponse(c *gin.Context, message string) {
+	c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
+		Success:      false,
+		Message:      &message,
+		Comparisons:  []models.ProductComparison{},
+		TotalResults: 0,
+	})
+}
+
+// sendEmptyResultsResponse sends a successful response with no results found
+func (h *ComparisonHandler) sendEmptyResultsResponse(c *gin.Context) {
+	message := "No comparisons found for this product"
+	c.JSON(http.StatusOK, models.ProductComparisonResponse{
+		Success:      true,
+		Message:      &message,
+		Comparisons:  []models.ProductComparison{},
+		TotalResults: 0,
+	})
+}
+
+// sendSuccessResponse sends a successful response with comparison results
+func (h *ComparisonHandler) sendSuccessResponse(c *gin.Context, comparisons []models.ProductComparison) {
 	c.JSON(http.StatusOK, models.ProductComparisonResponse{
 		Success:      true,
 		Message:      nil,
