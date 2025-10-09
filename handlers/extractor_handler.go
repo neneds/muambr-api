@@ -71,14 +71,43 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
 		extractorsToUse = append(extractorsToUse, currentCountryExtractors...)
 	}
+	
+	// Log which extractors will be used for this search
+	extractorNames := make([]string, len(extractorsToUse))
+	for i, extractor := range extractorsToUse {
+		extractorNames[i] = extractor.GetIdentifier()
+	}
+	
+	utils.Info("Starting product comparison search with multiple extractors",
+		utils.String("search_term", searchTerm),
+		utils.String("base_country", string(baseCountry)),
+		utils.Any("current_country", currentCountry),
+		utils.String("target_currency", targetCurrency),
+		utils.Int("extractor_count", len(extractorsToUse)),
+		utils.Any("extractor_names", extractorNames))
 
-	// Execute all selected extractors
+	// Execute all selected extractors independently - errors in one extractor don't affect others
 	for _, extractor := range extractorsToUse {
 		results, err := extractor.GetComparisons(searchTerm)
 		if err != nil {
-			// Log error but continue with other extractors
+			// Log error but continue with other extractors to ensure independence
+			utils.Warn("Extractor failed during product search - continuing with remaining extractors",
+				utils.String("search_term", searchTerm),
+				utils.String("extractor_name", extractor.GetIdentifier()),
+				utils.String("extractor_country", string(extractor.GetCountryCode())),
+				utils.String("base_country", string(baseCountry)),
+				utils.String("target_currency", targetCurrency),
+				utils.Error(err))
 			continue
 		}
+		
+		// Log successful extraction
+		utils.Info("Extractor successfully completed product search",
+			utils.String("search_term", searchTerm),
+			utils.String("extractor_name", extractor.GetIdentifier()),
+			utils.String("extractor_country", string(extractor.GetCountryCode())),
+			utils.Int("results_count", len(results)))
+		
 		allResults = append(allResults, results...)
 	}
 	
@@ -86,6 +115,15 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 	if targetCurrency != "" {
 		allResults = h.applyCountryContextAndCurrencyConversion(allResults, baseCountry, currentCountry, targetCurrency)
 	}
+	
+	// Log final results summary
+	utils.Info("Product comparison search completed",
+		utils.String("search_term", searchTerm),
+		utils.String("base_country", string(baseCountry)),
+		utils.Any("current_country", currentCountry),
+		utils.String("target_currency", targetCurrency),
+		utils.Int("total_results", len(allResults)),
+		utils.Int("extractors_attempted", len(extractorsToUse)))
 	
 	return allResults, nil
 }
