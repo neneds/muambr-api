@@ -35,6 +35,9 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// Register Mercado Livre extractor for Brazil only
 	registry.RegisterExtractor(extractors.NewMercadoLivreExtractor())
 	
+	// Register Magazine Luiza extractor for Brazil only
+	registry.RegisterExtractor(extractors.NewMagaluExtractor())
+	
 	// TODO: Add more extractors as they are implemented
 }
 
