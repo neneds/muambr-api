@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "muambr-api Collection",
-    "description": "Product Comparison API Testing Collection",
+    "description": "Product Comparison API Testing Collection - Updated with Macro Region Support\n\nNew Feature: useMacroRegion parameter\n- When true: Uses all countries in the macro region of currentUserCountry\n- When false (default): Uses only the specific currentUserCountry\n- Prevents extractor duplication through identifier-based deduplication\n\nMacro Regions:\n- EU: Portugal, Spain, Germany, United Kingdom\n- NA: United States\n- LATAM: Brazil",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -322,6 +322,273 @@
           ],
           "cookie": [],
           "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-003\",\n      \"productName\": \"MacBook Pro 14 M3 512GB\",\n      \"price\": 2299.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/54321/macbook-pro-14-m3-512gb\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"ml-br-004\",\n      \"productName\": \"MacBook Pro 16 M3 1TB Silver\",\n      \"price\": 6890.00,\n      \"currency\": \"BRL\",\n      \"convertedPrice\": {\n        \"price\": 1290.45,\n        \"currency\": \"EUR\"\n      },\n      \"storeName\": \"Mercado Livre\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/macbook-pro-16-m3-1tb-silver/p/MLB98765\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
+        }
+      ]
+    },
+    {
+      "name": "With Macro Region (EU)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currentUserCountry=ES&useMacroRegion=true&currency=EUR&limit=5",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "comparisons", "search"],
+          "query": [
+            {
+              "key": "name",
+              "value": "iphone 15"
+            },
+            {
+              "key": "baseCountry",
+              "value": "PT"
+            },
+            {
+              "key": "currentUserCountry",
+              "value": "ES"
+            },
+            {
+              "key": "useMacroRegion",
+              "value": "true"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            },
+            {
+              "key": "limit",
+              "value": "5"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Macro Region Success - EU Countries",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currentUserCountry=ES&useMacroRegion=true&currency=EUR&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "comparisons", "search"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "iphone 15"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                },
+                {
+                  "key": "currentUserCountry",
+                  "value": "ES"
+                },
+                {
+                  "key": "useMacroRegion",
+                  "value": "true"
+                },
+                {
+                  "key": "currency",
+                  "value": "EUR"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-015\",\n      \"productName\": \"iPhone 15 128GB Azul\",\n      \"price\": 899.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta - PT\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"kk-es-016\",\n      \"productName\": \"iPhone 15 Pro 256GB Natural Titanium\",\n      \"price\": 1199.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"Kelkoo - ES\",\n      \"storeURL\": \"https://www.kelkoo.es/p/67890/iphone-15-pro-256gb-titanium\",\n      \"country\": \"ES\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
+        }
+      ]
+    },
+    {
+      "name": "With Macro Region Disabled (Default)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currentUserCountry=ES&useMacroRegion=false&currency=EUR&limit=5",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "comparisons", "search"],
+          "query": [
+            {
+              "key": "name",
+              "value": "iphone 15"
+            },
+            {
+              "key": "baseCountry",
+              "value": "PT"
+            },
+            {
+              "key": "currentUserCountry",
+              "value": "ES"
+            },
+            {
+              "key": "useMacroRegion",
+              "value": "false"
+            },
+            {
+              "key": "currency",
+              "value": "EUR"
+            },
+            {
+              "key": "limit",
+              "value": "5"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Macro Region Disabled - Only Specific Countries",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=iphone 15&baseCountry=PT&currentUserCountry=ES&useMacroRegion=false&currency=EUR&limit=5",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "comparisons", "search"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "iphone 15"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                },
+                {
+                  "key": "currentUserCountry",
+                  "value": "ES"
+                },
+                {
+                  "key": "useMacroRegion",
+                  "value": "false"
+                },
+                {
+                  "key": "currency",
+                  "value": "EUR"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"kk-pt-015\",\n      \"productName\": \"iPhone 15 128GB Azul\",\n      \"price\": 899.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"KuantoKusta - PT\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"kk-es-016\",\n      \"productName\": \"iPhone 15 Pro 256GB Natural Titanium\",\n      \"price\": 1199.00,\n      \"currency\": \"EUR\",\n      \"storeName\": \"Kelkoo - ES\",\n      \"storeURL\": \"https://www.kelkoo.es/p/67890/iphone-15-pro-256gb-titanium\",\n      \"country\": \"ES\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 2\n}"
+        }
+      ]
+    },
+    {
+      "name": "Cross-Region Example (Brazil to EU)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/comparisons/search?name=samsung galaxy&baseCountry=BR&currentUserCountry=DE&useMacroRegion=true&currency=BRL&limit=3",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "comparisons", "search"],
+          "query": [
+            {
+              "key": "name",
+              "value": "samsung galaxy"
+            },
+            {
+              "key": "baseCountry",
+              "value": "BR"
+            },
+            {
+              "key": "currentUserCountry",
+              "value": "DE"
+            },
+            {
+              "key": "useMacroRegion",
+              "value": "true"
+            },
+            {
+              "key": "currency",
+              "value": "BRL"
+            },
+            {
+              "key": "limit",
+              "value": "3"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Cross-Region Success - Brazil + EU Macro Region",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/comparisons/search?name=samsung galaxy&baseCountry=BR&currentUserCountry=DE&useMacroRegion=true&currency=BRL&limit=3",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "comparisons", "search"],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "samsung galaxy"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "BR"
+                },
+                {
+                  "key": "currentUserCountry",
+                  "value": "DE"
+                },
+                {
+                  "key": "useMacroRegion",
+                  "value": "true"
+                },
+                {
+                  "key": "currency",
+                  "value": "BRL"
+                },
+                {
+                  "key": "limit",
+                  "value": "3"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"success\": true,\n  \"comparisons\": [\n    {\n      \"id\": \"ml-br-020\",\n      \"productName\": \"Samsung Galaxy S24 Ultra 256GB\",\n      \"price\": 4299.00,\n      \"currency\": \"BRL\",\n      \"storeName\": \"Mercado Livre - BR\",\n      \"storeURL\": \"https://www.mercadolivre.com.br/samsung-galaxy-s24-ultra-256gb/p/MLB12345\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"mg-br-021\",\n      \"productName\": \"Samsung Galaxy S24 128GB Preto\",\n      \"price\": 3199.00,\n      \"currency\": \"BRL\",\n      \"storeName\": \"Magazine Luiza - BR\",\n      \"storeURL\": \"https://www.magazineluiza.com.br/samsung-galaxy-s24-128gb/p/67890\",\n      \"country\": \"BR\",\n      \"condition\": \"new\"\n    },\n    {\n      \"id\": \"kk-pt-022\",\n      \"productName\": \"Samsung Galaxy S24 Plus 512GB\",\n      \"price\": 1199.00,\n      \"currency\": \"EUR\",\n      \"convertedPrice\": {\n        \"price\": 6398.47,\n        \"currency\": \"BRL\"\n      },\n      \"storeName\": \"KuantoKusta - PT\",\n      \"storeURL\": \"https://www.kuantokusta.pt/p/54321/samsung-galaxy-s24-plus-512gb\",\n      \"country\": \"PT\",\n      \"condition\": \"new\"\n    }\n  ],\n  \"totalResults\": 3\n}"
         }
       ]
     },
