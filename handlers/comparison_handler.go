@@ -21,6 +21,7 @@ type ComparisonRequest struct {
 	CurrentCountry models.Country
 	Currency       string
 	Limit          int
+	UseMacroRegion bool // When true, use macro region of currentCountry for extractor selection
 }
 
 // ComparisonError represents an error with HTTP status code and message
@@ -36,7 +37,7 @@ func NewComparisonHandler() *ComparisonHandler {
 	}
 }
 
-// GetComparisons handles GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currency=EUR&currentUserCountry=US&limit=10
+// GetComparisons handles GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currency=EUR&currentUserCountry=US&limit=10&useMacroRegion=true
 //
 // Query Parameters (matching Swift client expectations):
 // - name (required): Product name to search for
@@ -44,11 +45,14 @@ func NewComparisonHandler() *ComparisonHandler {
 // - currentUserCountry (optional): User's current location ISO code - if different from base country
 // - currency (optional): Target currency for price conversion - defaults to base country's currency
 // - limit (optional): Maximum number of results to return - defaults to 10
+// - useMacroRegion (optional): When "true", use macro region of currentUserCountry for extractor selection - defaults to false
 //
 // Extractor Selection Rules:
 // 1. Always use extractors from the base country (baseCountry parameter)
-// 2. If currentUserCountry is provided and different from base country, append extractors from current country
-// 3. This allows users to see products from both their home country and current location
+// 2. If currentUserCountry is provided and different from base country:
+//    - If useMacroRegion=true: use extractors from the macro region of currentUserCountry
+//    - If useMacroRegion=false (default): use extractors from currentUserCountry only
+// 3. This allows users to see products from their home country and either specific location or broader regional availability
 //
 // Currency Conversion:
 // - Products with different currencies than the target currency will include a convertedPrice field
@@ -67,6 +71,7 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		params.BaseCountry, 
 		&params.CurrentCountry, 
 		params.Currency,
+		params.UseMacroRegion,
 	)
 	if err != nil {
 		h.sendInternalErrorResponse(c, "Failed to get product comparisons")
@@ -93,6 +98,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	baseCountryParam := c.Query("baseCountry")
 	currentUserCountryParam := c.Query("currentUserCountry")
 	currency := c.Query("currency")
+	useMacroRegionParam := c.Query("useMacroRegion")
 	
 	// Parse limit parameter with default value of 10
 	limit := 10
@@ -100,6 +106,12 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 		if parsedLimit, err := strconv.Atoi(limitParam); err == nil && parsedLimit > 0 {
 			limit = parsedLimit
 		}
+	}
+
+	// Parse useMacroRegion parameter with default value of false
+	useMacroRegion := false
+	if useMacroRegionParam != "" {
+		useMacroRegion = strings.ToLower(useMacroRegionParam) == "true"
 	}
 
 	// Validate required parameters
@@ -146,6 +158,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 		CurrentCountry: currentCountry,
 		Currency:       currency,
 		Limit:          limit,
+		UseMacroRegion: useMacroRegion,
 	}, nil
 }
 

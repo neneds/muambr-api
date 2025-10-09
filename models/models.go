@@ -76,6 +76,20 @@ func (c Country) GetCountryName() string {
 	}
 }
 
+// GetCountriesInMacroRegion returns all countries that belong to the specified macro region
+func GetCountriesInMacroRegion(region MacroRegion) []Country {
+	var countries []Country
+	allCountries := []Country{CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany}
+	
+	for _, country := range allCountries {
+		if country.GetMacroRegion() == region {
+			countries = append(countries, country)
+		}
+	}
+	
+	return countries
+}
+
 // ParseCountryFromISO parses an ISO country code string into a Country enum
 func ParseCountryFromISO(isoCode string) (Country, error) {
 	switch Country(isoCode) {
