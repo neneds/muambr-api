@@ -1,0 +1,90 @@
+{
+  "api": {
+    "health": {
+      "status_ok": "ok",
+      "message": "Muambr API is running"
+    },
+    "errors": {
+      "product_name_required": "Product name is required",
+      "base_country_required": "Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)",
+      "invalid_country_code": "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR",
+      "unsupported_country_iso": "unsupported country ISO code: {{code}}",
+      "invalid_country_iso": "Invalid country ISO code: {{code}}",
+      "failed_get_comparisons": "Failed to get product comparisons",
+      "internal_server_error": "Internal server error occurred"
+    },
+    "success": {
+      "no_comparisons_found": "No comparisons found for this product",
+      "cache_cleared": "Exchange rate cache cleared successfully"
+    },
+    "admin": {
+      "cache_status": "cache_status",
+      "cache_count": "cache_count",
+      "base_currency": "base_currency",
+      "rates": "rates",
+      "total_rates": "total_rates",
+      "error": "error"
+    }
+  },
+  "extractors": {
+    "messages": {
+      "extractor_failed": "Extractor failed during product search - continuing with remaining extractors",
+      "extractor_success": "Extractor successfully completed product search", 
+      "currency_conversion_failed": "Currency conversion failed",
+      "failed_parse_converted_price": "Failed to parse converted price"
+    }
+  },
+  "countries": {
+    "names": {
+      "brazil": "Brazil",
+      "united_states": "United States", 
+      "portugal": "Portugal",
+      "spain": "Spain",
+      "united_kingdom": "United Kingdom",
+      "germany": "Germany",
+      "unknown": "Unknown"
+    },
+    "codes": {
+      "BR": "BR",
+      "US": "US", 
+      "PT": "PT",
+      "ES": "ES",
+      "GB": "GB",
+      "DE": "DE"
+    }
+  },
+  "currencies": {
+    "codes": {
+      "BRL": "BRL",
+      "USD": "USD",
+      "EUR": "EUR", 
+      "GBP": "GBP"
+    }
+  },
+  "macro_regions": {
+    "names": {
+      "EU": "European Union",
+      "NA": "North America",
+      "LATAM": "Latin America",
+      "None": "None"
+    }
+  },
+  "logging": {
+    "messages": {
+      "no_env_file": "No .env file found or error loading .env file (this is OK in production)",
+      "starting_server": "Starting Product Comparison API server",
+      "failed_start_server": "Failed to start server",
+      "failed_init_logger": "Failed to initialize logger"
+    }
+  },
+  "validation": {
+    "messages": {
+      "supported_codes_hint": "Supported codes: PT, US, ES, DE, GB, BR"
+    }
+  },
+  "store_names": {
+    "suffixes": {
+      "country_format": " - {{countryCode}}"
+    }
+  }
+}

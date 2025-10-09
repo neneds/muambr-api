@@ -4,6 +4,7 @@ import (
 	"os"
 	"muambr-api/routes"
 	"muambr-api/utils"
+	"muambr-api/localization"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -13,6 +14,11 @@ func main() {
 	// Initialize logger
 	if err := utils.InitDevelopmentLogger(); err != nil {
 		panic("Failed to initialize logger: " + err.Error())
+	}
+
+	// Initialize localization with English as default
+	if err := localization.InitLocalizer("en"); err != nil {
+		utils.Warn("Failed to initialize localizer, using fallback strings", utils.Error(err))
 	}
 
 	// Load .env file if it exists (for local development)
@@ -40,8 +46,8 @@ func main() {
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":  "ok",
-			"message": "Muambr API is running",
+			"status":  localization.T("api.health.status_ok"),
+			"message": localization.T("api.health.message"),
 		})
 	})
 

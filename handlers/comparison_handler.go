@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"muambr-api/models"
+	"muambr-api/localization"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,11 +59,19 @@ func NewComparisonHandler() *ComparisonHandler {
 // - Products with different currencies than the target currency will include a convertedPrice field
 // - Store names include availability context: "Store (Available for BaseCountry) - Browsing from CurrentCountry"
 func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
-	// Parse and validate request parameters
+	// Parse and validate request parameters (using English for validation messages)
 	params, validationErr := h.parseAndValidateRequest(c)
 	if validationErr != nil {
 		h.sendErrorResponse(c, validationErr)
 		return
+	}
+
+	// Create request-scoped localizer based on baseCountry
+	language := params.BaseCountry.GetLanguageCode()
+	localizer, err := localization.NewLocalizedContext(language)
+	if err != nil {
+		// Fallback to English if language loading fails
+		localizer, _ = localization.NewLocalizedContext("en")
 	}
 
 	// Get product comparisons from extractors
@@ -74,13 +83,13 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		params.UseMacroRegion,
 	)
 	if err != nil {
-		h.sendInternalErrorResponse(c, "Failed to get product comparisons")
+		h.sendInternalErrorResponseWithLocalizer(c, localizer, "api.errors.failed_get_comparisons")
 		return
 	}
 
 	// Handle empty results
 	if len(comparisons) == 0 {
-		h.sendEmptyResultsResponse(c)
+		h.sendEmptyResultsResponseWithLocalizer(c, localizer)
 		return
 	}
 
@@ -118,14 +127,14 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	if productName == "" {
 		return nil, &ComparisonError{
 			StatusCode: http.StatusBadRequest,
-			Message:    "Product name is required",
+			Message:    localization.T("api.errors.product_name_required"),
 		}
 	}
 
 	if baseCountryParam == "" {
 		return nil, &ComparisonError{
 			StatusCode: http.StatusBadRequest,
-			Message:    "Base country ISO code is required (e.g., PT, US, ES, DE, GB, BR)",
+			Message:    localization.T("api.errors.base_country_required"),
 		}
 	}
 
@@ -134,7 +143,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	if err != nil {
 		return nil, &ComparisonError{
 			StatusCode: http.StatusBadRequest,
-			Message:    "Invalid country ISO code. Supported codes: PT, US, ES, DE, GB, BR",
+			Message:    localization.T("api.errors.invalid_country_code"),
 		}
 	}
 
@@ -143,7 +152,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	if err != nil {
 		return nil, &ComparisonError{
 			StatusCode: http.StatusBadRequest,
-			Message:    err.Error(),
+			Message:    localization.T("api.errors.invalid_country_code"),
 		}
 	}
 	
@@ -228,8 +237,9 @@ func (h *ComparisonHandler) sendErrorResponse(c *gin.Context, compErr *Compariso
 	})
 }
 
-// sendInternalErrorResponse sends a 500 internal server error response
-func (h *ComparisonHandler) sendInternalErrorResponse(c *gin.Context, message string) {
+// sendInternalErrorResponse sends a 500 internal server error response (deprecated)
+func (h *ComparisonHandler) sendInternalErrorResponse(c *gin.Context, messageKey string) {
+	message := localization.T(messageKey)
 	c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
 		Success:      false,
 		Message:      &message,
@@ -238,9 +248,31 @@ func (h *ComparisonHandler) sendInternalErrorResponse(c *gin.Context, message st
 	})
 }
 
-// sendEmptyResultsResponse sends a successful response with no results found
+// sendInternalErrorResponseWithLocalizer sends a 500 internal server error response with request-scoped localizer
+func (h *ComparisonHandler) sendInternalErrorResponseWithLocalizer(c *gin.Context, localizer *localization.RequestLocalizer, messageKey string) {
+	message := localization.TR(localizer, messageKey)
+	c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
+		Success:      false,
+		Message:      &message,
+		Comparisons:  []models.ProductComparison{},
+		TotalResults: 0,
+	})
+}
+
+// sendEmptyResultsResponse sends a successful response with no results found (deprecated)
 func (h *ComparisonHandler) sendEmptyResultsResponse(c *gin.Context) {
-	message := "No comparisons found for this product"
+	message := localization.T("api.success.no_comparisons_found")
+	c.JSON(http.StatusOK, models.ProductComparisonResponse{
+		Success:      true,
+		Message:      &message,
+		Comparisons:  []models.ProductComparison{},
+		TotalResults: 0,
+	})
+}
+
+// sendEmptyResultsResponseWithLocalizer sends a successful response with no results found using request-scoped localizer
+func (h *ComparisonHandler) sendEmptyResultsResponseWithLocalizer(c *gin.Context, localizer *localization.RequestLocalizer) {
+	message := localization.TR(localizer, "api.success.no_comparisons_found")
 	c.JSON(http.StatusOK, models.ProductComparisonResponse{
 		Success:      true,
 		Message:      &message,

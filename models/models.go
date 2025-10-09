@@ -1,6 +1,9 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+	"muambr-api/localization"
+)
 
 // Country represents the country enum using ISO codes
 type Country string
@@ -76,6 +79,24 @@ func (c Country) GetCountryName() string {
 	}
 }
 
+// GetLanguageCode returns the language code for the country
+func (c Country) GetLanguageCode() string {
+	switch c {
+	case CountryBrazil:
+		return "pt" // Portuguese for Brazil
+	case CountryUS, CountryUK:
+		return "en" // English for US and UK
+	case CountryPortugal:
+		return "pt" // Portuguese for Portugal
+	case CountrySpain:
+		return "es" // Spanish for Spain
+	case CountryGermany:
+		return "en" // English for Germany (we don't have German yet)
+	default:
+		return "en" // Default to English
+	}
+}
+
 // GetCountriesInMacroRegion returns all countries that belong to the specified macro region
 func GetCountriesInMacroRegion(region MacroRegion) []Country {
 	var countries []Country
@@ -96,7 +117,9 @@ func ParseCountryFromISO(isoCode string) (Country, error) {
 	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany:
 		return Country(isoCode), nil
 	default:
-		return "", fmt.Errorf("unsupported country ISO code: %s", isoCode)
+		return "", fmt.Errorf(localization.TP("api.errors.unsupported_country_iso", map[string]string{
+			"code": isoCode,
+		}))
 	}
 }
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"muambr-api/utils"
+	"muambr-api/localization"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,7 +36,7 @@ func (h *AdminHandler) ClearExchangeRateCache(c *gin.Context) {
 	h.exchangeRateService.ClearCache()
 	
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Exchange rate cache cleared successfully",
+		"message": localization.T("api.success.cache_cleared"),
 	})
 }
 
