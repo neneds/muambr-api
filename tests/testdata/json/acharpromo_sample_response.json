@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "name": "iPhone 15 Pro 256GB",
+      "price_text": "R$ 8.999,00",
+      "price": 8999.00,
+      "store_url": "https://apple.com/iphone15pro",
+      "image_url": "https://example.com/iphone15pro.jpg",
+      "description": "iPhone 15 Pro com chip A17 Pro"
+    },
+    {
+      "name": "iPhone 14 128GB",
+      "price_text": "R$ 4.199,99",
+      "price": 4199.99,
+      "store_url": "https://magazineluiza.com/iphone14",
+      "image_url": "https://example.com/iphone14.jpg",
+      "description": "iPhone 14 nas cores azul, roxo, amarelo"
+    },
+    {
+      "name": "iPhone SE 64GB",
+      "price_text": "R$ 2.699,00",
+      "price": 2699.00,
+      "store_url": "https://americanas.com/iphonese",
+      "image_url": "https://example.com/iphonese.jpg",
+      "description": "iPhone SE com Touch ID"
+    }
+  ],
+  "total": 3,
+  "source": "achar.promo"
+}
