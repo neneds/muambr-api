@@ -5,11 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -49,303 +45,249 @@ func (e *AcharPromoExtractor) GetIdentifier() string {
 	return "acharpromo"
 }
 
-// GetComparisons searches for product comparisons on achar.promo
+// AcharPromoAPIRequest represents the request payload for the API
+type AcharPromoAPIRequest struct {
+	Query string `json:"query"`
+}
+
+// AcharPromoAPIResponse represents the API response structure
+type AcharPromoAPIResponse struct {
+	Results []AcharPromoProduct `json:"results"`
+}
+
+// AcharPromoProduct represents a product from the API response
+type AcharPromoProduct struct {
+	Position        int                        `json:"position"`
+	ProductID       string                     `json:"product_id"`
+	Title           string                     `json:"title"`
+	ProductLink     string                     `json:"product_link"`
+	Offers          string                     `json:"offers"`
+	OffersLink      string                     `json:"offers_link"`
+	Price           string                     `json:"price"`
+	ExtractedPrice  float64                    `json:"extracted_price"`
+	Installment     *AcharPromoInstallment     `json:"installment,omitempty"`
+	Rating          float64                    `json:"rating,omitempty"`
+	Reviews         int                        `json:"reviews,omitempty"`
+	Seller          string                     `json:"seller,omitempty"`
+	Thumbnail       string                     `json:"thumbnail,omitempty"`
+	Condition       string                     `json:"condition,omitempty"`
+	DeliveryReturn  string                     `json:"delivery_return,omitempty"`
+	OriginalPrice   string                     `json:"original_price,omitempty"`
+	ExtractedOriginalPrice float64            `json:"extracted_original_price,omitempty"`
+	ProductToken    string                     `json:"product_token"`
+}
+
+// AcharPromoInstallment represents installment information
+type AcharPromoInstallment struct {
+	DownPayment              string  `json:"down_payment"`
+	ExtractedDownPayment     float64 `json:"extracted_down_payment"`
+	Months                   string  `json:"months,omitempty"`
+	ExtractedMonths          int     `json:"extracted_months,omitempty"`
+	CostPerMonth             string  `json:"cost_per_month,omitempty"`
+	ExtractedCostPerMonth    float64 `json:"extracted_cost_per_month,omitempty"`
+}
+
+// GetComparisons searches for product comparisons on achar.promo using their API
 func (e *AcharPromoExtractor) GetComparisons(searchTerm string) ([]models.ProductComparison, error) {
-	utils.Info("Starting achar.promo product extraction",
+	utils.Info("Starting achar.promo API product extraction",
 		utils.String("search_term", searchTerm),
 		utils.String("extractor", e.GetIdentifier()))
 
-	// Construct the search URL
-	searchURL := e.buildSearchURL(searchTerm)
-	
-	utils.Info("Built achar.promo search URL",
-		utils.String("url", searchURL),
-		utils.String("search_term", searchTerm))
-
-	// Fetch HTML content
-	htmlContent, err := e.fetchHTML(searchURL)
+	// Make API request
+	apiResponse, err := e.makeAPIRequest(searchTerm)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch HTML: %w", err)
+		return nil, fmt.Errorf("failed to make API request: %w", err)
 	}
 
-	// Extract products using Python script
-	comparisons, err := e.extractProducts(htmlContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract products: %w", err)
-	}
+	// Convert API response to ProductComparison objects
+	comparisons := e.convertAPIResponseToComparisons(apiResponse, searchTerm)
 
-	utils.Info("Successfully extracted products from achar.promo",
+	utils.Info("Successfully extracted products from achar.promo API",
 		utils.String("search_term", searchTerm),
 		utils.Int("product_count", len(comparisons)))
 
 	return comparisons, nil
 }
 
-// buildSearchURL constructs the achar.promo search URL
-func (e *AcharPromoExtractor) buildSearchURL(searchTerm string) string {
-	params := url.Values{}
-	params.Add("q", searchTerm)
-	return fmt.Sprintf("%s/search?%s", e.BaseURL(), params.Encode())
-}
-
-// fetchHTML makes an HTTP GET request and returns the HTML content
-func (e *AcharPromoExtractor) fetchHTML(url string) (string, error) {
-	utils.Info("Starting HTTP request to achar.promo", 
-		utils.String("url", url),
-		utils.String("extractor", "acharpromo"),
-		utils.String("base_domain", e.BaseURL()))
-
-	// Create anti-bot configuration for achar.promo
-	config := utils.DefaultAntiBotConfig(e.BaseURL())
+// makeAPIRequest makes a POST request to the achar.promo API
+func (e *AcharPromoExtractor) makeAPIRequest(searchTerm string) (*AcharPromoAPIResponse, error) {
+	apiURL := "https://achar.promo/api/text-search"
 	
-	// Make request using anti-bot utility
-	resp, err := utils.MakeAntiBotRequest(url, config)
+	utils.Info("Making API request to achar.promo",
+		utils.String("url", apiURL),
+		utils.String("search_term", searchTerm),
+		utils.String("extractor", e.GetIdentifier()))
+
+	// Create request payload
+	requestPayload := AcharPromoAPIRequest{
+		Query: searchTerm,
+	}
+
+	// Marshal request to JSON
+	requestBody, err := json.Marshal(requestPayload)
 	if err != nil {
-		utils.LogError("HTTP request execution failed for achar.promo - possible anti-bot protection", 
-			utils.String("url", url),
-			utils.String("extractor", "acharpromo"),
-			utils.String("base_domain", e.BaseURL()),
+		return nil, fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	// Add headers to mimic browser request
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("accept-language", "en-US,en;q=0.9,pt;q=0.8")
+	req.Header.Set("content-type", "application/json")
+	req.Header.Set("origin", "https://achar.promo")
+	req.Header.Set("priority", "u=1, i")
+	req.Header.Set("referer", fmt.Sprintf("https://achar.promo/search?q=%s", searchTerm))
+	req.Header.Set("sec-ch-ua", `"Microsoft Edge";v="141", "Not?A_Brand";v="8", "Chromium";v="141"`)
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", `"macOS"`)
+	req.Header.Set("sec-fetch-dest", "empty")
+	req.Header.Set("sec-fetch-mode", "cors")
+	req.Header.Set("sec-fetch-site", "same-origin")
+	req.Header.Set("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0")
+	
+	// You could add the cookie here if needed for session persistence:
+	// req.Header.Set("cookie", "ph_phc_UslDhFX6xsEB2f2LBFXk1SjxGWhz9QQOfPhD5VnM9in_posthog=...")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		utils.LogError("API request failed for achar.promo",
+			utils.String("url", apiURL),
+			utils.String("extractor", e.GetIdentifier()),
 			utils.Error(err))
-		return "", err
+		return nil, fmt.Errorf("failed to make HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		utils.Warn("HTTP request returned non-200 status code from achar.promo - possible anti-bot protection",
-			utils.String("url", url),
-			utils.String("extractor", "acharpromo"),
-			utils.String("base_domain", e.BaseURL()),
+	if resp.StatusCode != http.StatusOK {
+		utils.Warn("API request returned non-200 status code",
+			utils.String("url", apiURL),
+			utils.String("extractor", e.GetIdentifier()),
 			utils.Int("status_code", resp.StatusCode),
 			utils.String("status", resp.Status))
-		return "", fmt.Errorf("HTTP request failed with status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("API request failed with status: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	utils.Info("HTTP request successful for achar.promo",
-		utils.String("url", url),
-		utils.String("extractor", "acharpromo"),
-		utils.String("base_domain", e.BaseURL()),
-		utils.Int("status_code", resp.StatusCode))
-
+	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		utils.LogError("Failed to read response body from achar.promo",
-			utils.String("url", url),
-			utils.String("extractor", "acharpromo"),
-			utils.Error(err))
-		return "", err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return string(body), nil
+	utils.Info("API request successful for achar.promo",
+		utils.String("url", apiURL),
+		utils.String("extractor", e.GetIdentifier()),
+		utils.Int("response_size_bytes", len(body)))
+
+	// Parse JSON response
+	var apiResponse AcharPromoAPIResponse
+	if err := json.Unmarshal(body, &apiResponse); err != nil {
+		utils.LogError("Failed to parse JSON response from achar.promo API",
+			utils.String("extractor", e.GetIdentifier()),
+			utils.Error(err),
+			utils.String("response_preview", string(body[:min(len(body), 200)])))
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
+	}
+
+	utils.Info("Successfully parsed API response from achar.promo",
+		utils.String("extractor", e.GetIdentifier()),
+		utils.Int("product_count", len(apiResponse.Results)))
+
+	return &apiResponse, nil
 }
 
-// extractProducts uses the Python script to extract product information from HTML
-func (e *AcharPromoExtractor) extractProducts(htmlContent string) ([]models.ProductComparison, error) {
-	utils.Info("Starting Python extraction for achar.promo",
-		utils.String("extractor", e.GetIdentifier()),
-		utils.Int("html_size_bytes", len(htmlContent)))
-
-	// Get the absolute path to the Python script
-	scriptPath, err := filepath.Abs("extractors/pythonExtractors/acharpromo_page.py")
-	if err != nil {
-		utils.LogError("Failed to get Python script path for achar.promo",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.Error(err))
-		return nil, fmt.Errorf("failed to get script path: %w", err)
-	}
-
-	// Get Python path from environment or use default
-	pythonPath := os.Getenv("PYTHON_PATH")
-	if pythonPath == "" {
-		// Check if we're in development with a virtual environment
-		venvPath := "/Users/dennismerli/Documents/Projects/muambr-goapi/.venv/bin/python"
-		if _, err := os.Stat(venvPath); err == nil {
-			pythonPath = venvPath
-		} else {
-			pythonPath = "python3" // Default for production environments like Render
-		}
-	}
-
-	utils.Info("Using Python interpreter for achar.promo extraction",
-		utils.String("extractor", e.GetIdentifier()),
-		utils.String("python_path", pythonPath),
-		utils.String("script_path", scriptPath))
-
-	// Create temporary file for HTML content
-	tempFile, err := e.createTempHTMLFile(htmlContent)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create temporary HTML file: %w", err)
-	}
-	defer os.Remove(tempFile) // Clean up
-
-	utils.Info("Created temporary HTML file for achar.promo extraction",
-		utils.String("extractor", e.GetIdentifier()),
-		utils.String("temp_file", tempFile))
-
-	// Execute Python script
-	utils.Info("Executing Python extraction script for achar.promo",
-		utils.String("extractor", e.GetIdentifier()),
-		utils.String("temp_file", tempFile))
-
-	cmd := exec.Command(pythonPath, scriptPath, tempFile)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-
-	err = cmd.Run()
-	if err != nil {
-		utils.Warn("Python script execution failed for achar.promo",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.String("error", err.Error()),
-			utils.String("stderr", stderr.String()))
-		return nil, fmt.Errorf("python script failed: %w, stderr: %s", err, stderr.String())
-	}
-
-	utils.Info("Python script executed successfully for achar.promo",
-		utils.String("extractor", e.GetIdentifier()),
-		utils.String("python_stdout", out.String()),
-		utils.String("python_stderr", stderr.String()))
-
-	// Parse Python output
-	return e.parsePythonOutput(out.String())
-}
-
-// createTempHTMLFile creates a temporary file with the HTML content
-func (e *AcharPromoExtractor) createTempHTMLFile(htmlContent string) (string, error) {
-	tempFile, err := os.CreateTemp("", "acharpromo_html_*.html")
-	if err != nil {
-		utils.LogError("Failed to create temporary file for achar.promo HTML",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.Error(err))
-		return "", fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer tempFile.Close()
-
-	// Write HTML content to temporary file
-	_, err = tempFile.WriteString(htmlContent)
-	if err != nil {
-		utils.LogError("Failed to write HTML to temporary file for achar.promo",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.String("temp_file", tempFile.Name()),
-			utils.Error(err))
-		return "", fmt.Errorf("failed to write HTML to temp file: %w", err)
-	}
-
-	// Ensure data is written to disk
-	if err := tempFile.Sync(); err != nil {
-		utils.LogError("Failed to sync temporary file for achar.promo",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.String("temp_file", tempFile.Name()),
-			utils.Error(err))
-		return "", fmt.Errorf("failed to sync temp file: %w", err)
-	}
-
-	return tempFile.Name(), nil
-}
-
-// parsePythonOutput parses the JSON output from the Python script
-func (e *AcharPromoExtractor) parsePythonOutput(output string) ([]models.ProductComparison, error) {
-	// The Python script returns {"products": [...], "total": N, "source": "achar.promo"}
-	var result struct {
-		Products []Product `json:"products"`
-		Total    int       `json:"total"`
-		Source   string    `json:"source"`
-	}
-	
-	if err := json.Unmarshal([]byte(output), &result); err != nil {
-		utils.LogError("Failed to parse Python output for achar.promo",
-			utils.String("extractor", e.GetIdentifier()),
-			utils.String("raw_output", output),
-			utils.Error(err))
-		return nil, fmt.Errorf("failed to parse Python output: %w", err)
-	}
-	
-	products := result.Products
-
+// convertAPIResponseToComparisons converts the API response to ProductComparison objects
+func (e *AcharPromoExtractor) convertAPIResponseToComparisons(apiResponse *AcharPromoAPIResponse, searchTerm string) []models.ProductComparison {
 	var comparisons []models.ProductComparison
-	for _, product := range products {
-		comparison, err := e.convertToComparison(product)
+	
+	for _, product := range apiResponse.Results {
+		comparison, err := e.convertProductToComparison(product, searchTerm)
 		if err != nil {
-			utils.Warn("Failed to convert product to comparison for achar.promo",
+			utils.Warn("Failed to convert API product to comparison for achar.promo",
 				utils.String("extractor", e.GetIdentifier()),
-				utils.String("product_name", product.Name),
+				utils.String("product_title", product.Title),
+				utils.String("product_id", product.ProductID),
 				utils.Error(err))
 			continue // Skip invalid products
 		}
 		comparisons = append(comparisons, comparison)
 	}
-
-	return comparisons, nil
+	
+	return comparisons
 }
 
-// Product represents a product from achar.promo
-type Product struct {
-	Name        string  `json:"name"`
-	PriceText   string  `json:"price_text"`
-	Price       float64 `json:"price"`
-	StoreURL    string  `json:"store_url"`
-	ImageURL    string  `json:"image_url"`
-	Description string  `json:"description"`
-}
-
-// convertToComparison converts a Product to a ProductComparison
-func (e *AcharPromoExtractor) convertToComparison(product Product) (models.ProductComparison, error) {
+// convertProductToComparison converts an API product to a ProductComparison
+func (e *AcharPromoExtractor) convertProductToComparison(product AcharPromoProduct, searchTerm string) (models.ProductComparison, error) {
 	// Generate a unique ID for the product
 	productID := uuid.New().String()
-
-	// Parse the price
-	price := product.Price
-	if price <= 0 {
-		// Try to extract price from price text if the numeric price is not available
-		if priceFromText, err := e.extractPriceFromText(product.PriceText); err == nil {
-			price = priceFromText
-		} else {
-			return models.ProductComparison{}, fmt.Errorf("invalid price: %f", price)
-		}
-	}
-
+	
+	// Extract store name from seller or product link
+	storeName := e.extractStoreName(product)
+	
 	// Convert string fields to pointers where needed
-	var storeURL, imageURL, description *string
-	if product.StoreURL != "" {
-		storeURL = &product.StoreURL
+	var storeURL, imageURL, condition *string
+	if product.ProductLink != "" {
+		storeURL = &product.ProductLink
 	}
-	if product.ImageURL != "" {
-		imageURL = &product.ImageURL
+	if product.Thumbnail != "" {
+		imageURL = &product.Thumbnail
 	}
-	if product.Description != "" {
-		description = &product.Description
+	if product.Condition != "" {
+		condition = &product.Condition
 	}
 
-	return models.ProductComparison{
+	// Create the product comparison
+	comparison := models.ProductComparison{
 		ID:          productID,
-		ProductName: product.Name,
-		Price:       price,
-		Currency:    "BRL", // achar.promo uses Brazilian Real
-		StoreName:   "achar.promo",
+		ProductName: strings.TrimSpace(product.Title),
+		Price:       product.ExtractedPrice,
+		Currency:    "BRL", // Brazilian Real
 		StoreURL:    storeURL,
+		StoreName:   storeName,
 		ImageURL:    imageURL,
-		Description: description,
 		Country:     string(e.GetCountryCode()),
-	}, nil
+		Condition:   condition,
+	}
+
+	// Validate required fields
+	if comparison.ProductName == "" || comparison.Price <= 0 {
+		return models.ProductComparison{}, fmt.Errorf("invalid product: missing name or price")
+	}
+
+	utils.Debug("Converted API product to comparison",
+		utils.String("extractor", e.GetIdentifier()),
+		utils.String("product_name", comparison.ProductName),
+		utils.Float64("price", comparison.Price),
+		utils.String("store_name", comparison.StoreName))
+
+	return comparison, nil
 }
 
-// extractPriceFromText extracts price from text like "R$ 1.234,56"
-func (e *AcharPromoExtractor) extractPriceFromText(priceText string) (float64, error) {
-	if priceText == "" {
-		return 0, fmt.Errorf("empty price text")
+// extractStoreName extracts store name from the product seller or product link
+func (e *AcharPromoExtractor) extractStoreName(product AcharPromoProduct) string {
+	if product.Seller != "" {
+		return strings.TrimSpace(product.Seller)
 	}
-
-	// Remove currency symbols and normalize
-	cleanPrice := strings.ReplaceAll(priceText, "R$", "")
-	cleanPrice = strings.ReplaceAll(cleanPrice, ".", "") // Remove thousands separator
-	cleanPrice = strings.ReplaceAll(cleanPrice, ",", ".") // Replace decimal comma with dot
-	cleanPrice = strings.TrimSpace(cleanPrice)
-
-	// Parse the cleaned price
-	price, err := strconv.ParseFloat(cleanPrice, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse price '%s': %w", priceText, err)
+	
+	// If no seller info, try to extract from product link domain
+	if product.ProductLink != "" {
+		// For achar.promo, the links go to Google Shopping, so we use the seller field primarily
+		return "Google Shopping"
 	}
+	
+	return "Unknown Store"
+}
 
-	return price, nil
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
