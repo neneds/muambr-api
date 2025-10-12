@@ -236,10 +236,10 @@ func parsePrice(priceStr string) float64 {
 	// Remove common currency symbols and formatting
 	cleaned := priceStr
 	
-	// Remove currency symbols
+	// Remove currency symbols (order matters: remove multi-char symbols first)
+	cleaned = strings.ReplaceAll(cleaned, "R$", "")  // Brazilian Real - must be before "$"
 	cleaned = strings.ReplaceAll(cleaned, "€", "")
 	cleaned = strings.ReplaceAll(cleaned, "$", "")
-	cleaned = strings.ReplaceAll(cleaned, "R$", "")
 	cleaned = strings.ReplaceAll(cleaned, "£", "")
 	cleaned = strings.ReplaceAll(cleaned, "¥", "")
 	
