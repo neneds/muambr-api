@@ -2,6 +2,7 @@ package extractors
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,12 @@ import (
 // KuantoKustaExtractor implements the Extractor interface for KuantoKusta price comparison site
 type KuantoKustaExtractor struct {
 	countryCode models.Country
+}
+
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // NewKuantoKustaExtractor creates a new KuantoKusta extractor for Portugal
@@ -124,7 +131,22 @@ func (e *KuantoKustaExtractor) fetchHTML(url string) (string, error) {
 		utils.Int("status_code", resp.StatusCode),
 		utils.Any("content_length", resp.ContentLength))
 
-	body, err := io.ReadAll(resp.Body)
+	// Handle gzip decompression if needed
+	var reader io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			utils.LogError("Failed to create gzip reader for KuantoKusta response", 
+				utils.String("url", url),
+				utils.String("extractor", "kuantokusta"),
+				utils.Error(err))
+			return "", err
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		utils.LogError("Failed to read response body from KuantoKusta", 
 			utils.String("url", url),
@@ -148,12 +170,30 @@ func (e *KuantoKustaExtractor) extractWithPython(htmlContent string) ([]models.P
 		utils.Int("html_size_bytes", len(htmlContent)))
 
 	// Get the absolute path to the Python script
-	scriptPath, err := filepath.Abs("extractors/pythonExtractors/kuantokusta_page.py")
-	if err != nil {
-		utils.LogError("Failed to get Python script path for KuantoKusta",
+	workingDir, _ := os.Getwd()
+	projectRoot := filepath.Dir(workingDir)
+	if filepath.Base(workingDir) != "muambr-goapi" {
+		// If we're not in the project root, find it
+		for filepath.Base(projectRoot) != "muambr-goapi" && projectRoot != "/" {
+			projectRoot = filepath.Dir(projectRoot)
+		}
+		if projectRoot == "/" {
+			// Fallback: assume we're in a subdirectory of the project
+			projectRoot = workingDir
+			for !fileExists(filepath.Join(projectRoot, "go.mod")) && projectRoot != "/" {
+				projectRoot = filepath.Dir(projectRoot)
+			}
+		}
+	} else {
+		projectRoot = workingDir
+	}
+	scriptPath := filepath.Join(projectRoot, "extractors", "pythonExtractors", "kuantokusta_page.py")
+	if !fileExists(scriptPath) {
+		utils.LogError("Python script not found for KuantoKusta",
 			utils.String("extractor", "kuantokusta"),
-			utils.Error(err))
-		return nil, fmt.Errorf("failed to get script path: %w", err)
+			utils.String("script_path", scriptPath),
+			utils.String("project_root", projectRoot))
+		return nil, fmt.Errorf("Python script not found at %s", scriptPath)
 	}
 
 	// Get Python path from environment or use default
