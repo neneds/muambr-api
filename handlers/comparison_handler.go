@@ -2,17 +2,18 @@ package handlers
 
 import (
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"muambr-api/models"
 	"muambr-api/localization"
+	"muambr-api/utils"
 	"github.com/gin-gonic/gin"
 )
 
 // ComparisonHandler handles product comparison related endpoints
 type ComparisonHandler struct {
-	extractorHandler *ExtractorHandler
+	extractorHandler     *ExtractorHandler
+	comparisonProcessor  *utils.ComparisonProcessor
 }
 
 // ComparisonRequest represents the validated request parameters for product comparison
@@ -34,7 +35,8 @@ type ComparisonError struct {
 // NewComparisonHandler creates a new ComparisonHandler
 func NewComparisonHandler() *ComparisonHandler {
 	return &ComparisonHandler{
-		extractorHandler: NewExtractorHandler(),
+		extractorHandler:    NewExtractorHandler(),
+		comparisonProcessor: utils.NewComparisonProcessor(),
 	}
 }
 
@@ -93,11 +95,11 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 		return
 	}
 
-	// Apply per-country sorting and limiting
-	processedComparisons := h.processComparisonsByCountry(comparisons, params.Limit)
+	// Process comparisons using the dedicated processor
+	sections := h.comparisonProcessor.ProcessComparisons(comparisons, params.Limit)
 
 	// Return successful response
-	h.sendSuccessResponse(c, processedComparisons)
+	h.sendSuccessResponseWithSections(c, sections)
 }
 
 // parseAndValidateRequest extracts and validates all request parameters
@@ -171,68 +173,14 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	}, nil
 }
 
-// processComparisonsByCountry groups results by country, sorts by price, and applies per-country limits
-func (h *ComparisonHandler) processComparisonsByCountry(comparisons []models.ProductComparison, limit int) []models.ProductComparison {
-	// Group comparisons by country using the Country field from ProductComparison model
-	countryGroups := h.groupComparisonsByCountry(comparisons)
-	
-	// Process each country group: sort by price and apply limit
-	var finalResults []models.ProductComparison
-	for _, countryComparisons := range countryGroups {
-		processedCountryResults := h.sortAndLimitCountryComparisons(countryComparisons, limit)
-		finalResults = append(finalResults, processedCountryResults...)
-	}
-	
-	return finalResults
-}
 
-// groupComparisonsByCountry groups product comparisons by country using the Country field
-func (h *ComparisonHandler) groupComparisonsByCountry(comparisons []models.ProductComparison) map[string][]models.ProductComparison {
-	countryGroups := make(map[string][]models.ProductComparison)
-	
-	for _, comparison := range comparisons {
-		// Use the Country field directly from the ProductComparison model
-		countryCode := comparison.Country
-		if countryCode == "" {
-			countryCode = "Unknown" // Fallback for empty country
-		}
-		countryGroups[countryCode] = append(countryGroups[countryCode], comparison)
-	}
-	
-	return countryGroups
-}
-
-// sortAndLimitCountryComparisons sorts a country's comparisons by price (smallest first) and applies limit
-func (h *ComparisonHandler) sortAndLimitCountryComparisons(comparisons []models.ProductComparison, limit int) []models.ProductComparison {
-	// Sort by price (smallest first), using converted price if available
-	sort.Slice(comparisons, func(i, j int) bool {
-		priceI := h.getEffectivePrice(comparisons[i])
-		priceJ := h.getEffectivePrice(comparisons[j])
-		return priceI < priceJ
-	})
-	
-	// Apply limit
-	if limit > 0 && len(comparisons) > limit {
-		return comparisons[:limit]
-	}
-	
-	return comparisons
-}
-
-// getEffectivePrice returns the converted price if available, otherwise the original price
-func (h *ComparisonHandler) getEffectivePrice(comparison models.ProductComparison) float64 {
-	if comparison.ConvertedPrice != nil {
-		return comparison.ConvertedPrice.Price
-	}
-	return comparison.Price
-}
 
 // sendErrorResponse sends a standardized error response
 func (h *ComparisonHandler) sendErrorResponse(c *gin.Context, compErr *ComparisonError) {
 	c.JSON(compErr.StatusCode, models.ProductComparisonResponse{
 		Success:      false,
 		Message:      &compErr.Message,
-		Comparisons:  []models.ProductComparison{},
+		Sections:     []models.CountrySection{},
 		TotalResults: 0,
 	})
 }
@@ -243,18 +191,18 @@ func (h *ComparisonHandler) sendInternalErrorResponse(c *gin.Context, messageKey
 	c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
 		Success:      false,
 		Message:      &message,
-		Comparisons:  []models.ProductComparison{},
+		Sections:     []models.CountrySection{},
 		TotalResults: 0,
 	})
 }
 
-// sendInternalErrorResponseWithLocalizer sends a 500 internal server error response with request-scoped localizer
+// sendInternalErrorResponseWithLocalizer sends a 500 internal server error response using request-scoped localizer
 func (h *ComparisonHandler) sendInternalErrorResponseWithLocalizer(c *gin.Context, localizer *localization.RequestLocalizer, messageKey string) {
 	message := localization.TR(localizer, messageKey)
 	c.JSON(http.StatusInternalServerError, models.ProductComparisonResponse{
 		Success:      false,
 		Message:      &message,
-		Comparisons:  []models.ProductComparison{},
+		Sections:     []models.CountrySection{},
 		TotalResults: 0,
 	})
 }
@@ -265,7 +213,7 @@ func (h *ComparisonHandler) sendEmptyResultsResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, models.ProductComparisonResponse{
 		Success:      true,
 		Message:      &message,
-		Comparisons:  []models.ProductComparison{},
+		Sections:     []models.CountrySection{},
 		TotalResults: 0,
 	})
 }
@@ -276,17 +224,31 @@ func (h *ComparisonHandler) sendEmptyResultsResponseWithLocalizer(c *gin.Context
 	c.JSON(http.StatusOK, models.ProductComparisonResponse{
 		Success:      true,
 		Message:      &message,
-		Comparisons:  []models.ProductComparison{},
+		Sections:     []models.CountrySection{},
 		TotalResults: 0,
 	})
 }
 
-// sendSuccessResponse sends a successful response with comparison results
-func (h *ComparisonHandler) sendSuccessResponse(c *gin.Context, comparisons []models.ProductComparison) {
+
+
+// sendSuccessResponseWithSections sends a successful response with processed country sections
+func (h *ComparisonHandler) sendSuccessResponseWithSections(c *gin.Context, sections []models.CountrySection) {
+	// Calculate total results across all sections
+	totalResults := 0
+	for _, section := range sections {
+		totalResults += section.ResultsCount
+	}
+	
 	c.JSON(http.StatusOK, models.ProductComparisonResponse{
 		Success:      true,
 		Message:      nil,
-		Comparisons:  comparisons,
-		TotalResults: len(comparisons),
+		Sections:     sections,
+		TotalResults: totalResults,
 	})
+}
+
+// sendSuccessResponse sends a successful response with comparison results (legacy method for backward compatibility)
+func (h *ComparisonHandler) sendSuccessResponse(c *gin.Context, comparisons []models.ProductComparison) {
+	sections := h.comparisonProcessor.ProcessComparisons(comparisons, 10) // Default limit for legacy calls
+	h.sendSuccessResponseWithSections(c, sections)
 }

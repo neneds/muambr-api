@@ -145,12 +145,20 @@ type ProductComparison struct {
 	LastUpdated    *string         `json:"lastUpdated,omitempty"`
 }
 
+// CountrySection represents a group of product comparisons from a specific country
+type CountrySection struct {
+	Country      string               `json:"country"`
+	CountryName  string               `json:"countryName"`
+	Comparisons  []ProductComparison  `json:"comparisons"`
+	ResultsCount int                  `json:"resultsCount"`
+}
+
 // ProductComparisonResponse represents the API response format expected by Swift client
 type ProductComparisonResponse struct {
-	Success      bool                `json:"success"`
-	Message      *string             `json:"message,omitempty"`
-	Comparisons  []ProductComparison `json:"comparisons"`
-	TotalResults int                 `json:"totalResults"`
+	Success      bool             `json:"success"`
+	Message      *string          `json:"message,omitempty"`
+	Sections     []CountrySection `json:"sections"`
+	TotalResults int              `json:"totalResults"`
 }
 
 
