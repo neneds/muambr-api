@@ -179,14 +179,40 @@ func parsePrice(priceString string) *float64 {
 	cleanedString = strings.ReplaceAll(cleanedString, "€", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "£", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "R$", "")
+	cleanedString = strings.ReplaceAll(cleanedString, "R ", "")  // Handle remaining R space
 	cleanedString = strings.ReplaceAll(cleanedString, "USD", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "EUR", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "GBP", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "BRL", "")
-	cleanedString = strings.ReplaceAll(cleanedString, ",", "")
 	cleanedString = strings.TrimSpace(cleanedString)
 
 	utils.Debug("🔄 LinkPreviewParser: Cleaned price string", utils.String("cleaned", cleanedString))
+
+	// Handle European/Brazilian number format where dots are thousands separators
+	// Examples: "1.050" = 1050, "9.699" = 9699, "1.234.567" = 1234567
+	// But preserve decimals: "1.050,99" = 1050.99
+	if strings.Contains(cleanedString, ",") {
+		// Has comma - treat dots as thousands separators, comma as decimal
+		parts := strings.Split(cleanedString, ",")
+		if len(parts) == 2 {
+			integerPart := strings.ReplaceAll(parts[0], ".", "")
+			decimalPart := parts[1]
+			cleanedString = integerPart + "." + decimalPart
+		}
+	} else {
+		// No comma - check if dot is likely a thousands separator
+		// If the number has format X.XXX where XXX is exactly 3 digits, it's probably thousands
+		if matches := regexp.MustCompile(`^(\d{1,3})\.(\d{3})$`).FindStringSubmatch(cleanedString); matches != nil {
+			// Format like "1.050" or "9.699" - treat as thousands separator
+			cleanedString = matches[1] + matches[2]
+		}
+		// Otherwise, treat dot as decimal separator (like "123.45")
+	}
+
+	// Remove any remaining commas (in case there were multiple)
+	cleanedString = strings.ReplaceAll(cleanedString, ",", "")
+
+	utils.Debug("🔄 LinkPreviewParser: Final cleaned price string", utils.String("cleaned", cleanedString))
 
 	if val, err := strconv.ParseFloat(cleanedString, 64); err == nil {
 		utils.Debug("🔄 LinkPreviewParser: Parsed price", utils.Float64("value", val))

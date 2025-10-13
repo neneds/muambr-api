@@ -19,6 +19,7 @@ var siteParserRegistry = map[string]func() Parser{
 	"fnac.pt":               func() Parser { return &FnacPTParser{} },
 	"olx.pt":                func() Parser { return &OLXPTParser{} },
 	"olx.br":                func() Parser { return &OLXBRParser{} },
+	"olx.com.br":            func() Parser { return &OLXBRParser{} },
 	"magazineluiza.com.br":  func() Parser { return &MagazineLuizaBRParser{} },
 	"mercadolivre.com.br":   func() Parser { return &MercadoLivreBRParser{} },
 	"electrolux.com.br":     func() Parser { return &ElectroluxBRParser{} },
