@@ -11,6 +11,7 @@ func SetupRoutes(r *gin.Engine) {
 	// Initialize handlers
 	comparisonHandler := handlers.NewComparisonHandler()
 	adminHandler := handlers.NewAdminHandler()
+	linkPreviewHandler := handlers.NewLinkPreviewHandler()
 
 	// API v1 group - matches Swift client expectations
 	v1 := r.Group("/api/v1")
@@ -20,6 +21,9 @@ func SetupRoutes(r *gin.Engine) {
 			// GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currentUserCountry=US
 			comparisons.GET("/search", comparisonHandler.GetComparisons)
 		}
+
+		// GET /api/v1/linkpreview?url=...&baseCountry=PT&addComparisons=true
+		v1.GET("/linkpreview", linkPreviewHandler.GetLinkPreview)
 	}
 
 	// Admin group for utility endpoints
