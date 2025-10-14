@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "muambr-api Collection",
-    "description": "Product Comparison API Testing Collection - Updated November 2025\n\nFeatures:\n- Multi-country product comparison with structured sections\n- Currency conversion with exchange rate caching\n- Macro region support for broader country coverage\n- Localized responses based on base country\n- Admin endpoints for cache management and testing\n\nResponse Structure:\n- Results are grouped by country in sections\n- Each section contains products from that specific country\n- Currency conversion included when target differs from product currency\n\nMacro Regions:\n- EU: Portugal, Spain, Germany, United Kingdom\n- NA: United States\n- LATAM: Brazil\n\nSupported Countries: BR, US, PT, ES, DE, GB",
+    "description": "Product Comparison API Testing Collection - Updated October 2025\n\nFeatures:\n- Multi-country product comparison with structured sections\n- Currency conversion with exchange rate caching\n- Macro region support for broader country coverage\n- Localized responses based on base country\n- Link preview functionality with HTML parsing\n- Admin endpoints for cache management and testing\n\nAPI Structure:\n- Main API: /api/v1/ (for production endpoints)\n- Admin API: /admin/ (for utility and management)\n- Health Check: /health (simple status endpoint)\n\nResponse Structure:\n- Results are grouped by country in sections\n- Each section contains products from that specific country\n- Currency conversion included when target differs from product currency\n\nMacro Regions:\n- EU: Portugal, Spain, Germany, United Kingdom\n- NA: United States\n- LATAM: Brazil\n\nSupported Countries: BR, US, PT, ES, DE, GB",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -878,6 +878,226 @@
           ],
           "cookie": [],
           "body": "{\n  \"success\": true,\n  \"sections\": [\n    {\n      \"country\": \"PT\",\n      \"countryName\": \"Portugal\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-pt-005\",\n          \"productName\": \"MacBook Pro 14 M3 Pro 512GB Space Black\",\n          \"price\": 2299.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"KuantoKusta\",\n          \"storeURL\": \"https://www.kuantokusta.pt/p/54325/macbook-pro-14-m3-pro-512gb\",\n          \"country\": \"PT\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    },\n    {\n      \"country\": \"BR\",\n      \"countryName\": \"Brazil\",\n      \"comparisons\": [\n        {\n          \"id\": \"ml-br-005\",\n          \"productName\": \"MacBook Pro 13 M2 256GB\",\n          \"price\": 8999.00,\n          \"currency\": \"BRL\",\n          \"convertedPrice\": {\n            \"price\": 1685.23,\n            \"currency\": \"EUR\"\n          },\n          \"storeName\": \"Mercado Livre\",\n          \"storeURL\": \"https://www.mercadolivre.com.br/macbook-pro-13-m2-256gb/p/MLB98766\",\n          \"country\": \"BR\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    }\n  ],\n  \"totalResults\": 2\n}"
+        }
+      ]
+    },
+    {
+      "name": "Link Preview - Amazon Product",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/linkpreview?url=https://amazon.es/dp/B0C1JJQMTC&baseCountry=PT",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "linkpreview"],
+          "query": [
+            {
+              "key": "url",
+              "value": "https://amazon.es/dp/B0C1JJQMTC"
+            },
+            {
+              "key": "baseCountry",
+              "value": "PT"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Link Preview Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/linkpreview?url=https://amazon.es/dp/B0C1JJQMTC&baseCountry=PT",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "linkpreview"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "https://amazon.es/dp/B0C1JJQMTC"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"productData\": {\n    \"title\": \"iPhone 15 Pro Max 256GB\",\n    \"price\": 1479.00,\n    \"currency\": \"eur\",\n    \"imageURL\": \"https://m.media-amazon.com/images/I/81dT7CUY6GL._AC_SX679_.jpg\",\n    \"description\": \"iPhone 15 Pro Max 256GB Natural Titanium. Revolutionary titanium design with Action Button and advanced camera system.\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Link Preview - OLX Product",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/linkpreview?url=https://olx.pt/d/anuncio/iphone-16-pro-max-256-gb-IDJ2Y4q.html&baseCountry=PT&addComparisons=false",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "linkpreview"],
+          "query": [
+            {
+              "key": "url",
+              "value": "https://olx.pt/d/anuncio/iphone-16-pro-max-256-gb-IDJ2Y4q.html"
+            },
+            {
+              "key": "baseCountry",
+              "value": "PT"
+            },
+            {
+              "key": "addComparisons",
+              "value": "false"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Link Preview OLX Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/linkpreview?url=https://olx.pt/d/anuncio/iphone-16-pro-max-256-gb-IDJ2Y4q.html&baseCountry=PT&addComparisons=false",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "linkpreview"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "https://olx.pt/d/anuncio/iphone-16-pro-max-256-gb-IDJ2Y4q.html"
+                },
+                {
+                  "key": "baseCountry",
+                  "value": "PT"
+                },
+                {
+                  "key": "addComparisons",
+                  "value": "false"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"productData\": {\n    \"title\": \"iPhone 16 Pro Max 256 GB\",\n    \"price\": 1050.00,\n    \"currency\": \"eur\",\n    \"imageURL\": \"https://ireland.apollo.olxcdn.com:443/v1/files/q82seegwn3p51-PT/image;s=750x1000\",\n    \"description\": \"iPhone 16 Pro Max com 256GB de armazenamento. Estado impecável, desempenho incrível. A oportunidade perfeita para quem busca qualidade e eficiência. Sempre usado com capa e vidro de proteção, está como novo.\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Link Preview - Cash Converters Product",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/linkpreview?url=https://cashconverters.pt/product/ipad-wi-fi-a2602-64gb-10-2-9-generacion",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "linkpreview"],
+          "query": [
+            {
+              "key": "url",
+              "value": "https://cashconverters.pt/product/ipad-wi-fi-a2602-64gb-10-2-9-generacion"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Link Preview Cash Converters Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/linkpreview?url=https://cashconverters.pt/product/ipad-wi-fi-a2602-64gb-10-2-9-generacion",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "linkpreview"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "https://cashconverters.pt/product/ipad-wi-fi-a2602-64gb-10-2-9-generacion"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"productData\": {\n    \"title\": \"ipad (wi-fi) (a2602) 64gb (10.2) (9 generacion)\",\n    \"price\": 196.95,\n    \"currency\": \"eur\",\n    \"imageURL\": \"https://images.cashconverters.es/productslive/ipad/apple-ipad-wi-fi-a2602-64gb-10-2-9-generacion_PT006_E330780-0_0.jpg?d=large\",\n    \"description\": \"Dá uma vista de olhos às promoções de ipad (wi-fi) (a2602) 64gb (10.2) (9 generacion) de segunda mão (apple), com 3 anos de garantia e a preço de pechincha.\"\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "Link Preview - Error Cases",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/linkpreview?url=invalid-url",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "linkpreview"],
+          "query": [
+            {
+              "key": "url",
+              "value": "invalid-url"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "Invalid URL Error",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/linkpreview?url=invalid-url",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "linkpreview"],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "invalid-url"
+                }
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"error\": \"Invalid URL\",\n  \"details\": \"parse \\\"invalid-url\\\": invalid URI for request\"\n}"
         }
       ]
     },
