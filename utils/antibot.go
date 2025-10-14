@@ -37,7 +37,7 @@ func CreateAntiBotClient() *http.Client {
 			MinVersion: tls.VersionTLS12,
 			MaxVersion: tls.VersionTLS13,
 		},
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     false, // Disable HTTP/2 to avoid connection header conflicts
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -119,7 +119,7 @@ func ApplyAntiBotHeaders(req *http.Request, config *AntiBotConfig) {
 	
 	// Connection headers
 	req.Header.Set("Upgrade-Insecure-Requests", "1")
-	req.Header.Set("Connection", "keep-alive")
+	// Note: Don't set Connection header as it can conflict with HTTP/2
 	
 	// Add referer if configured
 	if config.UseReferer && config.RefererURL != "" {

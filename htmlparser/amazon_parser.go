@@ -14,10 +14,26 @@ type AmazonParser struct {
 }
 
 func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
-	// Try meta name="title" first for Amazon
-	pattern := `<meta[^>]*name=["']title["'][^>]*content=["'](.*?)["'][^>]*>`
-	if metaTitle := extractWithRegex(pattern, html); metaTitle != "" {
-		return metaTitle
+	// Amazon-specific title patterns in order of preference
+	patterns := []string{
+		// Product title span (most common)
+		`<span[^>]*id="productTitle"[^>]*>([^<]+)</span>`,
+		// Meta name="title" 
+		`<meta[^>]*name=["']title["'][^>]*content=["'](.*?)["'][^>]*>`,
+		// H1 with product title class
+		`<h1[^>]*class="[^"]*product[^"]*title[^"]*"[^>]*>([^<]+)</h1>`,
+		// Breadcrumb last item (product name)
+		`<span[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<span[^>]*>([^<]+)</span>\s*</span>`,
+	}
+
+	for _, pattern := range patterns {
+		if title := extractWithRegex(pattern, html); title != "" {
+			cleaned := strings.TrimSpace(title)
+			// Avoid generic titles like domain names
+			if !strings.Contains(strings.ToLower(cleaned), "amazon") && len(cleaned) > 10 {
+				return cleaned
+			}
+		}
 	}
 
 	// Try structured data
@@ -38,21 +54,28 @@ func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {
 	if isBrazil {
 		// Brazilian-specific patterns (R$ with comma as decimal separator)
 		patterns = []string{
-			`<span class="a-offscreen">R\$([0-9.,]+)</span>`,  // R$612,25
-			`<span class="a-offscreen">R\$ ([0-9.,]+)</span>`, // R$ 612,25
-			`<span class="aok-offscreen">\s*R\$\s*([0-9.,]+)\s*</span>`,
+			`<span class="a-offscreen">R\$\s*([0-9.,]+)</span>`,     // R$612,25 or R$ 612,25
+			`<span class="aok-offscreen">\s*R\$\s*([0-9.,]+)\s*</span>`, // Alternative class
+			`"priceAmount":([0-9.]+)`,                               // JSON-LD price data
+			`data-asin-price="([0-9.,]+)"`,                          // Data attribute price
+			`<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([0-9.,]+)</span>`, // Price whole part
+			`<span[^>]*class="[^"]*price[^"]*"[^>]*>R\$\s*([0-9.,]+)</span>`,   // Generic price span
 		}
 	} else {
 		// European patterns (€ with comma/dot variations)
 		patterns = []string{
-			`<span class="a-offscreen">([0-9.,]+)€</span>`,     // 470,00€
-			`<span class="a-offscreen">([0-9.,]+) €</span>`,    // 470,00 €  
-			`<span class="aok-offscreen">\s*([0-9.,]+)\s*€\s*</span>`,
+			`<span class="a-offscreen">([0-9.,]+)\s*€</span>`,       // 470,00€ or 470,00 €
+			`<span class="aok-offscreen">\s*([0-9.,]+)\s*€\s*</span>`, // Alternative class
+			`"priceAmount":([0-9.]+)`,                               // JSON-LD price data
+			`data-asin-price="([0-9.,]+)"`,                          // Data attribute price
+			`<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([0-9.,]+)</span>`, // Price whole part
 		}
 	}
 
-	for _, pattern := range patterns {
+	for i, pattern := range patterns {
+		utils.Debug("💰 LinkPreviewParser: Trying Amazon price pattern", utils.Int("pattern", i+1))
 		if priceMatch := extractWithRegex(pattern, html); priceMatch != "" {
+			utils.Debug("💰 LinkPreviewParser: Found Amazon price match", utils.String("match", priceMatch), utils.Int("pattern", i+1))
 			cleanedPrice := strings.TrimSpace(priceMatch)
 			
 			if isBrazil {
