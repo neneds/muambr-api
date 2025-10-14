@@ -42,7 +42,16 @@ func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
 	}
 
 	// Fallback to generic extraction
-	return p.ShareHTMLParser.ExtractTitle(html, pageURL)
+	genericTitle := p.ShareHTMLParser.ExtractTitle(html, pageURL)
+	
+	// Check if we got a blocked/generic title
+	if strings.Contains(strings.ToLower(genericTitle), "amazon.com") || 
+		 strings.Contains(strings.ToLower(genericTitle), "www.amazon") {
+		// We're likely being blocked - return a more descriptive message
+		return "Amazon Product (Anti-bot Protection Active)"
+	}
+	
+	return genericTitle
 }
 
 func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {

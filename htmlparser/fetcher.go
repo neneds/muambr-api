@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"muambr-api/utils"
+	"net/http"
 	"net/url"
+	"time"
 )
 
 // FetchHTML fetches HTML content from a URL using anti-bot measures
@@ -20,17 +22,48 @@ func FetchHTML(urlStr string) (string, error) {
 	// Create anti-bot config for the site
 	config := utils.DefaultAntiBotConfig(urlStr)
 
-	// Make request with anti-bot protection
-	resp, err := utils.MakeAntiBotRequest(urlStr, config)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch URL: %w", err)
+	var resp *http.Response
+	var err error
+	
+	// Retry logic for anti-bot protection
+	maxRetries := 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			utils.Info("🔄 Retrying request with different strategy", 
+				utils.Int("attempt", attempt+1),
+				utils.String("url", parsedURL.Host))
+			// Increase delay for retries
+			config.MinDelay = time.Duration(attempt) * 2000 * time.Millisecond
+			config.MaxDelay = time.Duration(attempt) * 4000 * time.Millisecond
+		}
+		
+		// Make request with anti-bot protection
+		resp, err = utils.MakeAntiBotRequest(urlStr, config)
+		if err != nil {
+			if attempt == maxRetries {
+				return "", fmt.Errorf("failed to fetch URL after %d attempts: %w", maxRetries+1, err)
+			}
+			continue
+		}
+		
+		// Check response status
+		if resp.StatusCode == 200 {
+			break // Success!
+		} else if resp.StatusCode == 403 || resp.StatusCode == 429 {
+			resp.Body.Close()
+			if attempt == maxRetries {
+				return "", fmt.Errorf("access denied after %d attempts, status code: %d", maxRetries+1, resp.StatusCode)
+			}
+			utils.Warn("🚫 Access denied, retrying with different approach", 
+				utils.Int("statusCode", resp.StatusCode),
+				utils.Int("attempt", attempt+1))
+			continue
+		} else {
+			resp.Body.Close()
+			return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
 	}
 	defer resp.Body.Close()
-
-	// Check response status
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)

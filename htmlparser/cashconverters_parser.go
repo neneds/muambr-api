@@ -37,7 +37,17 @@ func (p *CashConvertersPTParser) ExtractTitle(html string, pageURL *url.URL) str
 		}
 	}
 
-	return p.ShareHTMLParser.ExtractTitle(html, pageURL)
+	// Fallback to generic extraction
+	genericTitle := p.ShareHTMLParser.ExtractTitle(html, pageURL)
+	
+	// Check if we got a blocked/generic title
+	if strings.Contains(strings.ToLower(genericTitle), "cashconverters.pt") || 
+		 strings.Contains(strings.ToLower(genericTitle), "www.cashconverters") {
+		// We're likely being blocked - return a more descriptive message
+		return "Cash Converters Product (Anti-bot Protection Active)"
+	}
+	
+	return genericTitle
 }
 
 func (p *CashConvertersPTParser) cleanCashConvertersTitle(title string) string {
