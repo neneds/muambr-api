@@ -23,7 +23,6 @@ func FetchHTML(urlStr string) (string, error) {
 	config := utils.DefaultAntiBotConfig(urlStr)
 
 	var resp *http.Response
-	var err error
 	
 	// Retry logic for anti-bot protection
 	maxRetries := 2
