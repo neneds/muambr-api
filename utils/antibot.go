@@ -105,23 +105,24 @@ func GetRandomUserAgent() string {
 
 // ApplyAntiBotHeaders applies comprehensive anti-bot headers to an HTTP request
 func ApplyAntiBotHeaders(req *http.Request, config *AntiBotConfig) {
-	// Set User-Agent
+	// Set User-Agent (enhanced from amazon_scraper.go patterns)
 	userAgent := ""
 	if config.UserAgentRotation {
 		userAgent = GetRandomUserAgent()
 	} else {
-		userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+		// Use the same default as amazon_scraper.go
+		userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 	}
 	req.Header.Set("User-Agent", userAgent)
 
-	// Core browser headers - match what real browsers send
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
-	req.Header.Set("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8,en-US;q=0.7")
+	// Core browser headers - enhanced to match amazon_scraper.go patterns
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
 	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
 	
-	// Remove cache headers that look suspicious
-	// req.Header.Set("Cache-Control", "no-cache")
-	// req.Header.Set("Pragma", "no-cache")
+	// Connection and upgrade headers (from amazon_scraper.go)
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
 	
 	// Modern Chrome security headers - update to latest versions
 	req.Header.Set("Sec-Ch-Ua", `"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"`)
@@ -132,17 +133,12 @@ func ApplyAntiBotHeaders(req *http.Request, config *AntiBotConfig) {
 	req.Header.Set("Sec-Fetch-Site", "none")
 	req.Header.Set("Sec-Fetch-User", "?1")
 	
-	// Connection headers
-	req.Header.Set("Upgrade-Insecure-Requests", "1")
-	// Note: Don't set Connection header as it can conflict with HTTP/2
-	
 	// Add more realistic headers
 	req.Header.Set("Sec-Purpose", "prefetch;prerender")
 	
-	// Add referer if configured - but make it more realistic
+	// Add referer if configured - use the configured referer URL
 	if config.UseReferer && config.RefererURL != "" {
-		// Use Google as referer to look more natural
-		req.Header.Set("Referer", "https://www.google.com/")
+		req.Header.Set("Referer", config.RefererURL)
 	}
 	
 	// Randomly add some optional headers to look more natural
@@ -193,6 +189,78 @@ func MakeAntiBotRequest(url string, config *AntiBotConfig) (*http.Response, erro
 	
 	// Apply anti-bot headers
 	ApplyAntiBotHeaders(req, config)
+	
+	// Make the request
+	return client.Do(req)
+}
+
+// CreateScrapingClient creates an HTTP client optimized for scraping (inspired by amazon_scraper.go)
+func CreateScrapingClient() *http.Client {
+	// Enhanced transport settings for scraping
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion:               tls.VersionTLS12,
+			MaxVersion:               tls.VersionTLS13,
+			PreferServerCipherSuites: false,
+			InsecureSkipVerify:       false,
+		},
+		ForceAttemptHTTP2:     false, // Disable HTTP/2 for compatibility
+		MaxIdleConns:          5,     // Reduced to look less bot-like
+		MaxIdleConnsPerHost:   1,     // Single connection per host
+		IdleConnTimeout:       60 * time.Second,
+		TLSHandshakeTimeout:   20 * time.Second,
+		ExpectContinueTimeout: 3 * time.Second,
+		DisableKeepAlives:     false, // Keep alive for realism
+		DisableCompression:    false, // Enable compression
+		MaxConnsPerHost:       2,     // Limit concurrent connections
+		ResponseHeaderTimeout: 45 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: tr,
+		Timeout:   60 * time.Second, // Longer timeout for complex pages
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Allow up to 5 redirects (reduced from 10 to be more conservative)
+			if len(via) >= 5 {
+				return http.ErrUseLastResponse
+			}
+			// Copy headers to redirected request
+			if len(via) > 0 {
+				for key, values := range via[0].Header {
+					// Skip certain headers that might cause issues
+					if key != "Content-Length" && key != "Host" {
+						for _, value := range values {
+							req.Header.Add(key, value)
+						}
+					}
+				}
+			}
+			return nil
+		},
+	}
+}
+
+// MakeScrapingRequest performs an enhanced HTTP request optimized for scraping sites like Amazon
+func MakeScrapingRequest(url string, config *AntiBotConfig) (*http.Response, error) {
+	// Apply random delay before making request
+	RandomDelay(config)
+	
+	// Create scraping-optimized client
+	client := CreateScrapingClient()
+	
+	// Create request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Apply enhanced anti-bot headers for scraping
+	ApplyAntiBotHeaders(req, config)
+	
+	// Additional headers specifically for scraping (from amazon_scraper.go patterns)
+	req.Header.Set("Cache-Control", "max-age=0")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
 	
 	// Make the request
 	return client.Do(req)

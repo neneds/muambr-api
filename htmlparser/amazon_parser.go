@@ -14,23 +14,38 @@ type AmazonParser struct {
 }
 
 func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
-	// Amazon-specific title patterns in order of preference
+	// Amazon-specific title patterns in order of preference (based on amazon_scraper.go)
 	patterns := []string{
 		// Product title span (most common)
 		`<span[^>]*id="productTitle"[^>]*>([^<]+)</span>`,
+		// Alternative product title patterns from scraper
+		`div\[data-cy=['"]title-recipe['"]\]\s*a\.a-link-normal[^>]*>([^<]+)</a>`,
+		`div\.puisg-col-inner\s*a\.a-link-normal[^>]*>([^<]+)</a>`,
 		// Meta name="title" 
 		`<meta[^>]*name=["']title["'][^>]*content=["'](.*?)["'][^>]*>`,
 		// H1 with product title class
 		`<h1[^>]*class="[^"]*product[^"]*title[^"]*"[^>]*>([^<]+)</h1>`,
+		// Search results title patterns (from scraper)
+		`<h2[^>]*class="[^"]*s-size-mini[^"]*"[^>]*>.*?<a[^>]*>.*?<span[^>]*>([^<]+)</span>`,
 		// Breadcrumb last item (product name)
 		`<span[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<span[^>]*>([^<]+)</span>\s*</span>`,
 	}
 
-	for _, pattern := range patterns {
+	for i, pattern := range patterns {
+		utils.Debug("📄 AmazonParser: Trying title pattern", utils.Int("pattern", i+1))
 		if title := extractWithRegex(pattern, html); title != "" {
 			cleaned := strings.TrimSpace(title)
-			// Avoid generic titles like domain names
-			if !strings.Contains(strings.ToLower(cleaned), "amazon") && len(cleaned) > 10 {
+			// Filter out unwanted titles (from scraper logic)
+			lower := strings.ToLower(cleaned)
+			if cleaned != "" &&
+				!strings.Contains(lower, "check each product") &&
+				!strings.Contains(lower, "let us know") &&
+				!strings.Contains(lower, "results") &&
+				!strings.Contains(lower, "your search") &&
+				!strings.Contains(lower, "amazon.com") &&
+				!strings.Contains(lower, "www.amazon") &&
+				len(cleaned) > 10 {
+				utils.Debug("📄 AmazonParser: Found valid title", utils.String("title", cleaned), utils.Int("pattern", i+1))
 				return cleaned
 			}
 		}
@@ -111,23 +126,39 @@ func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {
 }
 
 func (p *AmazonParser) ExtractImage(html string, pageURL *url.URL) string {
-	// Amazon uses data-old-hires for high-resolution images
+	// Amazon uses various patterns for images (enhanced with scraper insights)
 	patterns := []string{
 		`data-old-hires="([^"]+)"`,                             // Primary pattern for high-res images
 		`'colorImages':\s*\{\s*'initial':\s*\[{"hiRes":"([^"]+)"`, // JavaScript color images data
 		`id="landingImage"[^>]*src="([^"]+)"`,                  // Landing image src attribute
+		`data-a-dynamic-image="[^"]*"([^"]*\.jpg[^"]*)"`,       // Dynamic image data
+		`<img[^>]*class="[^"]*product[^"]*image[^"]*"[^>]*src="([^"]+)"`, // Product image class
+		`<img[^>]*id="[^"]*main[^"]*image[^"]*"[^>]*src="([^"]+)"`, // Main image ID
 	}
 
-	for _, pattern := range patterns {
+	utils.Debug("🖼️ AmazonParser: Starting image extraction")
+	
+	for i, pattern := range patterns {
+		utils.Debug("🖼️ AmazonParser: Trying image pattern", utils.Int("pattern", i+1))
 		if imageURL := extractWithRegex(pattern, html); imageURL != "" {
+			// Clean up the image URL
+			cleanedURL := strings.TrimSpace(imageURL)
+			
 			// Ensure URL is properly formatted
-			if strings.HasPrefix(imageURL, "http") {
-				return imageURL
+			if strings.HasPrefix(cleanedURL, "http") {
+				utils.Debug("🖼️ AmazonParser: Found image URL", utils.String("url", cleanedURL), utils.Int("pattern", i+1))
+				return cleanedURL
+			} else if strings.HasPrefix(cleanedURL, "//") {
+				// Handle protocol-relative URLs
+				fullURL := "https:" + cleanedURL
+				utils.Debug("🖼️ AmazonParser: Found protocol-relative image URL", utils.String("url", fullURL), utils.Int("pattern", i+1))
+				return fullURL
 			}
 		}
 	}
 
 	// Fallback to generic extraction
+	utils.Debug("🖼️ AmazonParser: Using generic image extraction")
 	return p.ShareHTMLParser.ExtractImage(html, pageURL)
 }
 
@@ -203,7 +234,12 @@ func (p *AmazonParser) ExtractCurrency(html string, pageURL *url.URL) string {
 }
 
 func (p *AmazonParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
-	utils.Info("📄 AmazonParser: Starting parseHTMLContent")
+	utils.Info("📄 AmazonParser: Starting parseHTMLContent", utils.String("url", pageURL.String()))
+
+	// Check if we're likely being blocked by examining HTML content
+	if isLikelyBlocked(html) {
+		utils.Warn("🚫 AmazonParser: Likely blocked by anti-bot protection")
+	}
 
 	rawTitle := p.ExtractTitle(html, pageURL)
 	priceString := p.ExtractPrice(html, pageURL)
@@ -222,6 +258,8 @@ func (p *AmazonParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductDa
 	
 	if price != nil {
 		utils.Info("📄 AmazonParser: Extracted price", utils.Float64("price", *price))
+	} else {
+		utils.Warn("📄 AmazonParser: Failed to extract price", utils.String("priceString", priceString))
 	}
 
 	return &ParsedProductData{
@@ -231,6 +269,30 @@ func (p *AmazonParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductDa
 		ImageURL:    imageURL,
 		Description: description,
 	}
+}
+
+// isLikelyBlocked checks if the HTML content indicates we're being blocked
+func isLikelyBlocked(html string) bool {
+	blockedIndicators := []string{
+		"robot or spider",
+		"access denied",
+		"captcha",
+		"please verify",
+		"blocked",
+		"not authorized",
+		"temporarily unavailable",
+		"service unavailable",
+	}
+	
+	lowerHTML := strings.ToLower(html)
+	for _, indicator := range blockedIndicators {
+		if strings.Contains(lowerHTML, indicator) {
+			return true
+		}
+	}
+	
+	// Check for very short HTML content (likely an error page)
+	return len(html) < 1000
 }
 
 func (p *AmazonParser) parseAmazonPrice(priceString string, currency string) *float64 {
