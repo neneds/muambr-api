@@ -1,15 +1,15 @@
 # Copilot Instructions for muambr-goapi
 
 ## Project Overview
-This is a Go REST API for multi-country product price comparisons. The system uses a hybrid Go + Python architecture where Go handles HTTP routing, business logic, and response processing, while Python scripts perform the actual web scraping from e-commerce sites.
+This is a pure Go REST API for multi-country product price comparisons. The system uses a pure Go architecture where Go handles HTTP routing, business logic, response processing, and web scraping from e-commerce sites using native Go libraries.
 
 ## Architecture Patterns
 
 ### Extractor Pattern
 - All extractors implement the `Extractor` interface in `extractors/extractor.go`
 - Each extractor targets specific countries/regions via `GetCountryCode()` and `GetMacroRegion()`
-- Go extractors shell out to Python scripts in `extractors/pythonExtractors/` using `exec.Command`
-- Python scripts return JSON to stdout, which Go parses into `models.ProductComparison`
+- Pure Go extractors use native HTTP clients with anti-bot protection and HTML parsing via goquery
+- Extractors parse HTML directly and return `models.ProductComparison` objects
 
 ### Registry-Based Service Discovery
 - `ExtractorRegistry` manages extractor instances by country/region
@@ -25,8 +25,8 @@ This is a Go REST API for multi-country product price comparisons. The system us
 
 ### Adding New Extractors
 1. Create Go extractor in `extractors/` implementing `Extractor` interface
-2. Add corresponding Python scraper in `extractors/pythonExtractors/`
-3. Register extractor in `routes/routes.go`
+2. Implement pure Go HTML parsing with CSS selectors using goquery
+3. Register extractor in `handlers/extractor_handler.go`
 4. Add unit tests in `tests/unit/extractors/`
 5. Add sample responses in `sample_responses/`
 
@@ -38,10 +38,10 @@ make test-coverage  # Generate HTML coverage reports
 INTEGRATION_TESTS=true go test ./tests/integration/...
 ```
 
-### Python Dependencies
-- Python packages are installed locally to `./python_packages/` via `build.sh`
-- Use `pip3 install -r requirements.txt --target ./python_packages` for deployment
-- Python scripts expect this local package directory in their import paths
+### Go Dependencies
+- All dependencies managed via Go modules in `go.mod`
+- HTML parsing handled by `github.com/PuerkitoBio/goquery`
+- HTTP requests use standard library with anti-bot utilities
 
 ## Project-Specific Conventions
 
@@ -55,10 +55,10 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 - Each section contains `comparisons[]` of `ProductComparison` objects
 - Price outlier filtering removes items >60% below average (configurable in `ComparisonProcessor`)
 
-### Python Integration
-- Go extractors use `exec.Command` to call Python scripts with product names as args
-- Python scripts output JSON to stdout, errors to stderr
-- Always handle both stdout/stderr and check exit codes when calling Python
+### HTTP Client Integration
+- Go extractors use `utils.MakeScrapingRequest` for anti-bot protection
+- HTML parsing done natively with goquery CSS selectors
+- Gzip decompression handled automatically in base extractor
 
 ### Localization Keys
 - API responses: `api.comparison.*`, `api.error.*`
@@ -67,7 +67,7 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 
 ## File Organization
 - `handlers/` - HTTP request handlers with validation
-- `extractors/` - Go extractors + Python scrapers subdirectory
+- `extractors/` - Pure Go extractors with HTML parsing
 - `htmlparser/` - HTML parsing for link preview feature
 - `models/` - Domain models and enums
 - `utils/` - Shared utilities (logging, comparison processing)
@@ -77,5 +77,5 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 ## Development Notes
 - Use `INTEGRATION_TESTS=true` environment variable to enable tests that hit external APIs
 - Coverage reports generated as HTML in `coverage/` directory
-- Build process installs Python deps locally for containerized deployment
+- Build process installs Go dependencies and compiles to single binary
 - Gin router with CORS middleware configured for cross-origin requests

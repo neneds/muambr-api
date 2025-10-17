@@ -17,14 +17,9 @@ muambr-goapi/
 │   └── routes.go
 └── extractors/                # Product extractors
     ├── extractor.go           # Extractor interface and registry
-    ├── utils.go               # Shared utilities
-    ├── kelkoo_extractor.go    # Spain (ES)
-    ├── kuantokusta_extractor.go  # Portugal (PT)
-    ├── mercadolivre_extractor.go # Brazil (BR)
-    └── pythonExtractors/      # Python scraping scripts
-        ├── kelkoo_page.py
-        ├── kuantokusta_page.py
-        └── mercadolivre_page.py
+    ├── base_extractor.go      # Base extractor with gzip support
+    ├── extractor.go           # Extractor interface
+    └── acharpromo_extractor.go # Brazil (BR) - Pure Go implementation
 ```
 
 ## API Endpoints

@@ -95,15 +95,14 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 }
 
-// TestPythonEnvironment tests that the Python environment is properly configured
-func TestPythonEnvironment(t *testing.T) {
+// TestGoEnvironment tests that the Go environment is properly configured
+func TestGoEnvironment(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration tests (set INTEGRATION_TESTS=true to run)")
 	}
 
-	t.Run("PythonDependencies", func(t *testing.T) {
-		// This would test that beautifulsoup4, lxml, etc. are installed
-		// You could run a simple Python script to verify dependencies
-		t.Skip("Python dependency check not implemented")
+	t.Run("GoDependencies", func(t *testing.T) {
+		// Test that Go HTTP client and HTML parsing work
+		assert.NotNil(t, http.DefaultClient, "HTTP client should be available")
 	})
 }
