@@ -71,7 +71,28 @@ func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
 
 func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {
 	host := strings.ToLower(pageURL.Host)
+	
+	// Check for Brazilian Amazon domains and short URLs
 	isBrazil := strings.Contains(host, ".br") || strings.Contains(host, "amazon.com.br")
+	
+	// Check for US Amazon domains  
+	isUS := strings.Contains(host, "amazon.com") && !strings.Contains(host, ".br")
+	
+	// Handle Amazon short URLs (a.co, amzn.to) - detect region from HTML content
+	isAmazonShortURL := strings.Contains(host, "a.co") || strings.Contains(host, "amzn.to") || strings.Contains(host, "amzn.")
+	
+	if isAmazonShortURL {
+		// For short URLs, detect region from HTML content
+		htmlLower := strings.ToLower(html)
+		if strings.Contains(html, "R$") || strings.Contains(htmlLower, "reais") || strings.Contains(htmlLower, "brasil") {
+			isBrazil = true
+			isUS = false
+		} else if strings.Contains(html, "$") && (strings.Contains(htmlLower, "usd") || strings.Contains(htmlLower, "dollar")) {
+			isUS = true  
+			isBrazil = false
+		}
+		// If no clear indicators, fall back to comprehensive pattern matching
+	}
 
 	// Amazon uses specific price patterns in a-offscreen spans
 	var patterns []string
@@ -84,6 +105,33 @@ func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {
 			`data-asin-price="([0-9.,]+)"`,                          // Data attribute price
 			`<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([0-9.,]+)</span>`, // Price whole part
 			`<span[^>]*class="[^"]*price[^"]*"[^>]*>R\$\s*([0-9.,]+)</span>`,   // Generic price span
+		}
+	} else if isUS {
+		// US patterns ($ with dot as decimal separator)
+		patterns = []string{
+			`<span class="a-offscreen">\$([0-9.,]+)</span>`,         // $99.99
+			`<span class="aok-offscreen">\s*\$([0-9.,]+)\s*</span>`, // Alternative class
+			`"priceAmount":([0-9.]+)`,                               // JSON-LD price data
+			`data-asin-price="([0-9.,]+)"`,                          // Data attribute price
+			`<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([0-9.,]+)</span>`, // Price whole part
+			`<span[^>]*class="[^"]*price[^"]*"[^>]*>\$([0-9.,]+)</span>`,       // Generic price span
+		}
+	} else if isAmazonShortURL {
+		// For short URLs, try all currency patterns since we can't determine region from URL
+		patterns = []string{
+			// Brazilian patterns
+			`<span class="a-offscreen">R\$\s*([0-9.,]+)</span>`,     // R$612,25 or R$ 612,25
+			`<span class="aok-offscreen">\s*R\$\s*([0-9.,]+)\s*</span>`, 
+			// US patterns  
+			`<span class="a-offscreen">\$([0-9.,]+)</span>`,         // $99.99
+			`<span class="aok-offscreen">\s*\$([0-9.,]+)\s*</span>`,
+			// European patterns
+			`<span class="a-offscreen">([0-9.,]+)\s*€</span>`,       // 470,00€
+			`<span class="aok-offscreen">\s*([0-9.,]+)\s*€\s*</span>`,
+			// Generic patterns
+			`"priceAmount":([0-9.]+)`,                               // JSON-LD price data
+			`data-asin-price="([0-9.,]+)"`,                          // Data attribute price
+			`<span[^>]*class="[^"]*a-price-whole[^"]*"[^>]*>([0-9.,]+)</span>`, // Price whole part
 		}
 	} else {
 		// European patterns (€ with comma/dot variations)
@@ -103,19 +151,43 @@ func (p *AmazonParser) ExtractPrice(html string, pageURL *url.URL) string {
 			cleanedPrice := strings.TrimSpace(priceMatch)
 			
 			if isBrazil {
-				// For Brazilian prices, add R$ prefix and convert comma decimal separator to dot
-				if strings.Contains(cleanedPrice, ",") {
-					if lastCommaIdx := strings.LastIndex(cleanedPrice, ","); lastCommaIdx != -1 {
-						afterComma := cleanedPrice[lastCommaIdx+1:]
-						// Check if this looks like a decimal (2 digits after comma)
-						if len(afterComma) == 2 {
-							return "R$" + cleanedPrice[:lastCommaIdx] + "." + afterComma
-						}
-					}
+				// For Brazilian prices, preserve original format and add R$ prefix if needed
+				if strings.HasPrefix(cleanedPrice, "R$") {
+					return cleanedPrice
 				}
 				return "R$" + cleanedPrice
+			} else if isUS {
+				// For US prices, add $ prefix if needed
+				if strings.HasPrefix(cleanedPrice, "$") {
+					return cleanedPrice
+				}
+				return "$" + cleanedPrice
+			} else if isAmazonShortURL {
+				// For short URLs, detect currency from the matched price pattern
+				if strings.Contains(priceMatch, "R$") || strings.HasPrefix(cleanedPrice, "R$") {
+					return priceMatch // Return as-is since R$ is already there
+				} else if strings.Contains(priceMatch, "$") || strings.HasPrefix(cleanedPrice, "$") {
+					return priceMatch // Return as-is since $ is already there  
+				} else if strings.Contains(priceMatch, "€") || strings.HasSuffix(cleanedPrice, "€") {
+					return priceMatch // Return as-is since € is already there
+				} else {
+					// No currency symbol found, determine from HTML context
+					htmlLower := strings.ToLower(html)
+					if strings.Contains(html, "R$") || strings.Contains(htmlLower, "reais") {
+						return "R$" + cleanedPrice
+					} else if strings.Contains(html, "$") && strings.Contains(htmlLower, "usd") {
+						return "$" + cleanedPrice
+					} else if strings.Contains(html, "€") || strings.Contains(htmlLower, "eur") {
+						return cleanedPrice + "€"
+					} else {
+						return "$" + cleanedPrice // Default to USD
+					}
+				}
 			} else {
-				// For European prices, add € suffix and keep comma as decimal separator
+				// For European prices, add € suffix and preserve original format
+				if strings.HasSuffix(cleanedPrice, "€") {
+					return cleanedPrice
+				}
 				return cleanedPrice + "€"
 			}
 		}
@@ -227,10 +299,53 @@ func (p *AmazonParser) ExtractDescription(html string, pageURL *url.URL) string 
 
 func (p *AmazonParser) ExtractCurrency(html string, pageURL *url.URL) string {
 	host := strings.ToLower(pageURL.Host)
+	
+	// Brazilian Amazon sites
 	if strings.Contains(host, ".br") || strings.Contains(host, "amazon.com.br") {
 		return "brl"
 	}
-	return "eur" // Amazon Spain and other European Amazon sites use EUR
+	
+	// US Amazon sites
+	if strings.Contains(host, "amazon.com") && !strings.Contains(host, ".") {
+		return "usd"
+	}
+	
+	// UK Amazon sites
+	if strings.Contains(host, ".uk") || strings.Contains(host, ".gb") {
+		return "gbp"
+	}
+	
+	// Canadian Amazon sites
+	if strings.Contains(host, ".ca") {
+		return "cad"
+	}
+	
+	// Japanese Amazon sites
+	if strings.Contains(host, ".jp") {
+		return "jpy"
+	}
+	
+	// European Amazon sites (Spain, Germany, France, Italy, Netherlands)
+	if strings.Contains(host, ".es") || strings.Contains(host, ".de") || 
+		 strings.Contains(host, ".fr") || strings.Contains(host, ".it") || 
+		 strings.Contains(host, ".nl") {
+		return "eur"
+	}
+	
+	// Default fallback - check HTML content for currency indicators
+	htmlLower := strings.ToLower(html)
+	if strings.Contains(html, "R$") || strings.Contains(htmlLower, "reais") {
+		return "brl"
+	} else if strings.Contains(html, "$") && strings.Contains(htmlLower, "usd") {
+		return "usd"
+	} else if strings.Contains(html, "£") || strings.Contains(htmlLower, "gbp") {
+		return "gbp"
+	} else if strings.Contains(html, "€") || strings.Contains(htmlLower, "eur") {
+		return "eur"
+	}
+	
+	// Ultimate fallback based on domain patterns
+	return "usd"
 }
 
 func (p *AmazonParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
@@ -319,9 +434,9 @@ func (p *AmazonParser) parseAmazonPrice(priceString string, currency string) *fl
 	utils.Debug("🔄 AmazonParser: Cleaned price string", utils.String("cleaned", cleanedString))
 
 	// Handle different decimal separators based on currency
-	if currency == "eur" {
-		// European format: use comma as decimal separator
-		// Convert comma decimal separator to dot for parsing
+	if currency == "eur" || currency == "brl" {
+		// European/Brazilian format: comma as decimal separator, dot as thousands separator
+		// Examples: 1.250,99 (BRL), 470,00 (EUR)
 		if strings.Contains(cleanedString, ",") {
 			// Find the last comma (should be decimal separator)
 			lastCommaIdx := strings.LastIndex(cleanedString, ",")
@@ -329,22 +444,37 @@ func (p *AmazonParser) parseAmazonPrice(priceString string, currency string) *fl
 				afterComma := cleanedString[lastCommaIdx+1:]
 				// If it's 2 digits after comma, treat as decimal
 				if len(afterComma) == 2 {
-					cleanedString = cleanedString[:lastCommaIdx] + "." + afterComma
+					// Remove all dots (thousands separators) and convert comma to dot
+					beforeComma := strings.ReplaceAll(cleanedString[:lastCommaIdx], ".", "")
+					cleanedString = beforeComma + "." + afterComma
 				} else {
 					// Remove comma (thousands separator)
 					cleanedString = strings.ReplaceAll(cleanedString, ",", "")
+					// Also remove dots (thousands separator)
+					cleanedString = strings.ReplaceAll(cleanedString, ".", "")
 				}
 			}
+		} else if strings.Contains(cleanedString, ".") {
+			// No comma, check if dot is thousands separator or decimal
+			// If format is X.XXX where XXX is exactly 3 digits, it's thousands separator
+			if matches := regexp.MustCompile(`^(\d{1,3})\.(\d{3})$`).FindStringSubmatch(cleanedString); matches != nil {
+				// Format like "1.050" - treat as thousands separator
+				cleanedString = matches[1] + matches[2]
+			}
+			// Otherwise, keep dot as decimal separator
 		}
 	} else {
-		// Brazilian/US format: use dot as decimal separator, comma as thousands separator
+		// US format: dot as decimal separator, comma as thousands separator
 		// Remove commas (thousands separators) except if it's the last one with 2 digits after
 		if strings.Contains(cleanedString, ",") {
 			lastCommaIdx := strings.LastIndex(cleanedString, ",")
 			if lastCommaIdx != -1 {
 				afterComma := cleanedString[lastCommaIdx+1:]
-				// If NOT 2 digits after last comma, remove all commas
-				if len(afterComma) != 2 {
+				// If 2 digits after last comma, convert comma to dot (decimal)
+				if len(afterComma) == 2 {
+					cleanedString = cleanedString[:lastCommaIdx] + "." + afterComma
+				} else {
+					// Remove all commas (thousands separators)
 					cleanedString = strings.ReplaceAll(cleanedString, ",", "")
 				}
 			}
