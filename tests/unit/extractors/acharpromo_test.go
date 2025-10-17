@@ -21,7 +21,7 @@ func loadTestData(filename string) (string, error) {
 }
 
 func TestAcharPromoExtractor(t *testing.T) {
-	extractor := extractors.NewAcharPromoExtractor()
+	extractor := extractors.NewAcharPromoExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
 		country := extractor.GetCountryCode()
@@ -41,7 +41,7 @@ func TestAcharPromoExtractor(t *testing.T) {
 
 	t.Run("GetIdentifier", func(t *testing.T) {
 		identifier := extractor.GetIdentifier()
-		expected := "acharpromo"
+		expected := "acharpromo_v2"
 		if identifier != expected {
 			t.Errorf("Expected identifier %s, got %s", expected, identifier)
 		}
@@ -148,7 +148,7 @@ func TestAcharPromoHTMLStructure(t *testing.T) {
 }
 
 func TestAcharPromoExtractorPriceExtraction(t *testing.T) {
-	_ = extractors.NewAcharPromoExtractor() // Prevent unused variable error
+	_ = extractors.NewAcharPromoExtractorV2() // Prevent unused variable error
 
 	testCases := []struct {
 		name        string
