@@ -45,19 +45,26 @@ func NewExtractorHandler() *ExtractorHandler {
 
 // initializeExtractors initializes and registers all available extractors
 func initializeExtractors(registry *extractors.ExtractorRegistry) {
-	// Register Kelkoo extractor for Spain only
-	registry.RegisterExtractor(extractors.NewKelkooExtractor())
+	// === Pure Go extractors (V2) - SOLID architecture ===
+	utils.Info("Registering V2 extractors with SOLID architecture")
 	
-	// Register KuantoKusta extractor for Portugal only
-	registry.RegisterExtractor(extractors.NewKuantoKustaExtractor())
+	// Register Go-based MercadoLivre extractor for Brazil
+	registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
+	utils.Debug("Registered MercadoLivreExtractorV2 for Brazil")
 	
-	// Register Mercado Livre extractor for Brazil only
-	registry.RegisterExtractor(extractors.NewMercadoLivreExtractor())
+	// Register Go-based KuantoKusta extractor for Portugal
+	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
+	utils.Debug("Registered KuantoKustaExtractorV2 for Portugal")
 	
-	// Register AcharPromo extractor for Brazil only
-	registry.RegisterExtractor(extractors.NewAcharPromoExtractor())
+	// Register Go-based Kelkoo extractor for Spain
+	registry.RegisterExtractor(extractors.NewKelkooExtractorV2())
+	utils.Debug("Registered KelkooExtractorV2 for Spain")
 	
-	// TODO: Add more extractors as they are implemented
+	// Register Go-based AcharPromo extractor for Brazil
+	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
+	utils.Debug("Registered AcharPromoExtractorV2 for Brazil")
+	
+	utils.Info("All V2 extractors registered successfully")
 }
 
 // DetectCountryCode detects and validates the country code for the currentCountry parameter

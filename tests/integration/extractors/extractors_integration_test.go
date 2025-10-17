@@ -18,7 +18,7 @@ func TestExtractorIntegration(t *testing.T) {
 	}
 
 	t.Run("AcharPromoIntegration", func(t *testing.T) {
-		extractor := extractors.NewAcharPromoExtractor()
+		extractor := extractors.NewAcharPromoExtractorV2()
 		
 		// Set a reasonable timeout for network requests
 		timeout := 30 * time.Second
