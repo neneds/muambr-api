@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -428,8 +427,8 @@ func (e *AcharPromoExtractorV2) makeAPIRequest(searchTerm string) (*AcharPromoAP
 		return nil, fmt.Errorf("API request failed with status: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
+	// Read response body with proper decompression handling
+	body, err := readResponseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}

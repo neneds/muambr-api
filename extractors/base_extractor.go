@@ -15,6 +15,7 @@ import (
 	"muambr-api/models"
 	"muambr-api/utils"
 	"github.com/google/uuid"
+	"github.com/dsnet/compress/brotli"
 )
 
 // HTMLParser defines the interface for parsing HTML content from specific sites
@@ -75,8 +76,11 @@ func NewBaseHTTPExtractor(baseURL string, countryCode models.Country) *BaseHTTPE
 func readResponseBody(resp *http.Response) ([]byte, error) {
 	var reader io.Reader = resp.Body
 	
-	// Check if response is gzip compressed
-	if resp.Header.Get("Content-Encoding") == "gzip" {
+	contentEncoding := resp.Header.Get("Content-Encoding")
+	
+	// Handle different compression types
+	switch contentEncoding {
+	case "gzip":
 		gzipReader, err := gzip.NewReader(resp.Body)
 		if err != nil {
 			utils.Warn("⚠️ Failed to create gzip reader, falling back to raw read", utils.Error(err))
@@ -85,8 +89,29 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 		}
 		defer gzipReader.Close()
 		reader = gzipReader
-		
 		utils.Debug("📦 Detected gzip compression, decompressing content")
+		
+	case "br":
+		// Brotli compression
+		brotliReader, err := brotli.NewReader(resp.Body, nil)
+		if err != nil {
+			utils.Warn("⚠️ Failed to create brotli reader, falling back to raw read", utils.Error(err))
+			// Fall back to reading raw body
+			return io.ReadAll(resp.Body)
+		}
+		defer brotliReader.Close()
+		reader = brotliReader
+		utils.Debug("📦 Detected brotli compression, decompressing content")
+		
+	case "deflate":
+		// Handle deflate if needed in the future
+		utils.Debug("📦 Detected deflate compression, reading as-is (deflate support not implemented)")
+		
+	default:
+		// No compression or unknown compression
+		if contentEncoding != "" {
+			utils.Debug("📦 Unknown compression type, reading as-is", utils.String("encoding", contentEncoding))
+		}
 	}
 	
 	// Read the content (compressed or uncompressed)
@@ -97,7 +122,7 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 	
 	utils.Debug("📄 Response body read successfully", 
 		utils.Int("bytes", len(body)),
-		utils.String("compression", resp.Header.Get("Content-Encoding")))
+		utils.String("compression", contentEncoding))
 	
 	return body, nil
 }
