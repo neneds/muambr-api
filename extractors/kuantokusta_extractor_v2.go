@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"muambr-api/models"
 	"muambr-api/utils"
+	"github.com/PuerkitoBio/goquery"
 )
 
 // KuantoKustaParser implements HTMLParser interface for KuantoKusta Portugal
@@ -240,11 +242,93 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 		return jsonComparisons, nil
 	}
 	
-	// Fallback to HTML parsing using base implementation
-	comparisons, err := e.BaseGoExtractor.GetComparisonsFromHTML(html)
+	// Use CSS selectors for HTML parsing (based on our analysis)
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse HTML: %v", err)
 	}
+	
+	// Extract products using data-test-id selectors (confirmed working)
+	productCards := doc.Find("[data-test-id='product-card']")
+	utils.Info("🔍 Found KuantoKusta product cards", utils.Int("count", productCards.Length()))
+	
+	productCards.Each(func(i int, card *goquery.Selection) {
+		// Extract product name
+		nameElement := card.Find("[data-test-id='product-card-name']")
+		productName := strings.TrimSpace(nameElement.Text())
+		
+		if productName == "" {
+			utils.Debug("⚠️ Skipping card with no name", utils.Int("index", i))
+			return
+		}
+		
+		// Extract price
+		priceElement := card.Find("[data-test-id='product-card-offers-price-min']")
+		priceText := strings.TrimSpace(priceElement.Text())
+		
+		// Clean price text and extract numeric value
+		priceText = regexp.MustCompile(`^desde\s*`).ReplaceAllString(priceText, "")
+		priceText = regexp.MustCompile(`€.*$`).ReplaceAllString(priceText, "")
+		priceText = strings.ReplaceAll(priceText, ",", ".")
+		
+		price, err := strconv.ParseFloat(priceText, 64)
+		if err != nil {
+			utils.Debug("⚠️ Failed to parse price", 
+				utils.String("priceText", priceText), 
+				utils.String("originalText", priceElement.Text()),
+				utils.Error(err))
+			return
+		}
+		
+		// Extract product URL
+		productLink := card.Find("a[href*='/p/']").First()
+		productURL, exists := productLink.Attr("href")
+		if !exists {
+			utils.Debug("⚠️ No product URL found for", utils.String("name", productName))
+			productURL = ""
+		} else if !strings.HasPrefix(productURL, "http") {
+			productURL = "https://www.kuantokusta.pt" + productURL
+		}
+		
+		// Extract seller info (number of shops)
+		sellerElement := card.Find("[data-test-id='product-card-seller']")
+		sellerText := strings.TrimSpace(sellerElement.Text())
+		if sellerText == "" {
+			sellerText = "KuantoKusta - PT"
+		}
+		
+		// Extract image URL
+		imgElement := card.Find("img").First()
+		imageURL, _ := imgElement.Attr("src")
+		var imageURLPtr *string
+		if imageURL != "" {
+			imageURLPtr = &imageURL
+		}
+		
+		// Create product comparison
+		var storeURLPtr *string
+		if productURL != "" {
+			storeURLPtr = &productURL
+		}
+		
+		comparison := models.ProductComparison{
+			ID:          utils.GenerateUUID(),
+			ProductName: productName,
+			Price:       price,
+			Currency:    "EUR",
+			StoreName:   sellerText,
+			StoreURL:    storeURLPtr,
+			Country:     string(models.CountryPortugal),
+			ImageURL:    imageURLPtr,
+		}
+		
+		comparisons = append(comparisons, comparison)
+		
+		utils.Debug("✅ Extracted KuantoKusta product", 
+			utils.String("name", productName),
+			utils.Float64("price", price),
+			utils.String("seller", sellerText))
+	})
 	
 	utils.Info("✅ Extracted KuantoKusta products from HTML", utils.Int("count", len(comparisons)))
 	return comparisons, nil

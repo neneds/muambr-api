@@ -1,9 +1,11 @@
 package extractors
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -69,6 +71,37 @@ func NewBaseHTTPExtractor(baseURL string, countryCode models.Country) *BaseHTTPE
 	}
 }
 
+// readResponseBody reads and decompresses the response body if needed
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	var reader io.Reader = resp.Body
+	
+	// Check if response is gzip compressed
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			utils.Warn("⚠️ Failed to create gzip reader, falling back to raw read", utils.Error(err))
+			// Fall back to reading raw body
+			return io.ReadAll(resp.Body)
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+		
+		utils.Debug("📦 Detected gzip compression, decompressing content")
+	}
+	
+	// Read the content (compressed or uncompressed)
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	
+	utils.Debug("📄 Response body read successfully", 
+		utils.Int("bytes", len(body)),
+		utils.String("compression", resp.Header.Get("Content-Encoding")))
+	
+	return body, nil
+}
+
 // FetchHTML implements the HTTPClient interface
 func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
 	utils.Info("🌐 Fetching HTML content", 
@@ -91,7 +124,7 @@ func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
 		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
