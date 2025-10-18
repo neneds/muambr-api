@@ -97,28 +97,51 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 	for _, extractor := range baseCountryExtractors {
 		extractorMap[extractor.GetIdentifier()] = extractor
 	}
+	utils.Info("Added base country extractors", 
+		utils.String("baseCountry", string(baseCountry)), 
+		utils.Int("count", len(baseCountryExtractors)))
 	
-	// If currentCountry is available and different from baseCountry, append extractors from current country or its macro region
+	// Add extractors from current country if different from base country
 	if currentCountry != nil && *currentCountry != baseCountry {
-		if useMacroRegion {
-			// Use extractors from all countries in the macro region of the current country
-			macroRegion := currentCountry.GetMacroRegion()
-			countriesInRegion := models.GetCountriesInMacroRegion(macroRegion)
-			for _, country := range countriesInRegion {
-				regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country)
-				for _, extractor := range regionExtractors {
-					// Add extractor only if it's not already in the map (deduplication)
-					extractorMap[extractor.GetIdentifier()] = extractor
-				}
-			}
-		} else {
-			// Use extractors from current country only (existing behavior)
-			currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
-			for _, extractor := range currentCountryExtractors {
-				// Add extractor only if it's not already in the map (deduplication)
+		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
+		for _, extractor := range currentCountryExtractors {
+			extractorMap[extractor.GetIdentifier()] = extractor
+			utils.Debug("Added current country extractor", 
+				utils.String("identifier", extractor.GetIdentifier()),
+				utils.String("country", string(extractor.GetCountryCode())))
+		}
+		utils.Info("Added current country extractors", 
+			utils.String("currentCountry", string(*currentCountry)), 
+			utils.Int("count", len(currentCountryExtractors)))
+	}
+	
+	// If macro region is enabled, add extractors from all countries in the current user's macro region
+	if useMacroRegion && currentCountry != nil {
+		// Use the current country's macro region to determine which countries to include
+		macroRegion := currentCountry.GetMacroRegion()
+		countriesInRegion := models.GetCountriesInMacroRegion(macroRegion)
+		utils.Info("Processing macro region", 
+			utils.String("macroRegion", string(macroRegion)),
+			utils.String("currentCountry", string(*currentCountry)),
+			utils.Int("countries", len(countriesInRegion)))
+		
+		for _, country := range countriesInRegion {
+			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country)
+			utils.Debug("Checking macro region country", 
+				utils.String("country", string(country)),
+				utils.Int("extractors", len(regionExtractors)))
+			for _, extractor := range regionExtractors {
 				extractorMap[extractor.GetIdentifier()] = extractor
+				utils.Debug("Added macro region extractor", 
+					utils.String("identifier", extractor.GetIdentifier()),
+					utils.String("country", string(extractor.GetCountryCode())),
+					utils.String("macroRegion", string(extractor.GetMacroRegion())))
 			}
 		}
+		utils.Info("Added macro region extractors", 
+			utils.String("macroRegion", string(macroRegion)), 
+			utils.Int("totalCountries", len(countriesInRegion)),
+			utils.Int("totalExtractors", len(extractorMap)))
 	}
 	
 	// Convert map back to slice for execution
