@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// ExchangeRateResponse represents the response from exchangerate-api.com
+// ExchangeRateResponse represents the response from exchangerate-api.com V6 (paid)
 type ExchangeRateResponse struct {
 	Result           string             `json:"result"`
 	Documentation    string             `json:"documentation"`
@@ -21,6 +21,16 @@ type ExchangeRateResponse struct {
 	TimeNextUpdate   int64              `json:"time_next_update_unix"`
 	BaseCode         string             `json:"base_code"`
 	ConversionRates  map[string]float64 `json:"conversion_rates"`
+}
+
+// ExchangeRateV4Response represents the response from exchangerate-api.com V4 (free)
+type ExchangeRateV4Response struct {
+	Provider       string             `json:"provider"`
+	Terms          string             `json:"terms"`
+	Base           string             `json:"base"`
+	Date           string             `json:"date"`
+	TimeLastUpdate int64              `json:"time_last_updated"`
+	Rates          map[string]float64 `json:"rates"`
 }
 
 // CachedExchangeRate represents a cached exchange rate entry
@@ -42,14 +52,23 @@ type ExchangeRateService struct {
 // NewExchangeRateService creates a new exchange rate service with API key from environment
 func NewExchangeRateService() *ExchangeRateService {
 	apiKey := os.Getenv("EXCHANGE_RATE_API_KEY")
+	var baseURL string
+	
+	Debug("Exchange Rate Service initialization", String("apiKeyLength", fmt.Sprintf("%d", len(apiKey))), String("apiKeyPresent", fmt.Sprintf("%t", apiKey != "")))
+	
 	if apiKey == "" {
-		// Log warning but don't fail - fall back to mock rates
-		Warn("EXCHANGE_RATE_API_KEY not set, using mock exchange rates")
+		// Log info - will use free API instead of mock rates
+		Info("EXCHANGE_RATE_API_KEY not set, using free exchangerate-api.com v4 endpoint")
+		baseURL = "https://api.exchangerate-api.com/v4"
+	} else {
+		Info("Using exchangerate-api.com v6 endpoint with API key", String("keyPrefix", apiKey[:8]+"..."))
+		Info("Note: If API key is inactive, service will automatically fall back to free v4 endpoint")
+		baseURL = "https://v6.exchangerate-api.com/v6"
 	}
 
 	return &ExchangeRateService{
 		apiKey:   apiKey,
-		baseURL:  "https://v6.exchangerate-api.com/v6",
+		baseURL:  baseURL,
 		cache:    make(map[string]*CachedExchangeRate),
 		cacheTTL: 5 * time.Hour, // Cache for 5 hours as requested
 		mutex:    sync.RWMutex{},
@@ -95,41 +114,85 @@ func (s *ExchangeRateService) GetExchangeRates(baseCurrency string) (map[string]
 
 // fetchExchangeRates makes an API call to get exchange rates
 func (s *ExchangeRateService) fetchExchangeRates(baseCurrency string) (map[string]float64, error) {
-	if s.apiKey == "" {
-		return nil, fmt.Errorf("exchange rate API key not configured")
+	// Try paid API first if API key is available
+	if s.apiKey != "" {
+		rates, err := s.tryV6API(baseCurrency)
+		if err == nil {
+			return rates, nil
+		}
+		
+		// Log the V6 failure and fall back to free API
+		Warn("V6 API failed (possibly inactive API key), falling back to free V4 API", 
+			String("baseCurrency", baseCurrency), 
+			String("error", err.Error()))
 	}
-
-	url := fmt.Sprintf("%s/%s/latest/%s", s.baseURL, s.apiKey, baseCurrency)
 	
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
+	// Try free V4 API (no API key required)
+	return s.tryV4API(baseCurrency)
+}
 
+// tryV6API attempts to use the paid V6 API
+func (s *ExchangeRateService) tryV6API(baseCurrency string) (map[string]float64, error) {
+	url := fmt.Sprintf("%s/%s/latest/%s", s.baseURL, s.apiKey, baseCurrency)
+	Debug("Trying V6 API", String("url", url), String("baseCurrency", baseCurrency))
+	
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch exchange rates: %w", err)
+		return nil, fmt.Errorf("V6 API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("exchange rate API returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("V6 API returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to read V6 response: %w", err)
 	}
 
-	var response ExchangeRateResponse
-	if err := json.Unmarshal(body, &response); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
+	var v6Response ExchangeRateResponse
+	if err := json.Unmarshal(body, &v6Response); err != nil {
+		return nil, fmt.Errorf("failed to parse V6 response: %w", err)
 	}
 
-	if response.Result != "success" {
-		return nil, fmt.Errorf("exchange rate API returned error result: %s", response.Result)
+	if v6Response.Result != "success" {
+		return nil, fmt.Errorf("V6 API error: %s", v6Response.Result)
 	}
 
-	return response.ConversionRates, nil
+	Info("Successfully fetched rates from V6 API", String("baseCurrency", baseCurrency))
+	return v6Response.ConversionRates, nil
+}
+
+// tryV4API attempts to use the free V4 API
+func (s *ExchangeRateService) tryV4API(baseCurrency string) (map[string]float64, error) {
+	url := fmt.Sprintf("https://api.exchangerate-api.com/v4/latest/%s", baseCurrency)
+	Debug("Trying free V4 API", String("url", url), String("baseCurrency", baseCurrency))
+	
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("V4 API request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("V4 API returned status %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read V4 response: %w", err)
+	}
+
+	var v4Response ExchangeRateV4Response
+	if err := json.Unmarshal(body, &v4Response); err != nil {
+		return nil, fmt.Errorf("failed to parse V4 response: %w", err)
+	}
+
+	Info("Successfully fetched rates from free V4 API", String("baseCurrency", baseCurrency))
+	return v4Response.Rates, nil
 }
 
 // ConvertCurrency converts an amount from one currency to another
