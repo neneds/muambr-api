@@ -53,8 +53,8 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// Register Go-based KuantoKusta extractor for Portugal
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
 	
-	// Register Go-based Idealo extractor for Spain
-	//registry.RegisterExtractor(extractors.NewIdealoExtractorV2())
+	// Register Go-based Amazon Spain extractor for Spain
+	registry.RegisterExtractor(extractors.NewAmazonSpainExtractor())
 
 	// Register Go-based AcharPromo extractor for Brazil
 	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())

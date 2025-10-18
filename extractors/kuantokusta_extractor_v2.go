@@ -247,16 +247,21 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 	
 	// KuantoKusta uses Next.js with JSON data embedded in __NEXT_DATA__ script tag
 	if !strings.Contains(html, "__NEXT_DATA__") {
-		utils.Info("❌ No __NEXT_DATA__ script found in KuantoKusta HTML")
+		utils.Info("No __NEXT_DATA__ found in HTML")
 		return comparisons, nil
 	}
 	
-	utils.Info("🔍 Found __NEXT_DATA__ script in KuantoKusta HTML")
+	// Look for the JSON data in the script tag
+	jsonStart := strings.Index(html, `<script id="__NEXT_DATA__" type="application/json">`)
+	if jsonStart == -1 {
+		utils.Warn("__NEXT_DATA__ script tag not found")
+		return comparisons, nil
+	}
 	
 	jsonStart = strings.Index(html[jsonStart:], `>`) + jsonStart + 1
 	jsonEnd := strings.Index(html[jsonStart:], `</script>`)
 	if jsonEnd == -1 {
-		utils.Info("❌ Malformed __NEXT_DATA__ script in KuantoKusta HTML")
+		utils.Warn("Malformed __NEXT_DATA__ script tag")
 		return comparisons, nil
 	}
 	
