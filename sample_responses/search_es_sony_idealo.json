@@ -1,0 +1,60 @@
+{
+  "success": true,
+  "sections": [
+    {
+      "country": "ES",
+      "countryName": "Spain",
+      "comparisons": [
+        {
+          "id": "idealo-es-001",
+          "productName": "Sony WH-1000XM6 Auriculares Inalámbricos con Cancelación de Ruido",
+          "price": 349.99,
+          "currency": "EUR",
+          "storeName": "Idealo - ES",
+          "storeURL": "https://www.idealo.es/precios/6416617/sony-wh-1000xm6.html",
+          "country": "ES",
+          "condition": "new"
+        },
+        {
+          "id": "idealo-es-002",
+          "productName": "Sony WH-1000XM6 Bluetooth Headphones Negro",
+          "price": 359.95,
+          "currency": "EUR",
+          "storeName": "Idealo - ES",
+          "storeURL": "https://www.idealo.es/precios/6416618/sony-wh-1000xm6-negro.html",
+          "country": "ES",
+          "condition": "new"
+        },
+        {
+          "id": "idealo-es-003",
+          "productName": "Sony WH-1000XM6 Wireless Noise Cancelling Silver",
+          "price": 369.00,
+          "currency": "EUR",
+          "storeName": "Idealo - ES",
+          "storeURL": "https://www.idealo.es/precios/6416619/sony-wh-1000xm6-silver.html",
+          "country": "ES",
+          "condition": "new"
+        },
+        {
+          "id": "idealo-es-004",
+          "productName": "Sony WH-1000XM6 Auriculares Premium con ANC",
+          "price": 379.99,
+          "currency": "EUR",
+          "storeName": "Idealo - ES",
+          "storeURL": "https://www.idealo.es/precios/6416620/sony-wh-1000xm6-premium.html",
+          "country": "ES",
+          "condition": "new"
+        }
+      ],
+      "resultsCount": 4
+    }
+  ],
+  "totalResults": 4,
+  "requestInfo": {
+    "searchTerm": "sony wh-1000xm6",
+    "baseCountry": "ES",
+    "currency": "EUR",
+    "extractorUsed": "idealo_v2",
+    "extractorUrl": "https://www.idealo.es/resultados.html?q=sony+wh-1000xm6"
+  }
+}

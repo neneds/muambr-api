@@ -221,7 +221,7 @@
       },
       "response": [
         {
-          "name": "Kelkoo - No Results (Expected)",
+          "name": "Spain - No Results (Expected)",
           "originalRequest": {
             "method": "GET",
             "header": [],
@@ -417,7 +417,7 @@
             }
           ],
           "cookie": [],
-          "body": "{\n  \"success\": true,\n  \"sections\": [\n    {\n      \"country\": \"PT\",\n      \"countryName\": \"Portugal\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-pt-015\",\n          \"productName\": \"iPhone 15 128GB Azul\",\n          \"price\": 899.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"KuantoKusta\",\n          \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n          \"country\": \"PT\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    },\n    {\n      \"country\": \"ES\",\n      \"countryName\": \"Spain\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-es-016\",\n          \"productName\": \"iPhone 15 Pro 256GB Natural Titanium\",\n          \"price\": 1199.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"Kelkoo\",\n          \"storeURL\": \"https://www.kelkoo.es/p/67890/iphone-15-pro-256gb-titanium\",\n          \"country\": \"ES\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    }\n  ],\n  \"totalResults\": 2\n}"
+          "body": "{\n  \"success\": true,\n  \"sections\": [\n    {\n      \"country\": \"PT\",\n      \"countryName\": \"Portugal\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-pt-015\",\n          \"productName\": \"iPhone 15 128GB Azul\",\n          \"price\": 899.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"KuantoKusta\",\n          \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n          \"country\": \"PT\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    }\n  ],\n  \"totalResults\": 1\n}"
         }
       ]
     },
@@ -506,7 +506,7 @@
             }
           ],
           "cookie": [],
-          "body": "{\n  \"success\": true,\n  \"sections\": [\n    {\n      \"country\": \"PT\",\n      \"countryName\": \"Portugal\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-pt-015\",\n          \"productName\": \"iPhone 15 128GB Azul\",\n          \"price\": 899.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"KuantoKusta\",\n          \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n          \"country\": \"PT\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    },\n    {\n      \"country\": \"ES\",\n      \"countryName\": \"Spain\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-es-016\",\n          \"productName\": \"iPhone 15 Pro 256GB Natural Titanium\",\n          \"price\": 1199.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"Kelkoo\",\n          \"storeURL\": \"https://www.kelkoo.es/p/67890/iphone-15-pro-256gb-titanium\",\n          \"country\": \"ES\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    }\n  ],\n  \"totalResults\": 2\n}"
+          "body": "{\n  \"success\": true,\n  \"sections\": [\n    {\n      \"country\": \"PT\",\n      \"countryName\": \"Portugal\",\n      \"comparisons\": [\n        {\n          \"id\": \"kk-pt-015\",\n          \"productName\": \"iPhone 15 128GB Azul\",\n          \"price\": 899.00,\n          \"currency\": \"EUR\",\n          \"storeName\": \"KuantoKusta\",\n          \"storeURL\": \"https://www.kuantokusta.pt/p/12345/iphone-15-128gb-azul\",\n          \"country\": \"PT\",\n          \"condition\": \"new\"\n        }\n      ],\n      \"resultsCount\": 1\n    }\n  ],\n  \"totalResults\": 1\n}"
         }
       ]
     },

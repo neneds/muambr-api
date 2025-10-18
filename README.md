@@ -36,8 +36,11 @@ Get product price comparisons from different platforms.
 
 **Examples:**
 ```bash
-# Basic comparison
+# Basic comparison for Portugal
 curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currency=EUR"
+
+# Spain product search with Idealo
+curl "http://localhost:8080/api/comparisons?name=sony%20wh-1000xm6&country=ES&currency=EUR"
 
 # With current location context
 curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentCountry=US"
@@ -46,13 +49,6 @@ curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentC
 **Response:**
 ```json
 [
-  {
-    "name": "Sony WH-1000XM6 Wireless Headphones",
-    "price": "349.99",
-    "store": "Kelkoo Partner Store (Available in Spain)",
-    "currency": "EUR",
-    "url": "https://www.kelkoo.es/product/sony-xm6"
-  },
   {
     "name": "Fone Sony Wh-1000xm6 Lançamento 2025",
     "price": "3997",
@@ -72,12 +68,12 @@ curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentC
 - `BR` - Brazil (BRL)
 
 **Supported Extractors:**
-- **Kelkoo** (Spain) - Price comparison platform for Spanish market
-  - URL Format: `https://www.kelkoo.es/buscar?consulta={product_name}`
 - **KuantoKusta** (Portugal) - Portuguese price comparison service
   - URL Format: `https://www.kuantokusta.pt/search?q={product_name}`
 - **Mercado Livre** (Brazil) - Brazilian marketplace and price comparison
   - URL Format: `https://lista.mercadolivre.com.br/{product-name}`
+- **Idealo** (Spain) - Spanish price comparison and product search
+  - URL Format: `https://www.idealo.es/resultados.html?q={product_name}`
 
 ### Health Check
 

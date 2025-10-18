@@ -56,10 +56,10 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
 	utils.Debug("Registered KuantoKustaExtractorV2 for Portugal")
 	
-	// Register Go-based Kelkoo extractor for Spain
-	registry.RegisterExtractor(extractors.NewKelkooExtractorV2())
-	utils.Debug("Registered KelkooExtractorV2 for Spain")
-	
+	// Register Go-based Idealo extractor for Spain
+	registry.RegisterExtractor(extractors.NewIdealoExtractorV2())
+	utils.Debug("Registered IdealoExtractorV2 for Spain")
+
 	// Register Go-based AcharPromo extractor for Brazil
 	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
 	utils.Debug("Registered AcharPromoExtractorV2 for Brazil")
