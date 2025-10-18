@@ -85,11 +85,7 @@ func (p *KuantoKustaParser) GetURLSelectors() []string {
 func (p *KuantoKustaParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("🏷️ Trying KuantoKusta name pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if name := p.extractWithRegex(selector, html); name != "" {
 			// Clean up the name
 			name = strings.TrimSpace(name)
@@ -97,15 +93,11 @@ func (p *KuantoKustaParser) ParseProductName(html string) string {
 			
 			// Validate name quality
 			if len(name) > 3 && !strings.Contains(strings.ToLower(name), "kuantokusta") {
-				utils.Debug("✅ Found KuantoKusta product name", 
-					utils.String("name", name),
-					utils.Int("pattern", i+1))
 				return name
 			}
 		}
 	}
 	
-	utils.Debug("❌ No product name found in KuantoKusta HTML fragment")
 	return ""
 }
 
@@ -118,9 +110,6 @@ func (p *KuantoKustaParser) ParsePrice(html string) (float64, string, error) {
 				if offers, ok := product["offers"].(map[string]interface{}); ok {
 					if priceStr, ok := offers["price"].(string); ok {
 						if price, currency, err := p.parsePrice(priceStr, "EUR"); err == nil {
-							utils.Debug("💰 Extracted KuantoKusta price from JSON-LD", 
-								utils.Float64("price", price),
-								utils.String("currency", currency))
 							return price, currency, nil
 						}
 					}
@@ -132,17 +121,9 @@ func (p *KuantoKustaParser) ParsePrice(html string) (float64, string, error) {
 	// Fallback to HTML parsing
 	selectors := p.GetPriceSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("💰 Trying KuantoKusta price pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if priceText := p.extractWithRegex(selector, html); priceText != "" {
 			if price, currency, err := p.parsePrice(priceText, "EUR"); err == nil {
-				utils.Debug("✅ Found KuantoKusta price", 
-					utils.Float64("price", price),
-					utils.String("currency", currency),
-					utils.Int("pattern", i+1))
 				return price, currency, nil
 			}
 		}
@@ -155,11 +136,7 @@ func (p *KuantoKustaParser) ParsePrice(html string) (float64, string, error) {
 func (p *KuantoKustaParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("🔗 Trying KuantoKusta URL pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {
@@ -258,7 +235,6 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 		productName := strings.TrimSpace(nameElement.Text())
 		
 		if productName == "" {
-			utils.Debug("⚠️ Skipping card with no name", utils.Int("index", i))
 			return
 		}
 		
@@ -273,10 +249,6 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 		
 		price, err := strconv.ParseFloat(priceText, 64)
 		if err != nil {
-			utils.Debug("⚠️ Failed to parse price", 
-				utils.String("priceText", priceText), 
-				utils.String("originalText", priceElement.Text()),
-				utils.Error(err))
 			return
 		}
 		
@@ -284,7 +256,6 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 		productLink := card.Find("a[href*='/p/']").First()
 		productURL, exists := productLink.Attr("href")
 		if !exists {
-			utils.Debug("⚠️ No product URL found for", utils.String("name", productName))
 			productURL = ""
 		} else if !strings.HasPrefix(productURL, "http") {
 			productURL = "https://www.kuantokusta.pt" + productURL

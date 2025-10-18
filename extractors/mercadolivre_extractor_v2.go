@@ -82,11 +82,7 @@ func (p *MercadoLivreParser) GetURLSelectors() []string {
 func (p *MercadoLivreParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("🏷️ Trying name pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if name := p.extractWithRegex(selector, html); name != "" {
 			// Clean up the name
 			name = strings.TrimSpace(name)
@@ -94,15 +90,11 @@ func (p *MercadoLivreParser) ParseProductName(html string) string {
 			
 			// Validate name quality
 			if len(name) > 5 && !strings.Contains(strings.ToLower(name), "mercado") {
-				utils.Debug("✅ Found product name", 
-					utils.String("name", name),
-					utils.Int("pattern", i+1))
 				return name
 			}
 		}
 	}
 	
-	utils.Debug("❌ No product name found in HTML fragment")
 	return ""
 }
 
@@ -115,9 +107,6 @@ func (p *MercadoLivreParser) ParsePrice(html string) (float64, string, error) {
 				if offers, ok := product["offers"].(map[string]interface{}); ok {
 					if priceStr, ok := offers["price"].(string); ok {
 						if price, currency, err := p.parsePrice(priceStr, "BRL"); err == nil {
-							utils.Debug("💰 Extracted price from JSON-LD", 
-								utils.Float64("price", price),
-								utils.String("currency", currency))
 							return price, currency, nil
 						}
 					}
@@ -129,17 +118,9 @@ func (p *MercadoLivreParser) ParsePrice(html string) (float64, string, error) {
 	// Fallback to HTML parsing
 	selectors := p.GetPriceSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("💰 Trying price pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if priceText := p.extractWithRegex(selector, html); priceText != "" {
 			if price, currency, err := p.parsePrice(priceText, "BRL"); err == nil {
-				utils.Debug("✅ Found price", 
-					utils.Float64("price", price),
-					utils.String("currency", currency),
-					utils.Int("pattern", i+1))
 				return price, currency, nil
 			}
 		}
@@ -152,11 +133,7 @@ func (p *MercadoLivreParser) ParsePrice(html string) (float64, string, error) {
 func (p *MercadoLivreParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("🔗 Trying URL pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {

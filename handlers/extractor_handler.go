@@ -50,19 +50,15 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	
 	// Register Go-based MercadoLivre extractor for Brazil
 	registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
-	utils.Debug("Registered MercadoLivreExtractorV2 for Brazil")
 	
 	// Register Go-based KuantoKusta extractor for Portugal
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
-	utils.Debug("Registered KuantoKustaExtractorV2 for Portugal")
 	
 	// Register Go-based Idealo extractor for Spain
 	registry.RegisterExtractor(extractors.NewIdealoExtractorV2())
-	utils.Debug("Registered IdealoExtractorV2 for Spain")
 
 	// Register Go-based AcharPromo extractor for Brazil
 	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
-	utils.Debug("Registered AcharPromoExtractorV2 for Brazil")
 	
 	utils.Info("All V2 extractors registered successfully")
 }
@@ -114,9 +110,6 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
 		for _, extractor := range currentCountryExtractors {
 			extractorMap[extractor.GetIdentifier()] = extractor
-			utils.Debug("Added current country extractor", 
-				utils.String("identifier", extractor.GetIdentifier()),
-				utils.String("country", string(extractor.GetCountryCode())))
 		}
 		utils.Info("Added current country extractors", 
 			utils.String("currentCountry", string(*currentCountry)), 
@@ -135,15 +128,8 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		
 		for _, country := range countriesInRegion {
 			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country)
-			utils.Debug("Checking macro region country", 
-				utils.String("country", string(country)),
-				utils.Int("extractors", len(regionExtractors)))
 			for _, extractor := range regionExtractors {
 				extractorMap[extractor.GetIdentifier()] = extractor
-				utils.Debug("Added macro region extractor", 
-					utils.String("identifier", extractor.GetIdentifier()),
-					utils.String("country", string(extractor.GetCountryCode())),
-					utils.String("macroRegion", string(extractor.GetMacroRegion())))
 			}
 		}
 		utils.Info("Added macro region extractors", 

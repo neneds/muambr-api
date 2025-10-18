@@ -87,15 +87,7 @@ func (p *AcharPromoParser) GetURLSelectors() []string {
 func (p *AcharPromoParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	
-	for i, selector := range selectors {
-		maxLen := 50
-		if len(selector) < maxLen {
-			maxLen = len(selector)
-		}
-		utils.Debug("🏷️ Trying AcharPromo name pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:maxLen]))
-			
+	for _, selector := range selectors {
 		if name := p.extractWithRegex(selector, html); name != "" {
 			// Clean up the name
 			name = strings.TrimSpace(name)
@@ -103,15 +95,11 @@ func (p *AcharPromoParser) ParseProductName(html string) string {
 			
 			// Validate name quality
 			if len(name) > 3 && !strings.Contains(strings.ToLower(name), "achar") {
-				utils.Debug("✅ Found AcharPromo product name", 
-					utils.String("name", name),
-					utils.Int("pattern", i+1))
 				return name
 			}
 		}
 	}
 	
-	utils.Debug("❌ No product name found in AcharPromo HTML fragment")
 	return ""
 }
 
@@ -124,9 +112,6 @@ func (p *AcharPromoParser) ParsePrice(html string) (float64, string, error) {
 				if offers, ok := product["offers"].(map[string]interface{}); ok {
 					if priceStr, ok := offers["price"].(string); ok {
 						if price, currency, err := p.parsePrice(priceStr, "BRL"); err == nil {
-							utils.Debug("💰 Extracted AcharPromo price from JSON-LD", 
-								utils.Float64("price", price),
-								utils.String("currency", currency))
 							return price, currency, nil
 						}
 					}
@@ -138,21 +123,9 @@ func (p *AcharPromoParser) ParsePrice(html string) (float64, string, error) {
 	// Fallback to HTML parsing
 	selectors := p.GetPriceSelectors()
 	
-	for i, selector := range selectors {
-		maxLen := 50
-		if len(selector) < maxLen {
-			maxLen = len(selector)
-		}
-		utils.Debug("💰 Trying AcharPromo price pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:maxLen]))
-			
+	for _, selector := range selectors {
 		if priceText := p.extractWithRegex(selector, html); priceText != "" {
 			if price, currency, err := p.parsePrice(priceText, "BRL"); err == nil {
-				utils.Debug("✅ Found AcharPromo price", 
-					utils.Float64("price", price),
-					utils.String("currency", currency),
-					utils.Int("pattern", i+1))
 				return price, currency, nil
 			}
 		}
@@ -165,11 +138,7 @@ func (p *AcharPromoParser) ParsePrice(html string) (float64, string, error) {
 func (p *AcharPromoParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	
-	for i, selector := range selectors {
-		utils.Debug("🔗 Trying AcharPromo URL pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("selector", selector[:min(50, len(selector))]))
-			
+	for _, selector := range selectors {
 		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {

@@ -206,11 +206,7 @@ func (b *BaseHTMLParser) extractWithRegex(pattern, html string) string {
 func (b *BaseHTMLParser) extractMultipleWithRegex(patterns []string, html string) []string {
 	var results []string
 	
-	for i, pattern := range patterns {
-		utils.Debug("🔍 Trying extraction pattern", 
-			utils.Int("pattern", i+1),
-			utils.String("site", b.siteName))
-			
+	for _, pattern := range patterns {
 		re := regexp.MustCompile("(?i)" + pattern)
 		matches := re.FindAllStringSubmatch(html, -1)
 		
@@ -224,10 +220,6 @@ func (b *BaseHTMLParser) extractMultipleWithRegex(patterns []string, html string
 		}
 		
 		if len(results) > 0 {
-			utils.Debug("✅ Found matches with pattern", 
-				utils.Int("pattern", i+1),
-				utils.Int("count", len(results)),
-				utils.String("site", b.siteName))
 			break
 		}
 	}
@@ -416,9 +408,6 @@ func (b *BaseGoExtractor) GetComparisonsFromHTML(html string) ([]models.ProductC
 
 			price, currency, err := b.parser.ParsePrice(productHTML)
 			if err != nil {
-				utils.Debug("⚠️ Failed to parse price", 
-					utils.String("product", name),
-					utils.Error(err))
 				continue
 			}
 

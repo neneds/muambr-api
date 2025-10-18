@@ -31,8 +31,7 @@ func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
 		`<span[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>.*?<span[^>]*>([^<]+)</span>\s*</span>`,
 	}
 
-	for i, pattern := range patterns {
-		utils.Debug("📄 AmazonParser: Trying title pattern", utils.Int("pattern", i+1))
+	for _, pattern := range patterns {
 		if title := extractWithRegex(pattern, html); title != "" {
 			cleaned := strings.TrimSpace(title)
 			// Filter out unwanted titles (from scraper logic)
@@ -45,7 +44,6 @@ func (p *AmazonParser) ExtractTitle(html string, pageURL *url.URL) string {
 				!strings.Contains(lower, "amazon.com") &&
 				!strings.Contains(lower, "www.amazon") &&
 				len(cleaned) > 10 {
-				utils.Debug("📄 AmazonParser: Found valid title", utils.String("title", cleaned), utils.Int("pattern", i+1))
 				return cleaned
 			}
 		}
