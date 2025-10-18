@@ -366,7 +366,7 @@ func (b *BaseGoExtractor) BaseURL() string {
 
 // GetComparisons implements the main extraction workflow
 func (b *BaseGoExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
-	utils.Info("🚀 Starting product extraction", 
+	utils.Info("🚀 Starting BASE product extraction", 
 		utils.String("product", productName),
 		utils.String("extractor", b.identifier),
 		utils.String("country", string(b.countryCode)))

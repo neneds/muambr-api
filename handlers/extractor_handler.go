@@ -87,6 +87,14 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 
 // GetProductComparisons retrieves product comparisons using available extractors
 func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool) ([]models.ProductComparison, error) {
+	// CRITICAL DEBUG: This should appear if method is called
+	utils.Info("� CRITICAL DEBUG: GetProductComparisons ENTRY POINT", 
+		utils.String("searchTerm", searchTerm),
+		utils.String("baseCountry", string(baseCountry)),
+		utils.Any("currentCountry", currentCountry),
+		utils.String("targetCurrency", targetCurrency),
+		utils.Bool("useMacroRegion", useMacroRegion))
+	
 	var allResults []models.ProductComparison
 	
 	// Use a map to track extractors by their identifier to prevent duplicates
@@ -318,6 +326,13 @@ func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extr
 				}
 			}
 		}()
+
+		// CRITICAL DEBUG: Check which extractor type is being called
+		utils.Info("🔧 CALLING EXTRACTOR GetComparisons", 
+			utils.String("extractor_name", extractor.GetIdentifier()),
+			utils.String("extractor_country", string(extractor.GetCountryCode())),
+			utils.String("extractor_type", fmt.Sprintf("%T", extractor)),
+			utils.String("search_term", searchTerm))
 
 		results, err := extractor.GetComparisons(searchTerm)
 		resultChan <- ExtractorResult{

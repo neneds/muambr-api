@@ -197,7 +197,7 @@ func (p *IdealoParser) ParseStore(html string) string {
 
 // IdealoExtractorV2 is the pure Go implementation for Idealo Spain
 type IdealoExtractorV2 struct {
-	*BaseGoExtractor
+	baseExtractor *BaseGoExtractor
 }
 
 // NewIdealoExtractorV2 creates a new pure Go Idealo extractor
@@ -210,18 +210,94 @@ func NewIdealoExtractorV2() *IdealoExtractorV2 {
 		parser,
 	)
 	
-	return &IdealoExtractorV2{
-		BaseGoExtractor: baseExtractor,
+	idealoExtractor := &IdealoExtractorV2{
+		baseExtractor: baseExtractor,
 	}
+	
+	utils.Info("🏗️ IdealoExtractorV2 created successfully", 
+		utils.String("identifier", idealoExtractor.GetIdentifier()),
+		utils.String("country", string(idealoExtractor.GetCountryCode())),
+		utils.String("base_url", idealoExtractor.BaseURL()))
+	
+	return idealoExtractor
 }
 
-// BuildSearchURL overrides the base implementation for Idealo's specific URL format
+// GetComparisons overrides the base implementation to use Idealo-specific URL format
+func (e *IdealoExtractorV2) GetComparisons(productName string) ([]models.ProductComparison, error) {
+	utils.Info("🚨 IDEALO OVERRIDE METHOD CALLED! 🚨", 
+		utils.String("product", productName),
+		utils.String("extractor", e.GetIdentifier()),
+		utils.String("country", string(e.GetCountryCode())))
+
+	// Build Idealo-specific search URL
+	searchURL, err := e.buildIdealoSearchURL(productName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search URL: %w", err)
+	}
+
+	// Fetch HTML using base functionality
+	html, err := e.FetchHTML(searchURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch HTML: %w", err)
+	}
+
+	// Extract products using Idealo-specific logic
+	comparisons, err := e.GetComparisonsFromHTML(html)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract comparisons: %w", err)
+	}
+
+	utils.Info("✅ Extraction completed", 
+		utils.String("extractor", "idealo_v2"),
+		utils.Int("results", len(comparisons)))
+
+	return comparisons, nil
+}
+
+// Interface delegation methods to satisfy Extractor interface
+func (e *IdealoExtractorV2) GetCountryCode() models.Country {
+	return e.baseExtractor.GetCountryCode()
+}
+
+func (e *IdealoExtractorV2) GetMacroRegion() models.MacroRegion {
+	return e.baseExtractor.GetMacroRegion()
+}
+
+func (e *IdealoExtractorV2) GetIdentifier() string {
+	return e.baseExtractor.GetIdentifier()
+}
+
+func (e *IdealoExtractorV2) BaseURL() string {
+	return e.baseExtractor.BaseURL()
+}
+
+// Helper methods that delegate to baseExtractor
+func (e *IdealoExtractorV2) GetBaseURL() string {
+	return e.baseExtractor.BaseURL()
+}
+
+func (e *IdealoExtractorV2) FetchHTML(url string) (string, error) {
+	return e.baseExtractor.FetchHTML(url)
+}
+
+func (e *IdealoExtractorV2) parsePrice(priceText string, defaultCurrency string) (float64, string, error) {
+	return e.baseExtractor.BaseHTMLParser.parsePrice(priceText, defaultCurrency)
+}
+
+// BuildSearchURL overrides the base method to use Idealo-specific URL format
 func (e *IdealoExtractorV2) BuildSearchURL(productName string) (string, error) {
+	utils.Info("🎯 IdealoExtractorV2 BuildSearchURL CALLED", 
+		utils.String("product", productName))
+	return e.buildIdealoSearchURL(productName)
+}
+
+// buildIdealoSearchURL builds the Idealo-specific URL format
+func (e *IdealoExtractorV2) buildIdealoSearchURL(productName string) (string, error) {
 	// Idealo uses query parameters: /resultados.html?q=productName
 	params := url.Values{}
 	params.Add("q", productName)
 	
-	searchURL := fmt.Sprintf("%s/resultados.html?%s", e.GetBaseURL(), params.Encode())
+	searchURL := fmt.Sprintf("%s/resultados.html?%s", e.baseExtractor.BaseURL(), params.Encode())
 	
 	utils.Info("🔗 Built Idealo search URL", 
 		utils.String("product", productName),
@@ -248,28 +324,18 @@ func (e *IdealoExtractorV2) GetComparisonsFromHTML(html string) ([]models.Produc
 		return nil, fmt.Errorf("failed to parse HTML: %v", err)
 	}
 	
-	// Extract products using the CSS classes we identified
-	productLinks := doc.Find("a.sr-resultItemTile__link_Q8V4n")
-	utils.Info("🔍 Found Idealo product links", utils.Int("count", productLinks.Length()))
+	// Extract products using the result items we identified
+	resultItems := doc.Find(".sr-resultList__item_m6xdA")
+	utils.Info("🔍 Found Idealo result items", utils.Int("count", resultItems.Length()))
 	
-	productLinks.Each(func(i int, link *goquery.Selection) {
-		// Extract product name from title attribute or nested elements
-		productName := ""
+	resultItems.Each(func(i int, item *goquery.Selection) {
+		// Extract product name from title element
+		titleElement := item.Find(".sr-productSummary__title_f5flP")
+		productName := strings.TrimSpace(titleElement.Text())
 		
-		// Try title attribute first
-		if title, exists := link.Attr("title"); exists && title != "" {
-			productName = strings.TrimSpace(title)
-		}
-		
-		// Try nested title element
+		// Try image alt text as fallback if no title
 		if productName == "" {
-			titleElement := link.Find(".sr-productSummary__title_f5flP")
-			productName = strings.TrimSpace(titleElement.Text())
-		}
-		
-		// Try image alt text as fallback
-		if productName == "" {
-			imgElement := link.Find("img")
+			imgElement := item.Find("img")
 			if alt, exists := imgElement.Attr("alt"); exists && alt != "" {
 				productName = strings.TrimSpace(alt)
 			}
@@ -280,18 +346,14 @@ func (e *IdealoExtractorV2) GetComparisonsFromHTML(html string) ([]models.Produc
 			return
 		}
 		
-		// Extract price from the associated price info sections
-		// Look for price in the parent container or next sibling elements
-		priceElement := link.Parent().Find(".sr-detailedPriceInfo__price_sYVmx")
-		if priceElement.Length() == 0 {
-			// Try alternative price selectors
-			priceElement = link.Parent().Parent().Find(".sr-detailedPriceInfo__price_sYVmx")
-		}
+		// Extract price from the price info section
+		priceElement := item.Find(".sr-detailedPriceInfo__price_sYVmx")
 		
 		priceText := strings.TrimSpace(priceElement.Text())
 		
 		// Clean price text - remove "desde" prefix and extract numeric value
-		priceRegex := regexp.MustCompile(`([0-9]+(?:[,.]?[0-9]*)?)\s*€`)
+		// European format: thousands with dots, decimals with commas (e.g., 1.006,05 €)
+		priceRegex := regexp.MustCompile(`([0-9]+(?:\.[0-9]{3})*(?:,[0-9]{1,2})?)\s*€`)
 		priceMatches := priceRegex.FindStringSubmatch(priceText)
 		
 		if len(priceMatches) < 2 {
@@ -301,8 +363,13 @@ func (e *IdealoExtractorV2) GetComparisonsFromHTML(html string) ([]models.Produc
 			return
 		}
 		
-		// Convert comma to dot for proper float parsing
-		priceStr := strings.ReplaceAll(priceMatches[1], ",", ".")
+		// Convert European format to standard format for parsing
+		// European: 1.006,05 → Standard: 1006.05
+		priceStr := priceMatches[1]
+		// Remove thousands separators (dots)
+		priceStr = strings.ReplaceAll(priceStr, ".", "")
+		// Convert decimal separator (comma to dot)
+		priceStr = strings.ReplaceAll(priceStr, ",", ".")
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			utils.Debug("⚠️ Failed to convert price to float", 
@@ -311,13 +378,24 @@ func (e *IdealoExtractorV2) GetComparisonsFromHTML(html string) ([]models.Produc
 			return
 		}
 		
-		// Extract product URL
-		productURL, exists := link.Attr("href")
-		if !exists {
-			utils.Debug("⚠️ No product URL found for", utils.String("name", productName))
-			productURL = ""
-		} else if !strings.HasPrefix(productURL, "http") {
-			productURL = "https://www.idealo.es" + productURL
+		// Extract product URL from the button/link within the item
+		productURL := ""
+		linkElement := item.Find("button.sr-resultItemLink__button_k3jEE")
+		if linkElement.Length() > 0 {
+			// For Idealo, the links are form submits, so we'll use the base URL + product name
+			productURL = fmt.Sprintf("https://www.idealo.es/resultados.html?q=%s", url.QueryEscape(productName))
+		}
+		
+		// Try to find an actual href if available
+		if productURL == "" {
+			linkWithHref := item.Find("a[href]")
+			if href, exists := linkWithHref.Attr("href"); exists && href != "" {
+				if strings.HasPrefix(href, "http") {
+					productURL = href
+				} else {
+					productURL = "https://www.idealo.es" + href
+				}
+			}
 		}
 		
 		// Create comparison object
@@ -411,7 +489,7 @@ func (e *IdealoExtractorV2) parseJSONProduct(product map[string]interface{}) *mo
 		}
 	}
 	
-	price, currency, err := e.BaseHTMLParser.parsePrice(priceStr, "EUR")
+	price, currency, err := e.parsePrice(priceStr, "EUR")
 	if err != nil {
 		return nil
 	}

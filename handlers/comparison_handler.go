@@ -158,6 +158,12 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 		}
 	}
 	
+	// CRITICAL DEBUG: Check parameter parsing
+	utils.Info("🔍 PARAMETER PARSING DEBUG", 
+		utils.String("currentUserCountryParam", currentUserCountryParam),
+		utils.String("currentCountry", string(currentCountry)),
+		utils.Bool("useMacroRegion", useMacroRegion))
+	
 	// Use base country's default currency if not provided
 	if currency == "" {
 		currency = baseCountry.GetCurrencyCode()
