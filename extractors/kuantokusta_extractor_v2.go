@@ -1,6 +1,7 @@
 package extractors
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -9,7 +10,6 @@ import (
 
 	"muambr-api/models"
 	"muambr-api/utils"
-	"github.com/PuerkitoBio/goquery"
 )
 
 // KuantoKustaParser implements HTMLParser interface for KuantoKusta Portugal
@@ -207,101 +207,163 @@ func (e *KuantoKustaExtractorV2) BuildSearchURL(productName string) (string, err
 	return searchURL, nil
 }
 
+// GetComparisons overrides the base implementation to use KuantoKusta-specific logic
+func (e *KuantoKustaExtractorV2) GetComparisons(productName string) ([]models.ProductComparison, error) {
+	utils.Info("� Starting KuantoKusta product extraction", 
+		utils.String("product", productName),
+		utils.String("extractor", e.GetIdentifier()),
+		utils.String("country", string(e.GetCountryCode())))
+
+	// Build KuantoKusta search URL
+	searchURL, err := e.BuildSearchURL(productName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search URL: %w", err)
+	}
+
+	// Fetch HTML using base functionality
+	html, err := e.FetchHTML(searchURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch HTML: %w", err)
+	}
+
+	// Extract products using KuantoKusta-specific logic
+	comparisons, err := e.GetComparisonsFromHTML(html)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract comparisons: %w", err)
+	}
+
+	utils.Info("Extraction completed", 
+		utils.String("extractor", "kuantokusta_v2"),
+		utils.Int("results", len(comparisons)))
+
+	return comparisons, nil
+}
+
 // GetComparisonsFromHTML overrides base implementation for KuantoKusta-specific logic
 func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.ProductComparison, error) {
-	utils.Info("📄 Parsing KuantoKusta HTML", utils.Int("size", len(html)))
+	utils.Info("� Parsing KuantoKusta HTML", utils.Int("size", len(html)))
 	
 	var comparisons []models.ProductComparison
 	
-	// First try JSON-LD structured data (more reliable)
-	if jsonComparisons := e.extractFromJSONLD(html); len(jsonComparisons) > 0 {
-		utils.Info("✅ Extracted KuantoKusta products from JSON-LD", utils.Int("count", len(jsonComparisons)))
-		return jsonComparisons, nil
+	// KuantoKusta uses Next.js with JSON data embedded in __NEXT_DATA__ script tag
+	if !strings.Contains(html, "__NEXT_DATA__") {
+		utils.Info("❌ No __NEXT_DATA__ script found in KuantoKusta HTML")
+		return comparisons, nil
 	}
 	
-	// Use CSS selectors for HTML parsing (based on our analysis)
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse HTML: %v", err)
+	utils.Info("🔍 Found __NEXT_DATA__ script in KuantoKusta HTML")
+	
+	jsonStart = strings.Index(html[jsonStart:], `>`) + jsonStart + 1
+	jsonEnd := strings.Index(html[jsonStart:], `</script>`)
+	if jsonEnd == -1 {
+		utils.Info("❌ Malformed __NEXT_DATA__ script in KuantoKusta HTML")
+		return comparisons, nil
 	}
 	
-	// Extract products using data-test-id selectors (confirmed working)
-	productCards := doc.Find("[data-test-id='product-card']")
-	utils.Info("🔍 Found KuantoKusta product cards", utils.Int("count", productCards.Length()))
+	jsonData := html[jsonStart : jsonStart+jsonEnd]
+	utils.Info("📊 Extracted JSON data", utils.Int("length", len(jsonData)))
 	
-	productCards.Each(func(i int, card *goquery.Selection) {
-		// Extract product name
-		nameElement := card.Find("[data-test-id='product-card-name']")
-		productName := strings.TrimSpace(nameElement.Text())
-		
-		if productName == "" {
-			return
+	// Parse the JSON data
+	var nextData map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonData), &nextData); err != nil {
+		utils.Info("❌ Failed to parse KuantoKusta JSON data", utils.Error(err))
+		return comparisons, nil
+	}
+	
+	// Navigate to the products data: props.pageProps.basePage.data
+	props, ok := nextData["props"].(map[string]interface{})
+	if !ok {
+		utils.Info("No props found in KuantoKusta JSON")
+		return comparisons, nil
+	}
+	
+	pageProps, ok := props["pageProps"].(map[string]interface{})
+	if !ok {
+		utils.Info("No pageProps found in KuantoKusta JSON")
+		return comparisons, nil
+	}
+	
+	basePage, ok := pageProps["basePage"].(map[string]interface{})
+	if !ok {
+		utils.Info("No basePage found in KuantoKusta JSON")
+		return comparisons, nil
+	}
+	
+	dataArray, ok := basePage["data"].([]interface{})
+	if !ok {
+		utils.Info("No data array found in KuantoKusta JSON")
+		return comparisons, nil
+	}
+	
+	utils.Info("Found KuantoKusta products in JSON data", utils.Int("count", len(dataArray)))
+	
+	// Process each product
+	for _, item := range dataArray {
+		product, ok := item.(map[string]interface{})
+		if !ok {
+			continue
 		}
 		
-		// Extract price
-		priceElement := card.Find("[data-test-id='product-card-offers-price-min']")
-		priceText := strings.TrimSpace(priceElement.Text())
+		// Extract product name
+		name, ok := product["name"].(string)
+		if !ok || name == "" {
+			continue
+		}
 		
-		// Clean price text and extract numeric value
-		priceText = regexp.MustCompile(`^desde\s*`).ReplaceAllString(priceText, "")
-		priceText = regexp.MustCompile(`€.*$`).ReplaceAllString(priceText, "")
-		priceText = strings.ReplaceAll(priceText, ",", ".")
-		
-		price, err := strconv.ParseFloat(priceText, 64)
-		if err != nil {
-			return
+		// Extract minimum price
+		priceMin, ok := product["priceMin"].(float64)
+		if !ok {
+			// Try as string or int
+			if priceStr, ok := product["priceMin"].(string); ok {
+				if parsed, err := strconv.ParseFloat(priceStr, 64); err == nil {
+					priceMin = parsed
+				} else {
+					continue
+				}
+			} else if priceInt, ok := product["priceMin"].(int); ok {
+				priceMin = float64(priceInt)
+			} else {
+				continue
+			}
 		}
 		
 		// Extract product URL
-		productLink := card.Find("a[href*='/p/']").First()
-		productURL, exists := productLink.Attr("href")
-		if !exists {
+		productURL, ok := product["url"].(string)
+		if !ok {
 			productURL = ""
-		} else if !strings.HasPrefix(productURL, "http") {
-			productURL = "https://www.kuantokusta.pt" + productURL
 		}
 		
-		// Extract seller info (number of shops)
-		sellerElement := card.Find("[data-test-id='product-card-seller']")
-		sellerText := strings.TrimSpace(sellerElement.Text())
-		if sellerText == "" {
-			sellerText = "KuantoKusta - PT"
+		// Make URL absolute
+		var storeURL *string
+		if productURL != "" {
+			fullURL := "https://www.kuantokusta.pt" + productURL
+			storeURL = &fullURL
 		}
 		
 		// Extract image URL
-		imgElement := card.Find("img").First()
-		imageURL, _ := imgElement.Attr("src")
-		var imageURLPtr *string
-		if imageURL != "" {
-			imageURLPtr = &imageURL
+		var imageURL *string
+		if images, ok := product["images"].([]interface{}); ok && len(images) > 0 {
+			if imgStr, ok := images[0].(string); ok && imgStr != "" {
+				imageURL = &imgStr
+			}
 		}
 		
-		// Create product comparison
-		var storeURLPtr *string
-		if productURL != "" {
-			storeURLPtr = &productURL
-		}
-		
+		// Create comparison object
 		comparison := models.ProductComparison{
 			ID:          utils.GenerateUUID(),
-			ProductName: productName,
-			Price:       price,
+			ProductName: name,
+			Price:       priceMin,
 			Currency:    "EUR",
-			StoreName:   sellerText,
-			StoreURL:    storeURLPtr,
+			StoreName:   "KuantoKusta - PT",
+			StoreURL:    storeURL,
 			Country:     string(models.CountryPortugal),
-			ImageURL:    imageURLPtr,
+			ImageURL:    imageURL,
 		}
 		
 		comparisons = append(comparisons, comparison)
-		
-		utils.Debug("✅ Extracted KuantoKusta product", 
-			utils.String("name", productName),
-			utils.Float64("price", price),
-			utils.String("seller", sellerText))
-	})
+	}
 	
-	utils.Info("✅ Extracted KuantoKusta products from HTML", utils.Int("count", len(comparisons)))
+	utils.Info("Extracted KuantoKusta products from JSON data", utils.Int("count", len(comparisons)))
 	return comparisons, nil
 }
 

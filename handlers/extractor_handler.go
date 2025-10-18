@@ -45,17 +45,16 @@ func NewExtractorHandler() *ExtractorHandler {
 
 // initializeExtractors initializes and registers all available extractors
 func initializeExtractors(registry *extractors.ExtractorRegistry) {
-	// === Pure Go extractors (V2) - SOLID architecture ===
-	utils.Info("Registering V2 extractors with SOLID architecture")
+	utils.Info("Registering V2 extractors architecture")
 	
 	// Register Go-based MercadoLivre extractor for Brazil
-	registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
+	//registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
 	
 	// Register Go-based KuantoKusta extractor for Portugal
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
 	
 	// Register Go-based Idealo extractor for Spain
-	registry.RegisterExtractor(extractors.NewIdealoExtractorV2())
+	//registry.RegisterExtractor(extractors.NewIdealoExtractorV2())
 
 	// Register Go-based AcharPromo extractor for Brazil
 	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
