@@ -15,6 +15,9 @@
 # Project specific binary
 muambr-api
 
+# Log files
+server.log
+
 # Environment variables
 .env
 
