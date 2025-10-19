@@ -1,6 +1,7 @@
 package htmlparser
 
 import (
+	htmlesc "html"
 	"net/url"
 	"strconv"
 	"strings"
@@ -184,38 +185,14 @@ type PerfumesECompanhiaParser struct {
 	ShareHTMLParser
 }
 
-// ParseHTML overrides the base method to handle Perfumes e Companhia specific parsing
-func (p *PerfumesECompanhiaParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
-	// Extract all the components using our custom methods
-	title := p.ExtractTitle(html, pageURL)
-	priceString := p.ExtractPrice(html, pageURL)
-	imageURL := p.ExtractImage(html, pageURL)
-	description := p.ExtractDescription(html, pageURL)
-	currency := p.ExtractCurrency(html, pageURL)
-	
-	// Filter the title
-	filteredTitle := filterTitle(title)
-	
-	// Parse the price manually
-	var price *float64
-	if priceString != "" {
-		if val, err := strconv.ParseFloat(priceString, 64); err == nil {
-			price = &val
-		}
-	}
-	
-	return &ParsedProductData{
-		Title:       filteredTitle,
-		Price:       price,
-		Currency:    currency,
-		ImageURL:    imageURL,
-		Description: description,
-	}
-}
+
 
 func (p *PerfumesECompanhiaParser) ExtractTitle(html string, pageURL *url.URL) string {
 	// Try og:title meta tag first (most reliable and complete)
 	if title := extractMetaProperty("og:title", html); title != "" {
+		// Decode HTML entities
+		title = htmlesc.UnescapeString(title)
+		
 		// Clean up the title by removing the site name suffix
 		if idx := strings.Index(title, " | Perfumes e Companhia"); idx != -1 {
 			return strings.TrimSpace(title[:idx])
@@ -324,4 +301,26 @@ func (p *PerfumesECompanhiaParser) ExtractCurrency(html string, pageURL *url.URL
 
 	// Default to EUR as Perfumes e Companhia operates in Europe
 	return "eur"
+}
+
+// ParseHTML overrides the base method to ensure our custom extraction methods are called
+func (p *PerfumesECompanhiaParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
+	// Extract all the components using our custom methods
+	rawTitle := p.ExtractTitle(html, pageURL)
+	priceString := p.ExtractPrice(html, pageURL)
+	imageURL := p.ExtractImage(html, pageURL)
+	description := p.ExtractDescription(html, pageURL)
+	currency := p.ExtractCurrency(html, pageURL)
+	
+	// Apply filtering and parsing
+	title := filterTitle(rawTitle)
+	price := parsePrice(priceString)
+	
+	return &ParsedProductData{
+		Title:       title,
+		Price:       price,
+		Currency:    currency,
+		ImageURL:    imageURL,
+		Description: description,
+	}
 }

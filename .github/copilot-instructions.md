@@ -79,3 +79,27 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 - Coverage reports generated as HTML in `coverage/` directory
 - Build process installs Go dependencies and compiles to single binary
 - Gin router with CORS middleware configured for cross-origin requests
+
+## Debugging and Code Cleanup Guidelines
+
+### Debug Logging Best Practices
+- **Always remove debug logs after troubleshooting** - Debug logs should never be committed to production code
+- Use temporary debug logs during development with clear prefixes like `🔥`, `🔍`, `❌` for easy identification
+- Common debug patterns to remove:
+  - Method call logging: `utils.Info("🔥 ParserName.MethodName called")`
+  - Step-by-step extraction debugging: `utils.Info("🔍 Found og:title", utils.String("title", title))`
+  - Fallback usage warnings: `utils.Warn("🔍 Using fallback title")`
+  - Parser type verification: `utils.String("parserType", fmt.Sprintf("%T", parser))`
+
+### Post-Troubleshooting Cleanup Checklist
+1. **Remove all debug log statements** added during troubleshooting session
+2. **Remove unused imports** that were added for debugging (e.g., `fmt`, `utils` if only used for debug logs)
+3. **Clean up temporary test files** (e.g., `debug_*.go` files)
+4. **Verify functionality** still works after cleanup with a final test
+5. **Keep only production-level logging** using appropriate log levels (Info/Warn/Error for meaningful events)
+
+### HTML Parser Debugging Notes
+- When debugging parser method overrides, verify that custom `ParseHTML` methods properly call overridden extraction methods
+- Use temporary debug files (e.g., `debug_parser.go`) for isolated testing, then remove them
+- Parser registry selection can be verified with minimal logging, but remove detailed parser type information
+- Method resolution issues often require custom `ParseHTML` implementation to ensure proper method override behavior
