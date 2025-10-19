@@ -2,6 +2,8 @@ package htmlparser
 
 import (
 	"net/url"
+	"strconv"
+	"strings"
 )
 
 // European retailers parsers
@@ -24,12 +26,138 @@ func (p *PrimarkParser) ExtractCurrency(html string, pageURL *url.URL) string {
 	return "eur"
 }
 
-// PrimorEUParser handles Primor EU parsing
+// PrimorEUParser handles Primor EU parsing (Portugal and Spain)
 type PrimorEUParser struct {
 	ShareHTMLParser
 }
 
+// ParseHTML overrides the base method to handle Primor-specific price parsing
+func (p *PrimorEUParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
+	// Extract all the components using our custom methods
+	title := p.ExtractTitle(html, pageURL)
+	priceString := p.ExtractPrice(html, pageURL)
+	imageURL := p.ExtractImage(html, pageURL)
+	description := p.ExtractDescription(html, pageURL)
+	currency := p.ExtractCurrency(html, pageURL)
+	
+	// Filter the title
+	filteredTitle := filterTitle(title)
+	
+	// Parse the price manually for Primor
+	var price *float64
+	if priceString != "" {
+		if val, err := strconv.ParseFloat(priceString, 64); err == nil {
+			price = &val
+		}
+	}
+	
+	return &ParsedProductData{
+		Title:       filteredTitle,
+		Price:       price,
+		Currency:    currency,
+		ImageURL:    imageURL,
+		Description: description,
+	}
+}
+
+func (p *PrimorEUParser) ExtractTitle(html string, pageURL *url.URL) string {
+	// Try og:title meta tag first (most reliable for Primor)
+	if title := extractMetaProperty("og:title", html); title != "" {
+		return title
+	}
+
+	// Try JSON-LD Product schema name (look specifically for Product schema)
+	patterns := []string{
+		`"@type":"Product"[^}]*"name":"([^"]+)"`,     // Product schema name
+		`"name":"([^"]+)"[^}]*"@type":"Product"`,     // Reversed order
+	}
+	
+	for _, pattern := range patterns {
+		if title := extractWithRegex(pattern, html); title != "" {
+			return title
+		}
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractTitle(html, pageURL)
+}
+
+func (p *PrimorEUParser) ExtractPrice(html string, pageURL *url.URL) string {
+	// Try product:price:amount meta tag (most reliable for Primor)
+	if price := extractMetaProperty("product:price:amount", html); price != "" {
+		return price  // Return just the number, currency is handled separately
+	}
+
+	// Try structured data JSON-LD offers
+	patterns := []string{
+		`"price":([0-9]+(?:\.[0-9]+)?)`,     // "price":77.95
+		`"price":"([^"]+)"`,                  // "price":"77.95"
+	}
+
+	for _, pattern := range patterns {
+		if price := extractWithRegex(pattern, html); price != "" {
+			return price  // Return just the number
+		}
+	}
+
+	// Try data layer pricing (analytics data)
+	if price := extractWithRegex(`"price":([0-9]+(?:\.[0-9]+)?)`, html); price != "" {
+		return price  // Return just the number
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractPrice(html, pageURL)
+}
+
+func (p *PrimorEUParser) ExtractImage(html string, pageURL *url.URL) string {
+	// Try og:image meta tag (most reliable for Primor)
+	if image := extractMetaProperty("og:image", html); image != "" {
+		return image
+	}
+
+	// Try structured data JSON-LD image
+	if image := extractStructuredDataImage(html); image != "" {
+		return image
+	}
+
+	// Try JSON-LD Product schema images array
+	pattern := `"image":\s*\["([^"]+)"\]`
+	if image := extractWithRegex(pattern, html); image != "" {
+		return image
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractImage(html, pageURL)
+}
+
+func (p *PrimorEUParser) ExtractDescription(html string, pageURL *url.URL) string {
+	// Try og:description first
+	if desc := extractMetaProperty("og:description", html); desc != "" {
+		return desc
+	}
+
+	// Try structured data description
+	pattern := `"description":"([^"]+)"`
+	if desc := extractWithRegex(pattern, html); desc != "" {
+		return desc
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractDescription(html, pageURL)
+}
+
 func (p *PrimorEUParser) ExtractCurrency(html string, pageURL *url.URL) string {
+	// Try product:price:currency meta tag
+	if currency := extractMetaProperty("product:price:currency", html); currency != "" {
+		return strings.ToLower(currency)
+	}
+
+	// Try structured data currency
+	if strings.Contains(html, `"priceCurrency":"EUR"`) {
+		return "eur"
+	}
+
+	// Default to EUR as Primor operates in Europe
 	return "eur"
 }
 
