@@ -25,6 +25,7 @@ var siteParserRegistry = map[string]func() Parser{
 	"electrolux.com.br":     func() Parser { return &ElectroluxBRParser{} },
 	"primark.com":           func() Parser { return &PrimarkParser{} },
 	"primor.eu":             func() Parser { return &PrimorEUParser{} },
+	"perfumesecompanhia.pt": func() Parser { return &PerfumesECompanhiaParser{} },
 	"worten.pt":             func() Parser { return &WortenPTParser{} },
 	"zara.com":              func() Parser { return &ZaraParser{} },
 }

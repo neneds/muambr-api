@@ -178,3 +178,150 @@ type ZaraParser struct {
 func (p *ZaraParser) ExtractCurrency(html string, pageURL *url.URL) string {
 	return "eur"
 }
+
+// PerfumesECompanhiaParser handles Perfumes e Companhia parsing (Portugal and Spain)
+type PerfumesECompanhiaParser struct {
+	ShareHTMLParser
+}
+
+// ParseHTML overrides the base method to handle Perfumes e Companhia specific parsing
+func (p *PerfumesECompanhiaParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
+	// Extract all the components using our custom methods
+	title := p.ExtractTitle(html, pageURL)
+	priceString := p.ExtractPrice(html, pageURL)
+	imageURL := p.ExtractImage(html, pageURL)
+	description := p.ExtractDescription(html, pageURL)
+	currency := p.ExtractCurrency(html, pageURL)
+	
+	// Filter the title
+	filteredTitle := filterTitle(title)
+	
+	// Parse the price manually
+	var price *float64
+	if priceString != "" {
+		if val, err := strconv.ParseFloat(priceString, 64); err == nil {
+			price = &val
+		}
+	}
+	
+	return &ParsedProductData{
+		Title:       filteredTitle,
+		Price:       price,
+		Currency:    currency,
+		ImageURL:    imageURL,
+		Description: description,
+	}
+}
+
+func (p *PerfumesECompanhiaParser) ExtractTitle(html string, pageURL *url.URL) string {
+	// Try og:title meta tag first (most reliable and complete)
+	if title := extractMetaProperty("og:title", html); title != "" {
+		// Clean up the title by removing the site name suffix
+		if idx := strings.Index(title, " | Perfumes e Companhia"); idx != -1 {
+			return strings.TrimSpace(title[:idx])
+		}
+		if idx := strings.Index(title, " - BVLGARI | Perfumes e Companhia"); idx != -1 {
+			return strings.TrimSpace(title[:idx])
+		}
+		return title
+	}
+
+	// Try JSON-LD Product schema name (more specific pattern)
+	jsonLDPattern := `"@type":"Product"[^}]*?"name":"([^"]+)"`
+	if title := extractWithRegex(jsonLDPattern, html); title != "" {
+		return title
+	}
+
+	// Try alternative JSON-LD pattern
+	if title := extractWithRegex(`"@context":"http://schema\.org/"[^}]*?"name":"([^"]+)"`, html); title != "" {
+		return title
+	}
+
+	// Try data-gtm product name (URL decode it)
+	if name := extractWithRegex(`"name":"([^"]+)"`, html); name != "" {
+		// URL decode the name
+		decoded := strings.ReplaceAll(name, "%20", " ")
+		if len(decoded) > 5 { // Make sure it's not just "BVLGARI"
+			return decoded
+		}
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractTitle(html, pageURL)
+}
+
+func (p *PerfumesECompanhiaParser) ExtractPrice(html string, pageURL *url.URL) string {
+	// Try JSON-LD structured data price (most reliable)
+	patterns := []string{
+		`"offers":\{[^}]*"price":"([^"]+)"`,          // "offers":{"price":"83.02"
+		`"price":"([^"]+)"[^}]*"priceCurrency":"EUR"`, // "price":"83.02","priceCurrency":"EUR"
+	}
+
+	for _, pattern := range patterns {
+		if price := extractWithRegex(pattern, html); price != "" {
+			return price
+		}
+	}
+
+	// Try data-gtm price information
+	if price := extractWithRegex(`"price":"([^"]+)"`, html); price != "" {
+		return price
+	}
+
+	// Try generic price patterns in HTML
+	pricePatterns := []string{
+		`€\s*([0-9]+(?:\.[0-9]+)?)`,     // €83.02
+		`([0-9]+(?:\.[0-9]+)?)\s*€`,     // 83.02€
+		`([0-9]+(?:,[0-9]+)?)\s*€`,      // 83,02€
+	}
+
+	for _, pattern := range pricePatterns {
+		if price := extractWithRegex(pattern, html); price != "" {
+			// Convert comma to dot for EUR format
+			return strings.ReplaceAll(price, ",", ".")
+		}
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractPrice(html, pageURL)
+}
+
+func (p *PerfumesECompanhiaParser) ExtractImage(html string, pageURL *url.URL) string {
+	// Try JSON-LD structured data images array (first image)
+	if image := extractWithRegex(`"image":\s*\["([^"]+)"`, html); image != "" {
+		return image
+	}
+
+	// Try og:image meta tag
+	if image := extractMetaProperty("og:image", html); image != "" {
+		return image
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractImage(html, pageURL)
+}
+
+func (p *PerfumesECompanhiaParser) ExtractDescription(html string, pageURL *url.URL) string {
+	// Try JSON-LD description
+	if desc := extractWithRegex(`"description":"([^"]+)"`, html); desc != "" {
+		return desc
+	}
+
+	// Try og:description meta tag
+	if desc := extractMetaProperty("og:description", html); desc != "" {
+		return desc
+	}
+
+	// Fallback to generic extraction
+	return p.ShareHTMLParser.ExtractDescription(html, pageURL)
+}
+
+func (p *PerfumesECompanhiaParser) ExtractCurrency(html string, pageURL *url.URL) string {
+	// Try JSON-LD priceCurrency
+	if strings.Contains(html, `"priceCurrency":"EUR"`) {
+		return "eur"
+	}
+
+	// Default to EUR as Perfumes e Companhia operates in Europe
+	return "eur"
+}
