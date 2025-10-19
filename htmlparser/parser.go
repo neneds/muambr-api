@@ -279,19 +279,19 @@ func filterTitle(title string) string {
 
 	// Decode HTML entities first
 	filteredTitle := title
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&quot;", "\"")
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&amp;", "&")
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&lt;", "<")
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&gt;", ">")
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&quot;", "")  // Remove quotes to avoid iOS validation issues
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&amp;", "")  // Remove & symbol
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&lt;", "")   // Remove < symbol
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&gt;", "")   // Remove > symbol
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&#x20;", " ")
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&nbsp;", " ")
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&apos;", "'")
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&apos;", "")  // Remove apostrophe to avoid iOS validation issues
 
 	utils.Debug("🔤 LinkPreviewParser: After HTML entity decoding", utils.String("title", filteredTitle))
 
 	// Handle Amazon case specifically
 	if strings.Contains(filteredTitle, ": Amazon") || strings.Contains(filteredTitle, "Amazon.es") || strings.Contains(filteredTitle, "amazon.") {
-		amazonPatterns := []string{": Amazon.es: Electrónica", ": Amazon.es", ": Amazon.", "Amazon.es"}
+		amazonPatterns := []string{": Amazon.es: Electronica", ": Amazon.es", ": Amazon.", "Amazon.es"}  // Removed accented characters
 		for _, pattern := range amazonPatterns {
 			if idx := strings.Index(strings.ToLower(filteredTitle), strings.ToLower(pattern)); idx != -1 {
 				beforeSeparator := strings.TrimSpace(filteredTitle[:idx])
@@ -341,6 +341,28 @@ func filterTitle(title string) string {
 		}
 	}
 
+	// Filter out characters not allowed by iOS validation
+	// iOS allows: ASCII letters (a-z, A-Z), numbers (0-9), spaces, and basic punctuation (.,!?-)
+	var validChars []rune
+	for _, char := range filteredTitle {
+		if (char >= 'a' && char <= 'z') ||
+		   (char >= 'A' && char <= 'Z') ||
+		   (char >= '0' && char <= '9') ||
+		   char == ' ' ||
+		   char == '.' ||
+		   char == ',' ||
+		   char == '!' ||
+		   char == '?' ||
+		   char == '-' {
+			validChars = append(validChars, char)
+		}
+	}
+	filteredTitle = string(validChars)
+
+	// Clean up multiple spaces and trim
+	filteredTitle = regexp.MustCompile(`\s+`).ReplaceAllString(filteredTitle, " ")
+	filteredTitle = strings.TrimSpace(filteredTitle)
+
 	// Truncate if too long
 	maxLength := 80
 	if len(filteredTitle) > maxLength {
@@ -356,10 +378,10 @@ func filterTitle(title string) string {
 
 	filteredTitle = strings.TrimSpace(filteredTitle)
 
-	// If filtering made the title too short, return original
+	// If filtering made the title too short, create a safe fallback
 	if len(filteredTitle) < 5 {
-		utils.Debug("🔤 LinkPreviewParser: Filtered title too short, returning original")
-		return title
+		utils.Debug("🔤 LinkPreviewParser: Filtered title too short, using fallback")
+		return "Product"
 	}
 
 	utils.Debug("🔤 LinkPreviewParser: Final filtered title", utils.String("title", filteredTitle))
