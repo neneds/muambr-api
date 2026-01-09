@@ -59,6 +59,12 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// Register Go-based AcharPromo extractor for Brazil
 	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
 	
+	// Register Go-based Walmart USA extractor for United States
+	registry.RegisterExtractor(extractors.NewWalmartUSAExtractor())
+	
+	// Register Go-based Amazon USA extractor for United States
+	registry.RegisterExtractor(extractors.NewAmazonUSExtractor())
+	
 	utils.Info("All V2 extractors registered successfully")
 }
 

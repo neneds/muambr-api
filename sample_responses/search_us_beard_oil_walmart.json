@@ -1,0 +1,29 @@
+[
+  {
+    "id": "uuid-123456789",
+    "productName": "Honest Amish Classic Beard Oil - 2 oz",
+    "price": 19.99,
+    "currency": "USD",
+    "storeName": "Walmart",
+    "storeURL": "https://www.walmart.com/ip/Honest-Amish-Classic-Beard-Oil/123456789",
+    "country": "US"
+  },
+  {
+    "id": "uuid-987654321",
+    "productName": "Beard Growth Oil for Men - Natural Conditioner",
+    "price": 24.95,
+    "currency": "USD",
+    "storeName": "Walmart",
+    "storeURL": "https://www.walmart.com/ip/Beard-Growth-Oil-Natural/987654321",
+    "country": "US"
+  },
+  {
+    "id": "uuid-456789123",
+    "productName": "Premium Beard Care Kit with Oil and Balm",
+    "price": 34.99,
+    "currency": "USD",
+    "storeName": "Walmart",
+    "storeURL": "https://www.walmart.com/ip/Premium-Beard-Care-Kit/456789123",
+    "country": "US"
+  }
+]
