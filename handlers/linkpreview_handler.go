@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"muambr-api/htmlparser"
+	"muambr-api/linkparsers"
 	"muambr-api/models"
 	"muambr-api/utils"
 	"net/http"
@@ -31,7 +31,7 @@ type LinkPreviewRequest struct {
 
 // LinkPreviewResponse represents the response with parsed data
 type LinkPreviewResponse struct {
-	ProductData *htmlparser.ParsedProductData `json:"productData"`
+	ProductData *linkparsers.ParsedProductData `json:"productData"`
 }
 
 // GetLinkPreview handles GET /api/v1/linkpreview?url=...&baseCountry=PT&addComparisons=true
@@ -70,7 +70,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 	}
 
 	// Parse the URL and get product data
-	productData, err := htmlparser.ParseURL(req.URL)
+	productData, err := linkparsers.ParseURL(req.URL)
 	if err != nil {
 		utils.LogError("❌ Error parsing URL", utils.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{

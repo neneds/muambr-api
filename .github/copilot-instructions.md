@@ -68,7 +68,7 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 ## File Organization
 - `handlers/` - HTTP request handlers with validation
 - `extractors/` - Pure Go extractors with HTML parsing
-- `htmlparser/` - HTML parsing for link preview feature
+- `linkparsers/` - HTML parsing for link preview feature (formerly htmlparser)
 - `models/` - Domain models and enums
 - `utils/` - Shared utilities (logging, comparison processing)
 - `tests/unit/` vs `tests/integration/` - Separate test types with environment flag
