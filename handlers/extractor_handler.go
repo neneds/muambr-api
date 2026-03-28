@@ -48,7 +48,7 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	utils.Info("Registering V2 extractors architecture")
 	
 	// Register Go-based MercadoLivre extractor for Brazil
-	//registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
+	registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
 	
 	// Register Go-based KuantoKusta extractor for Portugal
 	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
