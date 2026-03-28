@@ -1,110 +1,185 @@
 package extractors_test
 
 import (
-	"strings"
 	"testing"
+
+	"muambr-api/extractors"
+	"muambr-api/models"
 )
 
-func TestMercadoLivreExtractorReal(t *testing.T) {
-	// Note: This assumes MercadoLivreExtractor exists
-	// If it doesn't exist yet, this test will need to be created when the extractor is implemented
-	
-	t.Skip("MercadoLivre extractor not yet implemented - placeholder test")
-	
-	// This is what the test would look like when implemented:
-	/*
-	extractor := extractors.NewMercadoLivreExtractor()
+func TestMercadoLivreExtractorMetadata(t *testing.T) {
+	extractor := extractors.NewMercadoLivreExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
-		country := extractor.GetCountryCode()
-		expected := models.CountryBrazil
-		if country != expected {
-			t.Errorf("Expected country code %s, got %s", expected, country)
+		if got := extractor.GetCountryCode(); got != models.CountryBrazil {
+			t.Errorf("Expected %s, got %s", models.CountryBrazil, got)
 		}
 	})
 
 	t.Run("GetMacroRegion", func(t *testing.T) {
-		region := extractor.GetMacroRegion()
-		expected := models.MacroRegionLATAM
-		if region != expected {
-			t.Errorf("Expected macro region %s, got %s", expected, region)
+		if got := extractor.GetMacroRegion(); got != models.MacroRegionLATAM {
+			t.Errorf("Expected %s, got %s", models.MacroRegionLATAM, got)
 		}
 	})
 
 	t.Run("GetIdentifier", func(t *testing.T) {
-		identifier := extractor.GetIdentifier()
-		expected := "mercadolivre"
-		if identifier != expected {
-			t.Errorf("Expected identifier %s, got %s", expected, identifier)
+		if got := extractor.GetIdentifier(); got != "mercadolivre_v2" {
+			t.Errorf("Expected mercadolivre_v2, got %s", got)
 		}
 	})
 
 	t.Run("BaseURL", func(t *testing.T) {
-		baseURL := extractor.BaseURL()
-		expected := "https://www.mercadolivre.com.br"
-		if baseURL != expected {
-			t.Errorf("Expected base URL %s, got %s", expected, baseURL)
+		if got := extractor.GetBaseURL(); got != "https://lista.mercadolivre.com.br" {
+			t.Errorf("Expected https://lista.mercadolivre.com.br, got %s", got)
 		}
 	})
 
-	t.Run("Interface Implementation", func(t *testing.T) {
+	t.Run("BuildSearchURL", func(t *testing.T) {
+		url, err := extractor.BuildSearchURL("iPhone 15")
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		expected := "https://lista.mercadolivre.com.br/iphone-15"
+		if url != expected {
+			t.Errorf("Expected %s, got %s", expected, url)
+		}
+	})
+
+	t.Run("ImplementsExtractorInterface", func(t *testing.T) {
 		var _ extractors.Extractor = extractor
 	})
-	*/
 }
 
-func TestMercadoLivreHTMLStructure(t *testing.T) {
-	htmlContent, err := loadTestData("mercadolivre_ipad10_search.html")
+func TestMercadoLivreJSONLDExtraction(t *testing.T) {
+	html, err := loadSampleResponse("mercadolivre_search.html")
 	if err != nil {
-		t.Skipf("Test data not available: %v", err)
-		return
+		t.Fatalf("Failed to load sample response: %v", err)
 	}
 
-	// Test HTML structure elements we expect from MercadoLivre
-	structureTests := []struct {
-		name     string
-		expected string
-		found    bool
-	}{
-		{"DOCTYPE declaration", "<!DOCTYPE html>", false},
-		{"HTML opening tag", "<html", false},
-		{"Head section", "<head>", false},
-		{"Body section", "<body", false},
-		{"MercadoLivre branding", "mercadolivre", false},
-		{"Search results", "ipad", false},
-		{"Product listings", "product", false},
+	extractor := extractors.NewMercadoLivreExtractorV2()
+	comparisons, err := extractor.GetComparisonsFromHTML(html)
+	if err != nil {
+		t.Fatalf("GetComparisonsFromHTML failed: %v", err)
 	}
 
-	lowerHTML := strings.ToLower(htmlContent)
-
-	for i := range structureTests {
-		test := &structureTests[i]
-		test.found = strings.Contains(lowerHTML, strings.ToLower(test.expected))
-		
-		if test.found {
-			t.Logf("✓ Found %s", test.name)
-		} else {
-			t.Logf("⚠ Missing %s", test.name)
+	t.Run("ExtractsProducts", func(t *testing.T) {
+		if len(comparisons) == 0 {
+			t.Fatal("Expected products, got 0")
 		}
-	}
+		t.Logf("Extracted %d products", len(comparisons))
+	})
 
-	// Count total found elements
-	foundCount := 0
-	for _, test := range structureTests {
-		if test.found {
-			foundCount++
+	t.Run("ProductFields", func(t *testing.T) {
+		if len(comparisons) == 0 {
+			t.Skip("No comparisons to validate")
 		}
+		c := comparisons[0]
+		if c.ProductName == "" {
+			t.Error("Expected non-empty ProductName")
+		}
+		if c.Price <= 0 {
+			t.Errorf("Expected positive price, got %f", c.Price)
+		}
+		if c.Currency != "BRL" {
+			t.Errorf("Expected currency BRL, got %s", c.Currency)
+		}
+		if c.StoreName != "MercadoLivre" {
+			t.Errorf("Expected store MercadoLivre, got %s", c.StoreName)
+		}
+		if c.Country != string(models.CountryBrazil) {
+			t.Errorf("Expected country BR, got %s", c.Country)
+		}
+		if c.StoreURL == nil || *c.StoreURL == "" {
+			t.Error("Expected non-empty StoreURL")
+		}
+		if c.ID == "" {
+			t.Error("Expected non-empty ID")
+		}
+	})
+
+	t.Run("AllProductsHaveRequiredFields", func(t *testing.T) {
+		for i, c := range comparisons {
+			if c.ProductName == "" {
+				t.Errorf("Product %d: empty name", i)
+			}
+			if c.Price <= 0 {
+				t.Errorf("Product %d: invalid price %f", i, c.Price)
+			}
+		}
+	})
+}
+
+func TestMercadoLivreEmptyHTML(t *testing.T) {
+	extractor := extractors.NewMercadoLivreExtractorV2()
+	comparisons, err := extractor.GetComparisonsFromHTML("")
+	if err != nil {
+		t.Fatalf("Unexpected error on empty HTML: %v", err)
+	}
+	if len(comparisons) != 0 {
+		t.Errorf("Expected 0 comparisons for empty HTML, got %d", len(comparisons))
+	}
+}
+
+func TestMercadoLivreHTMLFallback(t *testing.T) {
+	// Minimal HTML with poly-card structure but no JSON-LD
+	html := `<!DOCTYPE html><html><body>
+<ol class="ui-search-layout">
+<li class="ui-search-layout__item">
+  <div class="poly-card">
+    <div class="poly-card__content">
+      <h3 class="poly-component__title-wrapper">
+        <a href="https://www.mercadolivre.com.br/iphone-15" class="poly-component__title">Apple iPhone 15 128GB</a>
+      </h3>
+      <div class="poly-price__current">
+        <span class="andes-money-amount__fraction">4.699</span>
+      </div>
+    </div>
+  </div>
+</li>
+<li class="ui-search-layout__item">
+  <div class="poly-card">
+    <div class="poly-card__content">
+      <h3 class="poly-component__title-wrapper">
+        <a href="https://www.mercadolivre.com.br/iphone-15-pro" class="poly-component__title">Apple iPhone 15 Pro 256GB</a>
+      </h3>
+      <div class="poly-price__current">
+        <span class="andes-money-amount__fraction">6.299</span>
+        <span class="andes-money-amount__cents">90</span>
+      </div>
+    </div>
+  </div>
+</li>
+</ol>
+</body></html>`
+
+	extractor := extractors.NewMercadoLivreExtractorV2()
+	comparisons, err := extractor.GetComparisonsFromHTML(html)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	t.Logf("MercadoLivre HTML Structure Analysis: %d/%d expected elements found", foundCount, len(structureTests))
-	t.Logf("HTML size: %d bytes", len(htmlContent))
+	t.Run("ExtractsFromHTML", func(t *testing.T) {
+		if len(comparisons) != 2 {
+			t.Fatalf("Expected 2 products, got %d", len(comparisons))
+		}
+	})
 
-	// Verify the HTML is properly formed
-	if strings.Contains(htmlContent, "Test Data Generated:") {
-		t.Logf("✓ HTML test data includes metadata header")
-	}
+	t.Run("ParsesPrice", func(t *testing.T) {
+		if comparisons[0].Price != 4699 {
+			t.Errorf("Expected price 4699, got %f", comparisons[0].Price)
+		}
+	})
 
-	if strings.Contains(htmlContent, "Content Encoding: br") {
-		t.Logf("✓ HTML was properly decompressed from Brotli format")
-	}
+	t.Run("ParsesPriceWithCents", func(t *testing.T) {
+		expected := 6299.90
+		if comparisons[1].Price != expected {
+			t.Errorf("Expected price %f, got %f", expected, comparisons[1].Price)
+		}
+	})
+
+	t.Run("ParsesProductURL", func(t *testing.T) {
+		if comparisons[0].StoreURL == nil || *comparisons[0].StoreURL != "https://www.mercadolivre.com.br/iphone-15" {
+			t.Errorf("Expected URL https://www.mercadolivre.com.br/iphone-15, got %v", comparisons[0].StoreURL)
+		}
+	})
 }

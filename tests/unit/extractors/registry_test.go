@@ -5,7 +5,7 @@ import (
 
 	"muambr-api/extractors"
 	"muambr-api/models"
-	"muambr-api/tests/mocks"
+	mocks "muambr-api/tests/mocks/extractors"
 )
 
 func TestExtractorRegistry(t *testing.T) {

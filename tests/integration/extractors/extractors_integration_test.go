@@ -9,6 +9,9 @@ import (
 	"muambr-api/models"
 )
 
+// Ensure models is used
+var _ models.ProductComparison
+
 // TestExtractorIntegration tests the actual integration with external websites
 // These tests require internet connectivity and may be slow
 func TestExtractorIntegration(t *testing.T) {
@@ -45,7 +48,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("MercadoLivreIntegration", func(t *testing.T) {
-		extractor := extractors.NewMercadoLivreExtractor()
+		extractor := extractors.NewMercadoLivreExtractorV2()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -70,7 +73,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("KuantoKustaIntegration", func(t *testing.T) {
-		extractor := extractors.NewKuantoKustaExtractor()
+		extractor := extractors.NewKuantoKustaExtractorV2()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -93,16 +96,80 @@ func TestExtractorIntegration(t *testing.T) {
 			t.Errorf("KuantoKusta extraction timed out after %v", timeout)
 		}
 	})
-}
 
-// TestGoEnvironment tests that the Go environment is properly configured
-func TestGoEnvironment(t *testing.T) {
-	if os.Getenv("INTEGRATION_TESTS") != "true" {
-		t.Skip("Skipping integration tests (set INTEGRATION_TESTS=true to run)")
-	}
+	t.Run("AmazonSpainIntegration", func(t *testing.T) {
+		extractor := extractors.NewAmazonSpainExtractor()
+		
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+		
+		go func() {
+			results, err = extractor.GetComparisons("iPhone")
+			done <- true
+		}()
+		
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Amazon Spain extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Amazon Spain extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Amazon Spain extraction timed out after %v", timeout)
+		}
+	})
 
-	t.Run("GoDependencies", func(t *testing.T) {
-		// Test that Go HTTP client and HTML parsing work
-		assert.NotNil(t, http.DefaultClient, "HTTP client should be available")
+	t.Run("AmazonUSIntegration", func(t *testing.T) {
+		extractor := extractors.NewAmazonUSExtractor()
+		
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+		
+		go func() {
+			results, err = extractor.GetComparisons("iPhone")
+			done <- true
+		}()
+		
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Amazon US extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Amazon US extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Amazon US extraction timed out after %v", timeout)
+		}
+	})
+
+	t.Run("WalmartUSAIntegration", func(t *testing.T) {
+		extractor := extractors.NewWalmartUSAExtractor()
+		
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+		
+		go func() {
+			results, err = extractor.GetComparisons("iPhone")
+			done <- true
+		}()
+		
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Walmart USA extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Walmart USA extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Walmart USA extraction timed out after %v", timeout)
+		}
 	})
 }
+
