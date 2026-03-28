@@ -1,30 +1,75 @@
 package extractors
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strconv"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 
 	"muambr-api/models"
 	"muambr-api/utils"
 )
 
-// acharPromoDeal represents a deal from the AcharPromo deals page RSC payload
-type acharPromoDeal struct {
-	ID        int     `json:"id"`
-	CreatedAt string  `json:"created_at"`
-	Image     string  `json:"image"`
-	Source    string  `json:"source"`
-	OldPrice  *string `json:"oldPrice"`
-	Title     string  `json:"title"`
-	Price     string  `json:"price"`
-	URL       string  `json:"url"`
+// acharPromoProduct represents a product from the AcharPromo chat API response
+type acharPromoProduct struct {
+	ID             string  `json:"id"`
+	Title          string  `json:"title"`
+	Price          string  `json:"price"`
+	ExtractedPrice float64 `json:"extracted_price"`
+	Image          string  `json:"image"`
+	URL            string  `json:"url"`
+	Source         string  `json:"source"`
+	ProductID      string  `json:"product_id"`
+	IsRecommended  bool    `json:"isRecommended"`
+}
+
+// acharPromoToolOutput represents the tool-output-available SSE event payload
+type acharPromoToolOutput struct {
+	Type       string `json:"type"`
+	ToolCallID string `json:"toolCallId"`
+	Output     struct {
+		Status   string              `json:"status"`
+		SearchID string              `json:"searchId"`
+		Query    string              `json:"query"`
+		Category string              `json:"category"`
+		Products []acharPromoProduct `json:"products"`
+		Metadata struct {
+			TotalProducts int      `json:"totalProducts"`
+			TotalShops    int      `json:"totalShops"`
+			TopShops      []string `json:"topShops"`
+			MinPrice      float64  `json:"minPrice"`
+		} `json:"metadata"`
+	} `json:"output"`
+}
+
+// acharPromoChatRequest represents the POST body for the /api/chat endpoint
+type acharPromoChatRequest struct {
+	ID        string                    `json:"id"`
+	Messages  []acharPromoChatMessage   `json:"messages"`
+	Trigger   string                    `json:"trigger"`
+	MessageID string                    `json:"messageId"`
+}
+
+// acharPromoChatMessage represents a message in the chat request
+type acharPromoChatMessage struct {
+	ID      string                      `json:"id"`
+	Role    string                      `json:"role"`
+	Content string                      `json:"content"`
+	Parts   []acharPromoChatMessagePart `json:"parts"`
+}
+
+// acharPromoChatMessagePart represents a part of a chat message
+type acharPromoChatMessagePart struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
 }
 
 // acharPromoNoopParser is a minimal HTMLParser implementation for AcharPromo.
-// AcharPromo extraction is done via RSC payload parsing, not HTML regex, but
+// AcharPromo extraction is done via the /api/chat endpoint, not HTML parsing, but
 // BaseGoExtractor requires an HTMLParser to be passed in.
 type acharPromoNoopParser struct {
 	*BaseHTMLParser
@@ -51,17 +96,15 @@ func (p *acharPromoNoopParser) ParseStore(_ string) string {
 	return "AcharPromo Brasil"
 }
 
-// AcharPromoExtractorV2 scrapes the AcharPromo /deals page for curated product deals.
-// AcharPromo moved to a chat-based AI interface; the old JSON API and search page
-// no longer return product data. The /deals page embeds product data in a Next.js
-// React Server Component payload which we extract and parse.
+// AcharPromoExtractorV2 uses the AcharPromo /api/chat endpoint to search for products.
+// The chat API uses a Vercel AI SDK streaming format and returns Google Shopping
+// results for Brazil via the searchByText tool.
 type AcharPromoExtractorV2 struct {
 	*BaseGoExtractor
 }
 
 // NewAcharPromoExtractorV2 creates a new pure Go AcharPromo extractor
 func NewAcharPromoExtractorV2() *AcharPromoExtractorV2 {
-	// We still need a parser for the base extractor, but we override GetComparisons
 	parser := newAcharPromoNoopParser()
 	baseExtractor := NewBaseGoExtractor(
 		"https://achar.promo",
@@ -75,198 +118,167 @@ func NewAcharPromoExtractorV2() *AcharPromoExtractorV2 {
 	}
 }
 
-// GetComparisons fetches the /deals page and extracts products from the RSC payload,
-// then filters by the search term.
+// GetComparisons calls the AcharPromo /api/chat endpoint with the product name
+// and parses the SSE streaming response to extract product comparisons.
 func (e *AcharPromoExtractorV2) GetComparisons(productName string) ([]models.ProductComparison, error) {
-	utils.Info("🚀 Starting AcharPromo deals extraction",
+	utils.Info("Starting AcharPromo chat API extraction",
 		utils.String("product", productName),
 		utils.String("extractor", e.GetIdentifier()),
 		utils.String("country", string(e.GetCountryCode())))
 
-	dealsURL := e.GetBaseURL() + "/deals"
+	chatURL := e.GetBaseURL() + "/api/chat"
 
-	html, err := e.FetchHTML(dealsURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch deals page: %w", err)
+	reqBody := acharPromoChatRequest{
+		ID: utils.GenerateUUID(),
+		Messages: []acharPromoChatMessage{
+			{
+				ID:      utils.GenerateUUID(),
+				Role:    "user",
+				Content: productName,
+				Parts: []acharPromoChatMessagePart{
+					{Type: "text", Text: productName},
+				},
+			},
+		},
+		Trigger:   "user",
+		MessageID: utils.GenerateUUID(),
 	}
 
-	comparisons, err := e.GetComparisonsFromHTML(html)
+	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract deals: %w", err)
+		return nil, fmt.Errorf("failed to marshal chat request: %w", err)
 	}
 
-	// Filter by search term
-	filtered := filterBySearchTerm(comparisons, productName)
+	products, err := e.fetchChatProducts(chatURL, bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("chat API request failed: %w", err)
+	}
 
-	utils.Info("✅ Extraction completed",
+	comparisons := e.convertProducts(products)
+
+	utils.Info("Extraction completed",
 		utils.String("extractor", e.GetIdentifier()),
-		utils.Int("total_deals", len(comparisons)),
-		utils.Int("filtered_results", len(filtered)))
+		utils.Int("results", len(comparisons)))
 
-	return filtered, nil
-}
-
-// GetComparisonsFromHTML extracts products from the Next.js RSC payload embedded in the deals page HTML.
-func (e *AcharPromoExtractorV2) GetComparisonsFromHTML(html string) ([]models.ProductComparison, error) {
-	utils.Info("📄 Parsing AcharPromo deals HTML", utils.Int("size", len(html)))
-
-	deals := e.extractDealsFromRSCPayload(html)
-	if len(deals) == 0 {
-		utils.Warn("No deals found in AcharPromo RSC payload")
-		return nil, nil
-	}
-
-	var comparisons []models.ProductComparison
-	for _, deal := range deals {
-		comp, err := e.convertDealToComparison(deal)
-		if err != nil {
-			continue
-		}
-		comparisons = append(comparisons, comp)
-	}
-
-	utils.Info("Extracted AcharPromo deals", utils.Int("count", len(comparisons)))
 	return comparisons, nil
 }
 
-// extractDealsFromRSCPayload parses the __next_f.push RSC payloads to find the
-// initialProducts JSON array embedded in the server-rendered deals page.
-func (e *AcharPromoExtractorV2) extractDealsFromRSCPayload(html string) []acharPromoDeal {
-	// Find the initialProducts array in the RSC payload
-	// The data is escaped inside a JS string: \"initialProducts\":[{...}]
-	marker := `initialProducts\":`
-	idx := strings.Index(html, marker)
-	if idx == -1 {
-		// Try unescaped variant
-		marker = `"initialProducts":`
-		idx = strings.Index(html, marker)
-		if idx == -1 {
-			utils.Info("initialProducts marker not found in HTML")
-			return nil
-		}
+// GetComparisonsFromHTML parses an SSE streaming response body (not HTML) for products.
+// This allows unit testing with saved SSE response fixtures.
+func (e *AcharPromoExtractorV2) GetComparisonsFromHTML(sseBody string) ([]models.ProductComparison, error) {
+	products := parseSSEProducts(sseBody)
+	if len(products) == 0 {
+		return nil, nil
 	}
-
-	// Find the opening bracket of the JSON array
-	arrStart := strings.Index(html[idx:], "[")
-	if arrStart == -1 {
-		return nil
-	}
-	arrStart += idx
-
-	// Find the matching closing bracket
-	depth := 0
-	end := arrStart
-	for j := arrStart; j < len(html); j++ {
-		switch html[j] {
-		case '[':
-			depth++
-		case ']':
-			depth--
-			if depth == 0 {
-				end = j + 1
-				goto found
-			}
-		}
-	}
-	return nil
-
-found:
-	raw := html[arrStart:end]
-	// Unescape the JSON (it's inside a JS string literal)
-	raw = strings.ReplaceAll(raw, `\"`, `"`)
-	raw = strings.ReplaceAll(raw, `\\`, `\`)
-
-	var deals []acharPromoDeal
-	if err := json.Unmarshal([]byte(raw), &deals); err != nil {
-		utils.Warn("Failed to parse AcharPromo deals JSON", utils.Error(err))
-		return nil
-	}
-
-	return deals
+	return e.convertProducts(products), nil
 }
 
-// convertDealToComparison converts an acharPromoDeal to a ProductComparison.
-func (e *AcharPromoExtractorV2) convertDealToComparison(deal acharPromoDeal) (models.ProductComparison, error) {
-	if deal.Title == "" || deal.Price == "" {
-		return models.ProductComparison{}, fmt.Errorf("missing title or price")
-	}
+// fetchChatProducts makes the POST request to /api/chat and parses the SSE stream.
+func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) ([]acharPromoProduct, error) {
+	client := utils.CreateAntiBotClient()
+	client.Timeout = 60 * time.Second // chat API can be slow (AI reasoning)
 
-	price, err := parseBrazilianPrice(deal.Price)
-	if err != nil || price <= 0 {
-		return models.ProductComparison{}, fmt.Errorf("invalid price %q: %w", deal.Price, err)
-	}
-
-	storeName := deal.Source
-	if storeName == "" {
-		storeName = "AcharPromo Brasil"
-	}
-
-	var storeURL, imageURL *string
-	if deal.URL != "" {
-		storeURL = &deal.URL
-	}
-	if deal.Image != "" {
-		imageURL = &deal.Image
-	}
-
-	return models.ProductComparison{
-		ID:          utils.GenerateUUID(),
-		ProductName: strings.TrimSpace(deal.Title),
-		Price:       price,
-		Currency:    "BRL",
-		StoreName:   storeName,
-		StoreURL:    storeURL,
-		ImageURL:    imageURL,
-		Country:     string(models.CountryBrazil),
-	}, nil
-}
-
-// parseBrazilianPrice parses a Brazilian price string like "1.299,99" or "502" to float64.
-func parseBrazilianPrice(priceStr string) (float64, error) {
-	s := strings.TrimSpace(priceStr)
-	// Remove R$ prefix if present
-	s = strings.TrimPrefix(s, "R$")
-	s = strings.TrimSpace(s)
-
-	if s == "" {
-		return 0, fmt.Errorf("empty price")
-	}
-
-	// Brazilian format: dots as thousand separators, comma as decimal
-	// "1.299,99" -> "1299.99"
-	s = strings.ReplaceAll(s, ".", "")
-	s = strings.ReplaceAll(s, ",", ".")
-
-	return strconv.ParseFloat(s, 64)
-}
-
-// filterBySearchTerm returns comparisons whose title contains all words from the search term.
-func filterBySearchTerm(comparisons []models.ProductComparison, searchTerm string) []models.ProductComparison {
-	if searchTerm == "" {
-		return comparisons
-	}
-
-	words := strings.Fields(strings.ToLower(searchTerm))
-	if len(words) == 0 {
-		return comparisons
-	}
-
-	// Build a regex pattern that matches if any word is present
-	var patterns []string
-	for _, w := range words {
-		patterns = append(patterns, regexp.QuoteMeta(w))
-	}
-	re, err := regexp.Compile("(?i)(" + strings.Join(patterns, "|") + ")")
+	req, err := http.NewRequest("POST", chatURL, bytes.NewReader(body))
 	if err != nil {
-		return comparisons
+		return nil, err
 	}
 
-	var filtered []models.ProductComparison
-	for _, c := range comparisons {
-		if re.MatchString(c.ProductName) {
-			filtered = append(filtered, c)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://achar.promo")
+	req.Header.Set("Referer", "https://achar.promo/")
+	req.Header.Set("User-Agent", utils.GetRandomUserAgent())
+	req.Header.Set("Accept", "*/*")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d from chat API", resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	products := parseSSEProducts(string(respBody))
+	if len(products) == 0 {
+		return nil, fmt.Errorf("no products found in chat API response")
+	}
+
+	return products, nil
+}
+
+// parseSSEProducts extracts products from the SSE streaming response.
+// It scans for "tool-output-available" events containing searchByText results.
+func parseSSEProducts(sseBody string) []acharPromoProduct {
+	scanner := bufio.NewScanner(strings.NewReader(sseBody))
+	// Increase buffer size for large SSE lines
+	scanner.Buffer(make([]byte, 0, 256*1024), 256*1024)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+
+		// Quick check before JSON parsing
+		if !strings.Contains(data, "tool-output-available") {
+			continue
+		}
+
+		var event acharPromoToolOutput
+		if err := json.Unmarshal([]byte(data), &event); err != nil {
+			continue
+		}
+
+		if event.Type == "tool-output-available" && len(event.Output.Products) > 0 {
+			return event.Output.Products
 		}
 	}
 
-	return filtered
+	return nil
+}
+
+// convertProducts converts acharPromoProduct items to ProductComparison models.
+func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []models.ProductComparison {
+	var comparisons []models.ProductComparison
+
+	for _, p := range products {
+		if p.Title == "" || p.ExtractedPrice <= 0 {
+			continue
+		}
+
+		storeName := p.Source
+		if storeName == "" {
+			storeName = "AcharPromo Brasil"
+		}
+
+		var storeURL, imageURL *string
+		if p.URL != "" {
+			u := p.URL
+			storeURL = &u
+		}
+		if p.Image != "" {
+			img := p.Image
+			imageURL = &img
+		}
+
+		comparisons = append(comparisons, models.ProductComparison{
+			ID:          utils.GenerateUUID(),
+			ProductName: strings.TrimSpace(p.Title),
+			Price:       p.ExtractedPrice,
+			Currency:    "BRL",
+			StoreName:   storeName,
+			StoreURL:    storeURL,
+			ImageURL:    imageURL,
+			Country:     string(models.CountryBrazil),
+		})
+	}
+
+	return comparisons
 }

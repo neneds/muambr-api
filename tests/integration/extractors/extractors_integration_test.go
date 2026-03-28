@@ -23,8 +23,8 @@ func TestExtractorIntegration(t *testing.T) {
 	t.Run("AcharPromoIntegration", func(t *testing.T) {
 		extractor := extractors.NewAcharPromoExtractorV2()
 		
-		// Set a reasonable timeout for network requests
-		timeout := 30 * time.Second
+		// Chat API uses AI reasoning, needs more time
+		timeout := 90 * time.Second
 		done := make(chan bool, 1)
 		var results []models.ProductComparison
 		var err error

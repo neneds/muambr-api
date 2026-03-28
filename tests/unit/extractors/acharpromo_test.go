@@ -69,26 +69,26 @@ func TestAcharPromoExtractor(t *testing.T) {
 	})
 }
 
-func TestAcharPromoExtractorFromHTML(t *testing.T) {
+func TestAcharPromoExtractorFromSSE(t *testing.T) {
 	extractor := extractors.NewAcharPromoExtractorV2()
 
-	html, err := loadSampleResponse("acharpromo_deals.html")
+	sseData, err := loadSampleResponse("acharpromo_chat.txt")
 	if err != nil {
 		t.Fatalf("Failed to load sample response: %v", err)
 	}
 
-	t.Run("ExtractsAllDeals", func(t *testing.T) {
-		comparisons, err := extractor.GetComparisonsFromHTML(html)
+	t.Run("ExtractsAllProducts", func(t *testing.T) {
+		comparisons, err := extractor.GetComparisonsFromHTML(sseData)
 		if err != nil {
 			t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
 		}
 		if len(comparisons) != 5 {
-			t.Errorf("Expected 5 deals, got %d", len(comparisons))
+			t.Errorf("Expected 5 products, got %d", len(comparisons))
 		}
 	})
 
 	t.Run("ParsesProductFields", func(t *testing.T) {
-		comparisons, err := extractor.GetComparisonsFromHTML(html)
+		comparisons, err := extractor.GetComparisonsFromHTML(sseData)
 		if err != nil {
 			t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
 		}
@@ -96,84 +96,104 @@ func TestAcharPromoExtractorFromHTML(t *testing.T) {
 			t.Fatal("No comparisons returned")
 		}
 
-		// Check first product: Micro-ondas Electrolux
 		c := comparisons[0]
-		if c.ProductName != "Micro-ondas Electrolux Branco 23L Efficient" {
-			t.Errorf("Expected product name 'Micro-ondas Electrolux Branco 23L Efficient', got %q", c.ProductName)
+		if c.ProductName != "Apple iPhone 15 128GB Preto" {
+			t.Errorf("Expected product name 'Apple iPhone 15 128GB Preto', got %q", c.ProductName)
 		}
-		if c.Price != 502 {
-			t.Errorf("Expected price 502, got %f", c.Price)
+		if c.Price != 4199 {
+			t.Errorf("Expected price 4199, got %f", c.Price)
 		}
 		if c.Currency != "BRL" {
 			t.Errorf("Expected currency BRL, got %s", c.Currency)
 		}
-		if c.StoreName != "Mercado Livre" {
-			t.Errorf("Expected store name 'Mercado Livre', got %s", c.StoreName)
+		if c.StoreName != "Magazine Luiza" {
+			t.Errorf("Expected store name 'Magazine Luiza', got %s", c.StoreName)
 		}
 		if c.Country != "BR" {
 			t.Errorf("Expected country BR, got %s", c.Country)
 		}
-		if c.StoreURL == nil || *c.StoreURL != "https://meli.la/2aZJVVx" {
-			t.Errorf("Expected store URL https://meli.la/2aZJVVx, got %v", c.StoreURL)
+		if c.StoreURL == nil {
+			t.Error("Expected non-nil StoreURL")
+		} else if *c.StoreURL != "https://example.com/store/iphone15" {
+			t.Errorf("Expected store URL https://example.com/store/iphone15, got %s", *c.StoreURL)
 		}
-		if c.ImageURL == nil || *c.ImageURL != "https://http2.mlstatic.com/D_NQ_NP_742060-MLA99449598594_112025-O.webp" {
-			t.Errorf("Unexpected image URL: %v", c.ImageURL)
+		if c.ImageURL == nil {
+			t.Error("Expected non-nil ImageURL")
+		} else if *c.ImageURL != "https://example.com/iphone15.jpg" {
+			t.Errorf("Unexpected image URL: %s", *c.ImageURL)
 		}
 		if c.ID == "" {
 			t.Error("Expected non-empty ID")
 		}
 	})
 
-	t.Run("ParsesBrazilianPriceFormats", func(t *testing.T) {
-		comparisons, err := extractor.GetComparisonsFromHTML(html)
+	t.Run("ParsesExtractedPrices", func(t *testing.T) {
+		comparisons, err := extractor.GetComparisonsFromHTML(sseData)
 		if err != nil {
 			t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
 		}
 
-		// Product with comma decimal: "125,10"
-		if comparisons[1].Price != 125.10 {
-			t.Errorf("Expected price 125.10, got %f", comparisons[1].Price)
-		}
-
-		// Product with dot thousand sep and comma decimal: "2.199,00"
-		if comparisons[2].Price != 2199.00 {
-			t.Errorf("Expected price 2199.00, got %f", comparisons[2].Price)
-		}
-
-		// Product with dot thousand sep and comma decimal: "4.999,00"
-		if comparisons[3].Price != 4999.00 {
-			t.Errorf("Expected price 4999.00, got %f", comparisons[3].Price)
+		expectedPrices := []float64{4199, 5499, 3899.9, 5219.1, 2800}
+		for i, expected := range expectedPrices {
+			if i >= len(comparisons) {
+				break
+			}
+			if comparisons[i].Price != expected {
+				t.Errorf("Product %d: expected price %f, got %f", i, expected, comparisons[i].Price)
+			}
 		}
 	})
 
-	t.Run("HandlesEmptyHTML", func(t *testing.T) {
-		comparisons, err := extractor.GetComparisonsFromHTML("<html></html>")
+	t.Run("ParsesStoreNames", func(t *testing.T) {
+		comparisons, err := extractor.GetComparisonsFromHTML(sseData)
 		if err != nil {
-			t.Fatalf("Expected no error for empty HTML, got: %v", err)
+			t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
+		}
+
+		expectedStores := []string{"Magazine Luiza", "Mercado Livre", "Shopee", "Amazon", "OLX"}
+		for i, expected := range expectedStores {
+			if i >= len(comparisons) {
+				break
+			}
+			if comparisons[i].StoreName != expected {
+				t.Errorf("Product %d: expected store %q, got %q", i, expected, comparisons[i].StoreName)
+			}
+		}
+	})
+
+	t.Run("HandlesEmptySSEResponse", func(t *testing.T) {
+		comparisons, err := extractor.GetComparisonsFromHTML("")
+		if err != nil {
+			t.Fatalf("Expected no error for empty response, got: %v", err)
 		}
 		if len(comparisons) != 0 {
-			t.Errorf("Expected 0 comparisons for empty HTML, got %d", len(comparisons))
+			t.Errorf("Expected 0 comparisons for empty response, got %d", len(comparisons))
 		}
 	})
-}
 
-func TestAcharPromoSearchFiltering(t *testing.T) {
-	extractor := extractors.NewAcharPromoExtractorV2()
+	t.Run("HandlesSSEWithNoToolOutput", func(t *testing.T) {
+		noProducts := `data: {"type":"start"}
+data: {"type":"text-delta","textDelta":"Hello"}
+data: {"type":"finish","finishReason":"stop"}
+`
+		comparisons, err := extractor.GetComparisonsFromHTML(noProducts)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if len(comparisons) != 0 {
+			t.Errorf("Expected 0 comparisons, got %d", len(comparisons))
+		}
+	})
 
-	html, err := loadSampleResponse("acharpromo_deals.html")
-	if err != nil {
-		t.Fatalf("Failed to load sample response: %v", err)
-	}
-
-	// GetComparisonsFromHTML returns ALL deals (no filtering)
-	allDeals, err := extractor.GetComparisonsFromHTML(html)
-	if err != nil {
-		t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
-	}
-
-	t.Run("GetComparisonsFromHTML returns all deals unfiltered", func(t *testing.T) {
-		if len(allDeals) != 5 {
-			t.Errorf("Expected 5 total deals, got %d", len(allDeals))
+	t.Run("SkipsProductsWithZeroPrice", func(t *testing.T) {
+		sseWithBadProduct := `data: {"type":"tool-output-available","toolCallId":"call_1","output":{"status":"success","searchId":"s1","query":"test","category":"electronics","products":[{"id":"1","title":"Good Product","price":"R$ 100,00","extracted_price":100,"image":"","url":"","source":"Store","product_id":"1","isRecommended":false},{"id":"2","title":"Bad Product","price":"","extracted_price":0,"image":"","url":"","source":"Store","product_id":"2","isRecommended":false}],"metadata":{"totalProducts":2,"totalShops":1,"topShops":["Store"],"minPrice":0}}}
+`
+		comparisons, err := extractor.GetComparisonsFromHTML(sseWithBadProduct)
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if len(comparisons) != 1 {
+			t.Errorf("Expected 1 comparison (skipping zero-price), got %d", len(comparisons))
 		}
 	})
 }
