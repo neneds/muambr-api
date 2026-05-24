@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 	"muambr-api/localization"
 )
 
@@ -26,6 +27,26 @@ const (
 	MacroRegionLATAM MacroRegion = "LATAM"
 	MacroRegionNone  MacroRegion = "None"
 )
+
+// ProductCategory represents the category of a product
+type ProductCategory string
+
+const (
+	CategoryElectronics ProductCategory = "electronics"
+	CategoryBeauty      ProductCategory = "beauty"
+	CategoryAppliances  ProductCategory = "appliances"
+	CategoryOther       ProductCategory = "other"
+)
+
+// ParseCategoryFromString parses a string into a ProductCategory enum
+func ParseCategoryFromString(s string) (ProductCategory, error) {
+	switch ProductCategory(s) {
+	case CategoryElectronics, CategoryBeauty, CategoryAppliances, CategoryOther:
+		return ProductCategory(s), nil
+	default:
+		return "", fmt.Errorf("unsupported product category: %s (supported: electronics, beauty, appliances, other)", s)
+	}
+}
 
 // GetCurrencyCode returns the currency code for the country
 func (c Country) GetCurrencyCode() string {
@@ -113,9 +134,9 @@ func GetCountriesInMacroRegion(region MacroRegion) []Country {
 
 // ParseCountryFromISO parses an ISO country code string into a Country enum
 func ParseCountryFromISO(isoCode string) (Country, error) {
-	switch Country(isoCode) {
+	switch Country(strings.ToUpper(isoCode)) {
 	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany:
-		return Country(isoCode), nil
+		return Country(strings.ToUpper(isoCode)), nil
 	default:
 		return "", fmt.Errorf(localization.TP("api.errors.unsupported_country_iso", map[string]string{
 			"code": isoCode,
@@ -131,18 +152,19 @@ type ConvertedPrice struct {
 
 // ProductComparison represents a single product offer matching Swift client expectations
 type ProductComparison struct {
-	ID             string          `json:"id"`
-	ProductName    string          `json:"productName"`
-	Price          float64         `json:"price"`
-	Currency       string          `json:"currency"`
-	ConvertedPrice *ConvertedPrice `json:"convertedPrice,omitempty"`
-	StoreName      string          `json:"storeName"`
-	StoreURL       *string         `json:"storeURL,omitempty"`
-	Description    *string         `json:"description,omitempty"`
-	Country        string          `json:"country"`
-	Condition      *string         `json:"condition,omitempty"`
-	ImageURL       *string         `json:"imageURL,omitempty"`
-	LastUpdated    *string         `json:"lastUpdated,omitempty"`
+	ID             string           `json:"id"`
+	ProductName    string           `json:"productName"`
+	Price          float64          `json:"price"`
+	Currency       string           `json:"currency"`
+	ConvertedPrice *ConvertedPrice  `json:"convertedPrice,omitempty"`
+	StoreName      string           `json:"storeName"`
+	StoreURL       *string          `json:"storeURL,omitempty"`
+	Description    *string          `json:"description,omitempty"`
+	Country        string           `json:"country"`
+	Condition      *string          `json:"condition,omitempty"`
+	ImageURL       *string          `json:"imageURL,omitempty"`
+	LastUpdated    *string          `json:"lastUpdated,omitempty"`
+	Category       *ProductCategory `json:"category,omitempty"`
 }
 
 // CountrySection represents a group of product comparisons from a specific country

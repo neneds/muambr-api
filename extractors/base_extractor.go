@@ -192,8 +192,8 @@ func NewBaseHTMLParser(siteName string) *BaseHTMLParser {
 	}
 }
 
-// extractWithRegex is a utility function for regex-based extraction
-func (b *BaseHTMLParser) extractWithRegex(pattern, html string) string {
+// ExtractWithRegex is a utility function for regex-based extraction
+func (b *BaseHTMLParser) ExtractWithRegex(pattern, html string) string {
 	re := regexp.MustCompile("(?i)" + pattern)
 	matches := re.FindStringSubmatch(html)
 	if len(matches) > 1 {
@@ -202,8 +202,8 @@ func (b *BaseHTMLParser) extractWithRegex(pattern, html string) string {
 	return ""
 }
 
-// extractMultipleWithRegex extracts multiple matches using regex patterns
-func (b *BaseHTMLParser) extractMultipleWithRegex(patterns []string, html string) []string {
+// ExtractMultipleWithRegex extracts multiple matches using regex patterns
+func (b *BaseHTMLParser) ExtractMultipleWithRegex(patterns []string, html string) []string {
 	var results []string
 	
 	for _, pattern := range patterns {
@@ -227,8 +227,8 @@ func (b *BaseHTMLParser) extractMultipleWithRegex(patterns []string, html string
 	return results
 }
 
-// parsePrice handles price parsing with currency detection
-func (b *BaseHTMLParser) parsePrice(priceText string, defaultCurrency string) (float64, string, error) {
+// ParsePriceText handles price parsing with currency detection
+func (b *BaseHTMLParser) ParsePriceText(priceText string, defaultCurrency string) (float64, string, error) {
 	if priceText == "" {
 		return 0, defaultCurrency, fmt.Errorf("empty price text")
 	}
@@ -277,8 +277,8 @@ func (b *BaseHTMLParser) parsePrice(priceText string, defaultCurrency string) (f
 	return price, currency, nil
 }
 
-// extractJSONLD extracts structured data from JSON-LD scripts
-func (b *BaseHTMLParser) extractJSONLD(html string) ([]map[string]interface{}, error) {
+// ExtractJSONLD extracts structured data from JSON-LD scripts
+func (b *BaseHTMLParser) ExtractJSONLD(html string) ([]map[string]interface{}, error) {
 	pattern := `<script[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>`
 	re := regexp.MustCompile("(?i)" + pattern)
 	matches := re.FindAllStringSubmatch(html, -1)
@@ -321,7 +321,7 @@ type GoExtractor interface {
 type BaseGoExtractor struct {
 	*BaseHTTPExtractor
 	*BaseHTMLParser
-	parser HTMLParser
+	Parser HTMLParser
 	countryCode models.Country
 	macroRegion models.MacroRegion
 	identifier  string
@@ -332,7 +332,7 @@ func NewBaseGoExtractor(baseURL string, countryCode models.Country, identifier s
 	return &BaseGoExtractor{
 		BaseHTTPExtractor: NewBaseHTTPExtractor(baseURL, countryCode),
 		BaseHTMLParser:    NewBaseHTMLParser(identifier),
-		parser:            parser,
+		Parser:            parser,
 		countryCode:       countryCode,
 		macroRegion:       countryCode.GetMacroRegion(),
 		identifier:        identifier,
@@ -393,26 +393,26 @@ func (b *BaseGoExtractor) GetComparisonsFromHTML(html string) ([]models.ProductC
 	var comparisons []models.ProductComparison
 	
 	// Get product selectors from the specific parser
-	productSelectors := b.parser.GetProductSelectors()
+	productSelectors := b.Parser.GetProductSelectors()
 	
 	for _, selector := range productSelectors {
 		// Use regex to find product containers
-		products := b.extractMultipleWithRegex([]string{selector}, html)
+		products := b.ExtractMultipleWithRegex([]string{selector}, html)
 		
 		for _, productHTML := range products {
 			// Parse individual product
-			name := b.parser.ParseProductName(productHTML)
+			name := b.Parser.ParseProductName(productHTML)
 			if name == "" || len(name) < 3 {
 				continue
 			}
 
-			price, currency, err := b.parser.ParsePrice(productHTML)
+			price, currency, err := b.Parser.ParsePrice(productHTML)
 			if err != nil {
 				continue
 			}
 
-			productURL := b.parser.ParseURL(productHTML, b.GetBaseURL())
-			storeName := b.parser.ParseStore(productHTML)
+			productURL := b.Parser.ParseURL(productHTML, b.GetBaseURL())
+			storeName := b.Parser.ParseStore(productHTML)
 
 			// Create comparison object
 			var storeURLPtr *string

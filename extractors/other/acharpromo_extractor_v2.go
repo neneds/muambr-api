@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"bufio"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -72,11 +73,11 @@ type acharPromoChatMessagePart struct {
 // AcharPromo extraction is done via the /api/chat endpoint, not HTML parsing, but
 // BaseGoExtractor requires an HTMLParser to be passed in.
 type acharPromoNoopParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 func newAcharPromoNoopParser() *acharPromoNoopParser {
-	return &acharPromoNoopParser{BaseHTMLParser: NewBaseHTMLParser("AcharPromo")}
+	return &acharPromoNoopParser{BaseHTMLParser: extractors.NewBaseHTMLParser("AcharPromo")}
 }
 
 func (p *acharPromoNoopParser) GetProductSelectors() []string { return nil }
@@ -100,13 +101,13 @@ func (p *acharPromoNoopParser) ParseStore(_ string) string {
 // The chat API uses a Vercel AI SDK streaming format and returns Google Shopping
 // results for Brazil via the searchByText tool.
 type AcharPromoExtractorV2 struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewAcharPromoExtractorV2 creates a new pure Go AcharPromo extractor
 func NewAcharPromoExtractorV2() *AcharPromoExtractorV2 {
 	parser := newAcharPromoNoopParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://achar.promo",
 		models.CountryBrazil,
 		"acharpromo_v2",
@@ -281,4 +282,8 @@ func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []
 	}
 
 	return comparisons
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *AcharPromoExtractorV2) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

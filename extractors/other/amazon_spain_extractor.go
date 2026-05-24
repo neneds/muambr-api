@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 
@@ -15,13 +16,13 @@ import (
 
 // AmazonSpainParser implements HTMLParser interface for Amazon Spain
 type AmazonSpainParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 // NewAmazonSpainParser creates a new Amazon Spain-specific parser
 func NewAmazonSpainParser() *AmazonSpainParser {
 	return &AmazonSpainParser{
-		BaseHTMLParser: NewBaseHTMLParser("amazon_spain"),
+		BaseHTMLParser: extractors.NewBaseHTMLParser("amazon_spain"),
 	}
 }
 
@@ -67,7 +68,7 @@ func (p *AmazonSpainParser) GetURLSelectors() []string {
 func (p *AmazonSpainParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	for _, selector := range selectors {
-		if name := p.extractWithRegex(selector, html); name != "" {
+		if name := p.ExtractWithRegex(selector, html); name != "" {
 			return strings.TrimSpace(name)
 		}
 	}
@@ -78,8 +79,8 @@ func (p *AmazonSpainParser) ParseProductName(html string) string {
 func (p *AmazonSpainParser) ParsePrice(html string) (float64, string, error) {
 	selectors := p.GetPriceSelectors()
 	for _, selector := range selectors {
-		if priceText := p.extractWithRegex(selector, html); priceText != "" {
-			if price, currency, err := p.parsePrice(priceText, "EUR"); err == nil {
+		if priceText := p.ExtractWithRegex(selector, html); priceText != "" {
+			if price, currency, err := p.ParsePriceText(priceText, "EUR"); err == nil {
 				return price, currency, nil
 			}
 		}
@@ -91,7 +92,7 @@ func (p *AmazonSpainParser) ParsePrice(html string) (float64, string, error) {
 func (p *AmazonSpainParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	for _, selector := range selectors {
-		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
+		if urlStr := p.ExtractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {
 				return urlStr
@@ -110,13 +111,13 @@ func (p *AmazonSpainParser) ParseStore(html string) string {
 
 // AmazonSpainExtractor implements the Extractor interface for Amazon Spain
 type AmazonSpainExtractor struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewAmazonSpainExtractor creates a new Amazon Spain extractor instance
 func NewAmazonSpainExtractor() *AmazonSpainExtractor {
 	parser := NewAmazonSpainParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://www.amazon.es",
 		models.CountrySpain,
 		"amazon_spain", 
@@ -370,4 +371,8 @@ func (e *AmazonSpainExtractor) extractImageURL(s *goquery.Selection) string {
 	}
 	
 	return ""
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *AmazonSpainExtractor) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

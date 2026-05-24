@@ -4,11 +4,12 @@ import (
 	"testing"
 
 	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 )
 
 func TestMercadoLivreExtractorMetadata(t *testing.T) {
-	extractor := extractors.NewMercadoLivreExtractorV2()
+	extractor := other.NewMercadoLivreExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
 		if got := extractor.GetCountryCode(); got != models.CountryBrazil {
@@ -56,7 +57,7 @@ func TestMercadoLivreJSONLDExtraction(t *testing.T) {
 		t.Fatalf("Failed to load sample response: %v", err)
 	}
 
-	extractor := extractors.NewMercadoLivreExtractorV2()
+	extractor := other.NewMercadoLivreExtractorV2()
 	comparisons, err := extractor.GetComparisonsFromHTML(html)
 	if err != nil {
 		t.Fatalf("GetComparisonsFromHTML failed: %v", err)
@@ -110,7 +111,7 @@ func TestMercadoLivreJSONLDExtraction(t *testing.T) {
 }
 
 func TestMercadoLivreEmptyHTML(t *testing.T) {
-	extractor := extractors.NewMercadoLivreExtractorV2()
+	extractor := other.NewMercadoLivreExtractorV2()
 	comparisons, err := extractor.GetComparisonsFromHTML("")
 	if err != nil {
 		t.Fatalf("Unexpected error on empty HTML: %v", err)
@@ -152,7 +153,7 @@ func TestMercadoLivreHTMLFallback(t *testing.T) {
 </ol>
 </body></html>`
 
-	extractor := extractors.NewMercadoLivreExtractorV2()
+	extractor := other.NewMercadoLivreExtractorV2()
 	comparisons, err := extractor.GetComparisonsFromHTML(html)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)

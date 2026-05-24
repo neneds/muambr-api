@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -15,13 +16,13 @@ import (
 // KuantoKustaParser implements HTMLParser interface for KuantoKusta Portugal
 // Following Single Responsibility Principle - only handles KuantoKusta parsing logic
 type KuantoKustaParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 // NewKuantoKustaParser creates a new KuantoKusta-specific parser
 func NewKuantoKustaParser() *KuantoKustaParser {
 	return &KuantoKustaParser{
-		BaseHTMLParser: NewBaseHTMLParser("KuantoKusta"),
+		BaseHTMLParser: extractors.NewBaseHTMLParser("KuantoKusta"),
 	}
 }
 
@@ -86,7 +87,7 @@ func (p *KuantoKustaParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	
 	for _, selector := range selectors {
-		if name := p.extractWithRegex(selector, html); name != "" {
+		if name := p.ExtractWithRegex(selector, html); name != "" {
 			// Clean up the name
 			name = strings.TrimSpace(name)
 			name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
@@ -104,12 +105,12 @@ func (p *KuantoKustaParser) ParseProductName(html string) string {
 // ParsePrice extracts price and currency from HTML fragment
 func (p *KuantoKustaParser) ParsePrice(html string) (float64, string, error) {
 	// First try to extract from JSON-LD if present
-	if jsonProducts, err := p.extractJSONLD(html); err == nil {
+	if jsonProducts, err := p.ExtractJSONLD(html); err == nil {
 		for _, product := range jsonProducts {
 			if productType, ok := product["@type"].(string); ok && productType == "Product" {
 				if offers, ok := product["offers"].(map[string]interface{}); ok {
 					if priceStr, ok := offers["price"].(string); ok {
-						if price, currency, err := p.parsePrice(priceStr, "EUR"); err == nil {
+						if price, currency, err := p.ParsePriceText(priceStr, "EUR"); err == nil {
 							return price, currency, nil
 						}
 					}
@@ -122,8 +123,8 @@ func (p *KuantoKustaParser) ParsePrice(html string) (float64, string, error) {
 	selectors := p.GetPriceSelectors()
 	
 	for _, selector := range selectors {
-		if priceText := p.extractWithRegex(selector, html); priceText != "" {
-			if price, currency, err := p.parsePrice(priceText, "EUR"); err == nil {
+		if priceText := p.ExtractWithRegex(selector, html); priceText != "" {
+			if price, currency, err := p.ParsePriceText(priceText, "EUR"); err == nil {
 				return price, currency, nil
 			}
 		}
@@ -137,7 +138,7 @@ func (p *KuantoKustaParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	
 	for _, selector := range selectors {
-		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
+		if urlStr := p.ExtractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {
 				return urlStr
@@ -164,7 +165,7 @@ func (p *KuantoKustaParser) ParseStore(html string) string {
 	}
 	
 	for _, selector := range storeSelectors {
-		if store := p.extractWithRegex(selector, html); store != "" {
+		if store := p.ExtractWithRegex(selector, html); store != "" {
 			return strings.TrimSpace(store)
 		}
 	}
@@ -174,13 +175,13 @@ func (p *KuantoKustaParser) ParseStore(html string) string {
 
 // KuantoKustaExtractorV2 is the new pure Go implementation
 type KuantoKustaExtractorV2 struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewKuantoKustaExtractorV2 creates a new pure Go KuantoKusta extractor
 func NewKuantoKustaExtractorV2() *KuantoKustaExtractorV2 {
 	parser := NewKuantoKustaParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://www.kuantokusta.pt",
 		models.CountryPortugal,
 		"kuantokusta_v2",
@@ -376,7 +377,7 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 func (e *KuantoKustaExtractorV2) extractFromJSONLD(html string) []models.ProductComparison {
 	var comparisons []models.ProductComparison
 	
-	jsonData, err := e.BaseHTMLParser.extractJSONLD(html)
+	jsonData, err := e.BaseHTMLParser.ExtractJSONLD(html)
 	if err != nil {
 		return comparisons
 	}
@@ -426,7 +427,7 @@ func (e *KuantoKustaExtractorV2) parseJSONProduct(product map[string]interface{}
 		}
 	}
 	
-	price, currency, err := e.BaseHTMLParser.parsePrice(priceStr, "EUR")
+	price, currency, err := e.BaseHTMLParser.ParsePriceText(priceStr, "EUR")
 	if err != nil {
 		return nil
 	}
@@ -446,4 +447,8 @@ func (e *KuantoKustaExtractorV2) parseJSONProduct(product map[string]interface{}
 		StoreURL:    storeURL,
 		Country:     string(models.CountryPortugal),
 	}
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *KuantoKustaExtractorV2) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

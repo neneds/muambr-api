@@ -1,7 +1,7 @@
 package extractors_test
 
 import (
-	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 	"testing"
 
@@ -10,7 +10,7 @@ import (
 )
 
 func TestWalmartUSAExtractor(t *testing.T) {
-	extractor := extractors.NewWalmartUSAExtractor()
+	extractor := other.NewWalmartUSAExtractor()
 
 	t.Run("Extractor Properties", func(t *testing.T) {
 		assert.Equal(t, models.CountryUS, extractor.GetCountryCode())
@@ -49,7 +49,7 @@ func TestWalmartUSAExtractor(t *testing.T) {
 }
 
 func TestWalmartUSAParser(t *testing.T) {
-	parser := extractors.NewWalmartUSAParser()
+	parser := other.NewWalmartUSAParser()
 
 	t.Run("GetSelectors", func(t *testing.T) {
 		productSelectors := parser.GetProductSelectors()

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -46,25 +47,15 @@ func NewExtractorHandler() *ExtractorHandler {
 // initializeExtractors initializes and registers all available extractors
 func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	utils.Info("Registering V2 extractors architecture")
-	
-	// Register Go-based MercadoLivre extractor for Brazil
-	registry.RegisterExtractor(extractors.NewMercadoLivreExtractorV2())
-	
-	// Register Go-based KuantoKusta extractor for Portugal
-	registry.RegisterExtractor(extractors.NewKuantoKustaExtractorV2())
-	
-	// Register Go-based Amazon Spain extractor for Spain
-	registry.RegisterExtractor(extractors.NewAmazonSpainExtractor())
 
-	// Register Go-based AcharPromo extractor for Brazil
-	registry.RegisterExtractor(extractors.NewAcharPromoExtractorV2())
-	
-	// Register Go-based Walmart USA extractor for United States
-	registry.RegisterExtractor(extractors.NewWalmartUSAExtractor())
-	
-	// Register Go-based Amazon USA extractor for United States
-	registry.RegisterExtractor(extractors.NewAmazonUSExtractor())
-	
+	// other category — generic extractors used when no category is specified
+	registry.RegisterExtractor(other.NewMercadoLivreExtractorV2())
+	registry.RegisterExtractor(other.NewKuantoKustaExtractorV2())
+	registry.RegisterExtractor(other.NewAmazonSpainExtractor())
+	registry.RegisterExtractor(other.NewAcharPromoExtractorV2())
+	registry.RegisterExtractor(other.NewWalmartUSAExtractor())
+	registry.RegisterExtractor(other.NewAmazonUSExtractor())
+
 	utils.Info("All V2 extractors registered successfully")
 }
 
@@ -87,22 +78,22 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 }
 
 // GetProductComparisons retrieves product comparisons using available extractors
-func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool) ([]models.ProductComparison, error) {
-	// CRITICAL DEBUG: This should appear if method is called
-	utils.Info("� CRITICAL DEBUG: GetProductComparisons ENTRY POINT", 
+func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool, category *models.ProductCategory) ([]models.ProductComparison, error) {
+	utils.Info("GetProductComparisons called",
 		utils.String("searchTerm", searchTerm),
 		utils.String("baseCountry", string(baseCountry)),
 		utils.Any("currentCountry", currentCountry),
 		utils.String("targetCurrency", targetCurrency),
-		utils.Bool("useMacroRegion", useMacroRegion))
+		utils.Bool("useMacroRegion", useMacroRegion),
+		utils.Any("category", category))
 	
-	var allResults []models.ProductComparison
+	allResults := make([]models.ProductComparison, 0)
 	
 	// Use a map to track extractors by their identifier to prevent duplicates
 	extractorMap := make(map[string]extractors.Extractor)
 	
 	// Always use extractors from the base country (country parameter)
-	baseCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(baseCountry)
+	baseCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(baseCountry, category)
 	for _, extractor := range baseCountryExtractors {
 		extractorMap[extractor.GetIdentifier()] = extractor
 	}
@@ -112,7 +103,7 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 	
 	// Add extractors from current country if different from base country
 	if currentCountry != nil && *currentCountry != baseCountry {
-		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry)
+		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry, category)
 		for _, extractor := range currentCountryExtractors {
 			extractorMap[extractor.GetIdentifier()] = extractor
 		}
@@ -132,7 +123,7 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 			utils.Int("countries", len(countriesInRegion)))
 		
 		for _, country := range countriesInRegion {
-			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country)
+			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country, category)
 			for _, extractor := range regionExtractors {
 				extractorMap[extractor.GetIdentifier()] = extractor
 			}
@@ -195,6 +186,9 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		utils.Int("total_results", len(allResults)),
 		utils.Int("extractors_attempted", len(extractorsToUse)))
 	
+	if allResults == nil {
+		allResults = make([]models.ProductComparison, 0)
+	}
 	return allResults, nil
 }
 
@@ -317,13 +311,6 @@ func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extr
 				}
 			}
 		}()
-
-		// CRITICAL DEBUG: Check which extractor type is being called
-		utils.Info("🔧 CALLING EXTRACTOR GetComparisons", 
-			utils.String("extractor_name", extractor.GetIdentifier()),
-			utils.String("extractor_country", string(extractor.GetCountryCode())),
-			utils.String("extractor_type", fmt.Sprintf("%T", extractor)),
-			utils.String("search_term", searchTerm))
 
 		results, err := extractor.GetComparisons(searchTerm)
 		resultChan <- ExtractorResult{

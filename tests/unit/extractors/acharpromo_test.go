@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 )
 
@@ -30,7 +31,7 @@ func loadSampleResponse(filename string) (string, error) {
 }
 
 func TestAcharPromoExtractor(t *testing.T) {
-	extractor := extractors.NewAcharPromoExtractorV2()
+	extractor := other.NewAcharPromoExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
 		country := extractor.GetCountryCode()
@@ -70,7 +71,7 @@ func TestAcharPromoExtractor(t *testing.T) {
 }
 
 func TestAcharPromoExtractorFromSSE(t *testing.T) {
-	extractor := extractors.NewAcharPromoExtractorV2()
+	extractor := other.NewAcharPromoExtractorV2()
 
 	sseData, err := loadSampleResponse("acharpromo_chat.txt")
 	if err != nil {

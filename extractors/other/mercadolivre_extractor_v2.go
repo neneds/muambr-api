@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 
@@ -15,7 +16,7 @@ import (
 
 // mercadoLivreNoopParser satisfies the HTMLParser interface required by BaseGoExtractor.
 // MercadoLivreExtractorV2 overrides GetComparisons/GetComparisonsFromHTML so these are unused.
-type mercadoLivreNoopParser struct{ *BaseHTMLParser }
+type mercadoLivreNoopParser struct{ *extractors.BaseHTMLParser }
 
 func (p *mercadoLivreNoopParser) GetProductSelectors() []string          { return nil }
 func (p *mercadoLivreNoopParser) GetNameSelectors() []string             { return nil }
@@ -30,13 +31,13 @@ func (p *mercadoLivreNoopParser) ParseStore(html string) string               { 
 
 // MercadoLivreExtractorV2 is a pure Go extractor for MercadoLivre Brazil.
 type MercadoLivreExtractorV2 struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewMercadoLivreExtractorV2 creates a new pure Go MercadoLivre extractor.
 func NewMercadoLivreExtractorV2() *MercadoLivreExtractorV2 {
-	parser := &mercadoLivreNoopParser{BaseHTMLParser: NewBaseHTMLParser("MercadoLivre")}
-	baseExtractor := NewBaseGoExtractor(
+	parser := &mercadoLivreNoopParser{BaseHTMLParser: extractors.NewBaseHTMLParser("MercadoLivre")}
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://lista.mercadolivre.com.br",
 		models.CountryBrazil,
 		"mercadolivre_v2",
@@ -291,3 +292,8 @@ func parseMercadoLivrePrice(s string) float64 {
 	return f
 }
 
+
+// GetCategory returns the product category this extractor is optimised for
+func (e *MercadoLivreExtractorV2) GetCategory() models.ProductCategory {
+	return models.CategoryOther
+}

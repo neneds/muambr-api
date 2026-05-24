@@ -22,6 +22,10 @@ func (m *MockExtractor) GetMacroRegion() models.MacroRegion {
 	return m.CountryCode.GetMacroRegion()
 }
 
+func (m *MockExtractor) GetCategory() models.ProductCategory {
+	return models.CategoryOther
+}
+
 func (m *MockExtractor) GetIdentifier() string {
 	return m.Identifier
 }
