@@ -1,8 +1,12 @@
 package other
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -47,6 +51,117 @@ func NewMercadoLivreExtractorV2() *MercadoLivreExtractorV2 {
 	return &MercadoLivreExtractorV2{
 		BaseGoExtractor: baseExtractor,
 	}
+}
+
+// FetchHTML overrides the base implementation to handle MercadoLivre's SHA-256
+// proof-of-work bot challenge. The first request returns a JS challenge page that
+// sets a _bmstate cookie; we solve the PoW and repeat the request with _bmc set.
+func (e *MercadoLivreExtractorV2) FetchHTML(targetURL string) (string, error) {
+	client := utils.CreateAntiBotClient()
+	ua := utils.GetRandomUserAgent()
+
+	// Step 1: make challenge request to obtain _bmstate cookie
+	req1, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("ML challenge request build failed: %w", err)
+	}
+	req1.Header.Set("User-Agent", ua)
+	req1.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req1.Header.Set("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
+
+	resp1, err := client.Do(req1)
+	if err != nil {
+		return "", fmt.Errorf("ML challenge request failed: %w", err)
+	}
+	io.Copy(io.Discard, resp1.Body) //nolint:errcheck
+	resp1.Body.Close()
+
+	// Locate _bmstate in the Set-Cookie response headers
+	var bmstateCookie *http.Cookie
+	for _, c := range resp1.Cookies() {
+		if c.Name == "_bmstate" {
+			bmstateCookie = c
+			break
+		}
+	}
+	if bmstateCookie == nil {
+		return "", fmt.Errorf("MercadoLivre: _bmstate cookie missing — challenge page not detected")
+	}
+
+	// Step 2: solve PoW
+	bmc, err := solveMercadoLivrePoW(bmstateCookie.Value)
+	if err != nil {
+		return "", fmt.Errorf("ML PoW solve failed: %w", err)
+	}
+
+	// Step 3: make real request with all first-response cookies + solved _bmc
+	req2, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("ML real request build failed: %w", err)
+	}
+	req2.Header.Set("User-Agent", ua)
+	req2.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req2.Header.Set("Accept-Language", "pt-BR,pt;q=0.9,en;q=0.8")
+
+	// Build cookie header: all cookies from step 1 + _bmc (URL-encoded "hash;r")
+	cookieParts := make([]string, 0, len(resp1.Cookies())+1)
+	for _, c := range resp1.Cookies() {
+		cookieParts = append(cookieParts, c.Name+"="+c.Value)
+	}
+	cookieParts = append(cookieParts, "_bmc="+url.QueryEscape(bmc))
+	req2.Header.Set("Cookie", strings.Join(cookieParts, "; "))
+
+	resp2, err := client.Do(req2)
+	if err != nil {
+		return "", fmt.Errorf("ML real request failed: %w", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != 200 {
+		return "", fmt.Errorf("MercadoLivre HTTP error: %d", resp2.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp2.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read ML response body: %w", err)
+	}
+
+	return string(body), nil
+}
+
+// solveMercadoLivrePoW solves the SHA-256 proof-of-work from the _bmstate cookie value.
+// The cookie format (URL-decoded) is "hash;difficulty;..." — we find r such that
+// sha256(hash+str(r)) starts with `difficulty` leading zero hex digits.
+func solveMercadoLivrePoW(bmstate string) (string, error) {
+	decoded, err := url.QueryUnescape(bmstate)
+	if err != nil {
+		return "", fmt.Errorf("failed to URL-decode _bmstate: %w", err)
+	}
+
+	parts := strings.SplitN(decoded, ";", 3)
+	if len(parts) < 2 {
+		return "", fmt.Errorf("unexpected _bmstate format")
+	}
+
+	hash := parts[0]
+	difficulty, err := strconv.Atoi(parts[1])
+	if err != nil || difficulty < 0 {
+		return "", fmt.Errorf("invalid difficulty in _bmstate: %q", parts[1])
+	}
+
+	if difficulty == 0 {
+		return hash + ";0", nil
+	}
+
+	prefix := strings.Repeat("0", difficulty)
+	for r := 0; r < 10_000_000; r++ {
+		h := sha256.Sum256([]byte(hash + strconv.Itoa(r)))
+		if strings.HasPrefix(fmt.Sprintf("%x", h), prefix) {
+			return hash + ";" + strconv.Itoa(r), nil
+		}
+	}
+
+	return "", fmt.Errorf("ML PoW: could not find solution within iteration limit")
 }
 
 // BuildSearchURL builds the MercadoLivre search URL using their path-based format.

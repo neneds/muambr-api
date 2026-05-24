@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"muambr-api/extractors"
 	other "muambr-api/extractors/other"
 	"muambr-api/models"
 )
