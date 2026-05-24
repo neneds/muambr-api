@@ -47,9 +47,17 @@ type acharPromoToolOutput struct {
 	} `json:"output"`
 }
 
+// acharProductSearchPromptID is the fixed prompt template ID the AcharPromo site
+// uses for product-search sessions. It appears in the frontend URL as:
+//   /chat/prompt/019e5bb0-800c-74df-98b3-f153d6979573/?q={query}
+// and must be sent as "promptId" in the /api/chat request body so the backend
+// selects the correct AI prompt template (product search assistant).
+const acharProductSearchPromptID = "019e5bb0-800c-74df-98b3-f153d6979573"
+
 // acharPromoChatRequest represents the POST body for the /api/chat endpoint
 type acharPromoChatRequest struct {
 	ID        string                    `json:"id"`
+	PromptID  string                    `json:"promptId"`
 	Messages  []acharPromoChatMessage   `json:"messages"`
 	Trigger   string                    `json:"trigger"`
 	MessageID string                    `json:"messageId"`
@@ -130,7 +138,8 @@ func (e *AcharPromoExtractorV2) GetComparisons(productName string) ([]models.Pro
 	chatURL := e.GetBaseURL() + "/api/chat"
 
 	reqBody := acharPromoChatRequest{
-		ID: utils.GenerateUUID(),
+		ID:       utils.GenerateUUID(),
+		PromptID: acharProductSearchPromptID,
 		Messages: []acharPromoChatMessage{
 			{
 				ID:      utils.GenerateUUID(),
@@ -205,8 +214,18 @@ func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) (
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	products := parseSSEProducts(string(respBody))
+	rawResponse := string(respBody)
+	products := parseSSEProducts(rawResponse)
 	if len(products) == 0 {
+		// Log the first 500 bytes of the raw response to aid diagnosis when
+		// the SSE format or event types change on the AcharPromo side.
+		preview := rawResponse
+		if len(preview) > 500 {
+			preview = preview[:500]
+		}
+		utils.Warn("AcharPromo: no products found in SSE response",
+			utils.String("responsePreview", preview),
+		)
 		return nil, fmt.Errorf("no products found in chat API response")
 	}
 

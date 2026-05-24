@@ -148,6 +148,30 @@ To add a new country: add a constant to `models/models.go`, update all switch st
 
 Extractors live in **category-scoped sub-packages** under `extractors/`. All current extractors are in the `other` category and live in `extractors/other/` (`package other`). To add a new extractor in the `other` category, create a file there. For a new category (e.g. `electronics`), create `extractors/electronics/` with `package electronics`.
 
+### Step 0 — Verify the target is not WAF-blocked
+
+Before writing any code, confirm the target search endpoint responds with real data from a plain HTTP client. Run both commands and check the response headers and status code:
+
+```bash
+# Check the search/API endpoint (replace URL with the actual target)
+curl -si \
+  -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+  -H "Accept: application/json, text/html" \
+  "https://www.example.com/api/search?q=test" \
+  | head -20
+```
+
+**Stop and do not implement the extractor if you see any of the following:**
+
+| Signal | WAF type | Meaning |
+|---|---|---|
+| `HTTP/2 202` + `x-amzn-waf-action: challenge` | AWS WAF | JS challenge required — Go HTTP client cannot solve |
+| `HTTP/1.1 403` + body contains `errors.edgesuite.net` | Akamai | Akamai EdgeSuite blocking the request |
+| `HTTP/1.1 403` + `server: cloudflare` | Cloudflare | Cloudflare bot protection active |
+| Empty body with `server: awselb/2.0` | AWS WAF | Request absorbed by WAF before reaching origin |
+
+A WAF-blocked extractor will never return results in production regardless of code quality. We do not currently have a WAF bypass solution (headless browser or proxy service). **Do not implement it** — find an alternative site for the same country/category instead.
+
 ### Step 1 — Create the parser struct
 
 ```go
@@ -235,9 +259,25 @@ registry.RegisterExtractor(other.NewMySiteExtractor())
 
 ### Step 4 — Add tests
 
-- Unit test in `tests/unit/extractors/mysite_test.go`
-- Use a saved HTML fixture in `tests/mocks/extractors/sample_responses/`
-- Integration test (optional) in `tests/integration/extractors/`
+Choose the test type based on how much parsing logic the extractor contains:
+
+**Write unit tests** when the extractor has complex parsing logic that can regress silently:
+- SSE stream parsing, HTML parsing with CSS selectors, JSON-LD extraction, regex-based field extraction
+- Save a real response fixture in `tests/mocks/extractors/sample_responses/` and expose a `GetComparisonsFromHTML(body string)` (or equivalent) method for offline testing
+- Unit test file: `tests/unit/extractors/<category>/<sitename>_test.go`
+
+**Write only integration tests** when the extractor does trivial JSON unmarshaling over an external API (e.g. VTEX catalog API, Magento 2 GraphQL):
+- The real failure modes are external: API endpoint changes, response schema changes, anti-bot measures — a unit test with a stale fixture cannot catch these
+- Integration test file: `tests/integration/extractors/<category>/<sitename>_integration_test.go`
+- Use the shared `runExtractorTest` helper pattern (goroutine + timeout channel) so a slow or unreachable site does not block the test suite
+
+**Test folder structure mirrors the extractor sub-packages:**
+```
+extractors/beauty/    →  tests/unit/extractors/beauty/       (if unit tests needed)
+                         tests/integration/extractors/beauty/
+extractors/other/    →  tests/unit/extractors/other/        (or flat in tests/unit/extractors/)
+                         tests/integration/extractors/other/
+```
 
 ---
 
@@ -375,6 +415,19 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 ```
 
 Integration tests are skipped unless `INTEGRATION_TESTS=true` is set. Never gate unit tests behind that flag.
+
+### When to write unit tests vs integration tests
+
+| Extractor type | Parsing complexity | Write unit tests? | Write integration tests? |
+|---|---|---|---|
+| HTML scraper (CSS selectors, regex) | High | Yes — save HTML fixture, test offline | Yes |
+| SSE stream parser | High | Yes — save SSE fixture, test offline | Yes |
+| JSON-LD + HTML fallback | High | Yes — save HTML fixture, test offline | Yes |
+| VTEX catalog JSON API | Low (trivial unmarshal) | No | Yes |
+| Magento 2 GraphQL API | Low (trivial unmarshal) | No | Yes |
+| Any simple REST JSON API | Low (trivial unmarshal) | No | Yes |
+
+**Rule of thumb:** if the extractor overrides `GetComparisonsFromHTML` or has custom regex/selector parsing, add unit tests. If it just calls an external API and unmarshals the response, integration tests are sufficient — they catch the real failure modes (schema changes, endpoint changes, auth).
 
 ---
 
