@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 	"muambr-api/extractors"
+	appliances "muambr-api/extractors/appliances"
 	beauty "muambr-api/extractors/beauty"
 	other "muambr-api/extractors/other"
 	"muambr-api/models"
@@ -60,6 +61,9 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// beauty category extractors
 	registry.RegisterExtractor(beauty.NewEpocaCosmeticosExtractor())
 	registry.RegisterExtractor(beauty.NewSephoraBRExtractor())
+
+	// appliances category extractors
+	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())
 
 	utils.Info("All V2 extractors registered successfully")
 }
