@@ -47,28 +47,25 @@ type acharPromoToolOutput struct {
 	} `json:"output"`
 }
 
-// acharProductSearchPromptID is the fixed prompt template ID the AcharPromo site
-// uses for product-search sessions. It appears in the frontend URL as:
-//   /chat/prompt/019e5bb0-800c-74df-98b3-f153d6979573/?q={query}
-// and must be sent as "promptId" in the /api/chat request body so the backend
-// selects the correct AI prompt template (product search assistant).
-const acharProductSearchPromptID = "019e5bb0-800c-74df-98b3-f153d6979573"
-
 // acharPromoChatRequest represents the POST body for the /api/chat endpoint
 type acharPromoChatRequest struct {
-	ID        string                    `json:"id"`
-	PromptID  string                    `json:"promptId"`
-	Messages  []acharPromoChatMessage   `json:"messages"`
-	Trigger   string                    `json:"trigger"`
-	MessageID string                    `json:"messageId"`
+	ID       string                  `json:"id"`
+	Messages []acharPromoChatMessage `json:"messages"`
+	Trigger  string                  `json:"trigger"`
 }
 
 // acharPromoChatMessage represents a message in the chat request
 type acharPromoChatMessage struct {
-	ID      string                      `json:"id"`
-	Role    string                      `json:"role"`
-	Content string                      `json:"content"`
-	Parts   []acharPromoChatMessagePart `json:"parts"`
+	ID       string                      `json:"id"`
+	Role     string                      `json:"role"`
+	Parts    []acharPromoChatMessagePart  `json:"parts"`
+	Metadata acharPromoChatMessageMeta   `json:"metadata"`
+}
+
+// acharPromoChatMessageMeta holds per-message analytics metadata required by the API
+type acharPromoChatMessageMeta struct {
+	DistinctID string `json:"distinctId"`
+	IsInitial  bool   `json:"isInitial"`
 }
 
 // acharPromoChatMessagePart represents a part of a chat message
@@ -138,20 +135,21 @@ func (e *AcharPromoExtractorV2) GetComparisons(productName string) ([]models.Pro
 	chatURL := e.GetBaseURL() + "/api/chat"
 
 	reqBody := acharPromoChatRequest{
-		ID:       utils.GenerateUUID(),
-		PromptID: acharProductSearchPromptID,
+		ID: utils.GenerateUUID(),
 		Messages: []acharPromoChatMessage{
 			{
-				ID:      utils.GenerateUUID(),
-				Role:    "user",
-				Content: productName,
+				ID:   utils.GenerateUUID(),
+				Role: "user",
 				Parts: []acharPromoChatMessagePart{
 					{Type: "text", Text: productName},
 				},
+				Metadata: acharPromoChatMessageMeta{
+					DistinctID: utils.GenerateUUID(),
+					IsInitial:  true,
+				},
 			},
 		},
-		Trigger:   "user",
-		MessageID: utils.GenerateUUID(),
+		Trigger: "submit-message",
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -198,6 +196,7 @@ func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) (
 	req.Header.Set("Referer", "https://achar.promo/")
 	req.Header.Set("User-Agent", utils.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
+	req.Header.Set("User-Agent", "ai-sdk/5.0.107 runtime/browser")
 
 	resp, err := client.Do(req)
 	if err != nil {
