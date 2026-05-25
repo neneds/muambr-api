@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"bufio"
@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -48,18 +49,23 @@ type acharPromoToolOutput struct {
 
 // acharPromoChatRequest represents the POST body for the /api/chat endpoint
 type acharPromoChatRequest struct {
-	ID        string                    `json:"id"`
-	Messages  []acharPromoChatMessage   `json:"messages"`
-	Trigger   string                    `json:"trigger"`
-	MessageID string                    `json:"messageId"`
+	ID       string                  `json:"id"`
+	Messages []acharPromoChatMessage `json:"messages"`
+	Trigger  string                  `json:"trigger"`
 }
 
 // acharPromoChatMessage represents a message in the chat request
 type acharPromoChatMessage struct {
-	ID      string                      `json:"id"`
-	Role    string                      `json:"role"`
-	Content string                      `json:"content"`
-	Parts   []acharPromoChatMessagePart `json:"parts"`
+	ID       string                      `json:"id"`
+	Role     string                      `json:"role"`
+	Parts    []acharPromoChatMessagePart  `json:"parts"`
+	Metadata acharPromoChatMessageMeta   `json:"metadata"`
+}
+
+// acharPromoChatMessageMeta holds per-message analytics metadata required by the API
+type acharPromoChatMessageMeta struct {
+	DistinctID string `json:"distinctId"`
+	IsInitial  bool   `json:"isInitial"`
 }
 
 // acharPromoChatMessagePart represents a part of a chat message
@@ -72,11 +78,11 @@ type acharPromoChatMessagePart struct {
 // AcharPromo extraction is done via the /api/chat endpoint, not HTML parsing, but
 // BaseGoExtractor requires an HTMLParser to be passed in.
 type acharPromoNoopParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 func newAcharPromoNoopParser() *acharPromoNoopParser {
-	return &acharPromoNoopParser{BaseHTMLParser: NewBaseHTMLParser("AcharPromo")}
+	return &acharPromoNoopParser{BaseHTMLParser: extractors.NewBaseHTMLParser("AcharPromo")}
 }
 
 func (p *acharPromoNoopParser) GetProductSelectors() []string { return nil }
@@ -100,13 +106,13 @@ func (p *acharPromoNoopParser) ParseStore(_ string) string {
 // The chat API uses a Vercel AI SDK streaming format and returns Google Shopping
 // results for Brazil via the searchByText tool.
 type AcharPromoExtractorV2 struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewAcharPromoExtractorV2 creates a new pure Go AcharPromo extractor
 func NewAcharPromoExtractorV2() *AcharPromoExtractorV2 {
 	parser := newAcharPromoNoopParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://achar.promo",
 		models.CountryBrazil,
 		"acharpromo_v2",
@@ -132,16 +138,18 @@ func (e *AcharPromoExtractorV2) GetComparisons(productName string) ([]models.Pro
 		ID: utils.GenerateUUID(),
 		Messages: []acharPromoChatMessage{
 			{
-				ID:      utils.GenerateUUID(),
-				Role:    "user",
-				Content: productName,
+				ID:   utils.GenerateUUID(),
+				Role: "user",
 				Parts: []acharPromoChatMessagePart{
 					{Type: "text", Text: productName},
 				},
+				Metadata: acharPromoChatMessageMeta{
+					DistinctID: utils.GenerateUUID(),
+					IsInitial:  true,
+				},
 			},
 		},
-		Trigger:   "user",
-		MessageID: utils.GenerateUUID(),
+		Trigger: "submit-message",
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -188,6 +196,7 @@ func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) (
 	req.Header.Set("Referer", "https://achar.promo/")
 	req.Header.Set("User-Agent", utils.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
+	req.Header.Set("User-Agent", "ai-sdk/5.0.107 runtime/browser")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -204,8 +213,18 @@ func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) (
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	products := parseSSEProducts(string(respBody))
+	rawResponse := string(respBody)
+	products := parseSSEProducts(rawResponse)
 	if len(products) == 0 {
+		// Log the first 500 bytes of the raw response to aid diagnosis when
+		// the SSE format or event types change on the AcharPromo side.
+		preview := rawResponse
+		if len(preview) > 500 {
+			preview = preview[:500]
+		}
+		utils.Warn("AcharPromo: no products found in SSE response",
+			utils.String("responsePreview", preview),
+		)
 		return nil, fmt.Errorf("no products found in chat API response")
 	}
 
@@ -281,4 +300,8 @@ func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []
 	}
 
 	return comparisons
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *AcharPromoExtractorV2) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

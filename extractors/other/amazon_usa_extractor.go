@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"fmt"
@@ -8,19 +8,20 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
 
 // AmazonUSParser implements HTMLParser interface for Amazon USA
 type AmazonUSParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 // NewAmazonUSParser creates a new Amazon USA-specific parser
 func NewAmazonUSParser() *AmazonUSParser {
 	return &AmazonUSParser{
-		BaseHTMLParser: NewBaseHTMLParser("amazon_usa"),
+		BaseHTMLParser: extractors.NewBaseHTMLParser("amazon_usa"),
 	}
 }
 
@@ -85,7 +86,7 @@ func (p *AmazonUSParser) ParseProductName(html string) string {
 	// Fall back to CSS selectors
 	selectors := p.GetNameSelectors()
 	for _, selector := range selectors {
-		if name := p.extractWithRegex(selector, html); name != "" {
+		if name := p.ExtractWithRegex(selector, html); name != "" {
 			name = strings.TrimSpace(name)
 			if len(name) > 5 {
 				return name
@@ -99,8 +100,8 @@ func (p *AmazonUSParser) ParseProductName(html string) string {
 func (p *AmazonUSParser) ParsePrice(html string) (float64, string, error) {
 	selectors := p.GetPriceSelectors()
 	for _, selector := range selectors {
-		if priceText := p.extractWithRegex(selector, html); priceText != "" {
-			if price, currency, err := p.parsePrice(priceText, "USD"); err == nil {
+		if priceText := p.ExtractWithRegex(selector, html); priceText != "" {
+			if price, currency, err := p.ParsePriceText(priceText, "USD"); err == nil {
 				return price, currency, nil
 			}
 		}
@@ -112,7 +113,7 @@ func (p *AmazonUSParser) ParsePrice(html string) (float64, string, error) {
 func (p *AmazonUSParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	for _, selector := range selectors {
-		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
+		if urlStr := p.ExtractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {
 				return urlStr
@@ -134,7 +135,7 @@ func (p *AmazonUSParser) ParseStore(html string) string {
 	}
 	
 	for _, selector := range storeSelectors {
-		if store := p.extractWithRegex(selector, html); store != "" {
+		if store := p.ExtractWithRegex(selector, html); store != "" {
 			storeName := strings.TrimSpace(store)
 			if storeName != "" && !strings.Contains(strings.ToLower(storeName), "amazon") {
 				return storeName
@@ -147,13 +148,13 @@ func (p *AmazonUSParser) ParseStore(html string) string {
 
 // AmazonUSExtractor is the implementation for Amazon USA
 type AmazonUSExtractor struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewAmazonUSExtractor creates a new Amazon USA extractor
 func NewAmazonUSExtractor() *AmazonUSExtractor {
 	parser := NewAmazonUSParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://www.amazon.com",
 		models.CountryUS,
 		"amazon_usa",
@@ -383,4 +384,8 @@ func (e *AmazonUSExtractor) extractImageURL(s *goquery.Selection) string {
 	}
 	
 	return ""
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *AmazonUSExtractor) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

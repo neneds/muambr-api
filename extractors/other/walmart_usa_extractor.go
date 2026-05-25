@@ -1,4 +1,4 @@
-package extractors
+package other
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"muambr-api/extractors"
 	"muambr-api/models"
 	"muambr-api/utils"
 )
@@ -14,13 +15,13 @@ import (
 // WalmartUSAParser implements HTMLParser interface for Walmart USA
 // Following Single Responsibility Principle - only handles Walmart USA parsing logic
 type WalmartUSAParser struct {
-	*BaseHTMLParser
+	*extractors.BaseHTMLParser
 }
 
 // NewWalmartUSAParser creates a new Walmart USA-specific parser
 func NewWalmartUSAParser() *WalmartUSAParser {
 	return &WalmartUSAParser{
-		BaseHTMLParser: NewBaseHTMLParser("walmart_usa"),
+		BaseHTMLParser: extractors.NewBaseHTMLParser("walmart_usa"),
 	}
 }
 
@@ -86,7 +87,7 @@ func (p *WalmartUSAParser) ParseProductName(html string) string {
 	selectors := p.GetNameSelectors()
 	
 	for _, selector := range selectors {
-		if name := p.extractWithRegex(selector, html); name != "" {
+		if name := p.ExtractWithRegex(selector, html); name != "" {
 			// Clean up the name
 			name = strings.TrimSpace(name)
 			name = regexp.MustCompile(`\s+`).ReplaceAllString(name, " ")
@@ -107,7 +108,7 @@ func (p *WalmartUSAParser) ParsePrice(html string) (float64, string, error) {
 	// First try to extract from JSON data if present
 	if jsonProducts, err := p.extractNextDataProducts(html); err == nil && len(jsonProducts) > 0 {
 		for _, product := range jsonProducts {
-			if price, currency, err := p.parsePrice(fmt.Sprintf("%.2f", product.Price), "USD"); err == nil {
+			if price, currency, err := p.ParsePriceText(fmt.Sprintf("%.2f", product.Price), "USD"); err == nil {
 				return price, currency, nil
 			}
 		}
@@ -117,8 +118,8 @@ func (p *WalmartUSAParser) ParsePrice(html string) (float64, string, error) {
 	selectors := p.GetPriceSelectors()
 	
 	for _, selector := range selectors {
-		if priceText := p.extractWithRegex(selector, html); priceText != "" {
-			if price, currency, err := p.parsePrice(priceText, "USD"); err == nil {
+		if priceText := p.ExtractWithRegex(selector, html); priceText != "" {
+			if price, currency, err := p.ParsePriceText(priceText, "USD"); err == nil {
 				return price, currency, nil
 			}
 		}
@@ -132,7 +133,7 @@ func (p *WalmartUSAParser) ParseURL(html string, baseURL string) string {
 	selectors := p.GetURLSelectors()
 	
 	for _, selector := range selectors {
-		if urlStr := p.extractWithRegex(selector, html); urlStr != "" {
+		if urlStr := p.ExtractWithRegex(selector, html); urlStr != "" {
 			// Normalize URL
 			if strings.HasPrefix(urlStr, "http") {
 				return urlStr
@@ -158,7 +159,7 @@ func (p *WalmartUSAParser) ParseStore(html string) string {
 	}
 	
 	for _, selector := range storeSelectors {
-		if store := p.extractWithRegex(selector, html); store != "" {
+		if store := p.ExtractWithRegex(selector, html); store != "" {
 			storeName := strings.TrimSpace(store)
 			if storeName != "" && !strings.Contains(strings.ToLower(storeName), "walmart") {
 				return storeName
@@ -257,13 +258,13 @@ func (p *WalmartUSAParser) parseNextDataItem(item interface{}) *NextDataProduct 
 
 // WalmartUSAExtractor is the pure Go implementation for Walmart USA
 type WalmartUSAExtractor struct {
-	*BaseGoExtractor
+	*extractors.BaseGoExtractor
 }
 
 // NewWalmartUSAExtractor creates a new pure Go Walmart USA extractor
 func NewWalmartUSAExtractor() *WalmartUSAExtractor {
 	parser := NewWalmartUSAParser()
-	baseExtractor := NewBaseGoExtractor(
+	baseExtractor := extractors.NewBaseGoExtractor(
 		"https://www.walmart.com",
 		models.CountryUS,
 		"walmart_usa",
@@ -321,7 +322,7 @@ func (e *WalmartUSAExtractor) extractFromNextData(html string) []models.ProductC
 	var comparisons []models.ProductComparison
 	
 	// Cast the parser to access custom methods
-	walmartParser, ok := e.parser.(*WalmartUSAParser)
+	walmartParser, ok := e.Parser.(*WalmartUSAParser)
 	if !ok {
 		return comparisons
 	}
@@ -344,7 +345,7 @@ func (e *WalmartUSAExtractor) extractFromNextData(html string) []models.ProductC
 func (e *WalmartUSAExtractor) extractFromJSONLD(html string) []models.ProductComparison {
 	var comparisons []models.ProductComparison
 	
-	jsonData, err := e.BaseHTMLParser.extractJSONLD(html)
+	jsonData, err := e.BaseHTMLParser.ExtractJSONLD(html)
 	if err != nil {
 		return comparisons
 	}
@@ -411,7 +412,7 @@ func (e *WalmartUSAExtractor) parseJSONProduct(product map[string]interface{}) *
 		}
 	}
 	
-	price, currency, err := e.BaseHTMLParser.parsePrice(priceStr, "USD")
+	price, currency, err := e.BaseHTMLParser.ParsePriceText(priceStr, "USD")
 	if err != nil {
 		return nil
 	}
@@ -431,4 +432,8 @@ func (e *WalmartUSAExtractor) parseJSONProduct(product map[string]interface{}) *
 		StoreURL:    storeURL,
 		Country:     string(models.CountryUS),
 	}
+}
+// GetCategory returns the product category this extractor is optimised for
+func (e *WalmartUSAExtractor) GetCategory() models.ProductCategory {
+	return models.CategoryOther
 }

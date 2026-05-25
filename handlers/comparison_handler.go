@@ -23,7 +23,8 @@ type ComparisonRequest struct {
 	CurrentCountry models.Country
 	Currency       string
 	Limit          int
-	UseMacroRegion bool // When true, use macro region of currentCountry for extractor selection
+	UseMacroRegion bool                    // When true, use macro region of currentCountry for extractor selection
+	Category       *models.ProductCategory // Optional: filter extractors by product category
 }
 
 // ComparisonError represents an error with HTTP status code and message
@@ -78,11 +79,12 @@ func (h *ComparisonHandler) GetComparisons(c *gin.Context) {
 
 	// Get product comparisons from extractors
 	comparisons, err := h.extractorHandler.GetProductComparisons(
-		params.ProductName, 
-		params.BaseCountry, 
-		&params.CurrentCountry, 
+		params.ProductName,
+		params.BaseCountry,
+		&params.CurrentCountry,
 		params.Currency,
 		params.UseMacroRegion,
+		params.Category,
 	)
 	if err != nil {
 		h.sendInternalErrorResponseWithLocalizer(c, localizer, "api.errors.failed_get_comparisons")
@@ -110,6 +112,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 	currentUserCountryParam := c.Query("currentUserCountry")
 	currency := c.Query("currency")
 	useMacroRegionParam := c.Query("useMacroRegion")
+	categoryParam := c.Query("category")
 	
 	// Parse limit parameter with default value of 10
 	limit := 10
@@ -157,13 +160,20 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 			Message:    localization.T("api.errors.invalid_country_code"),
 		}
 	}
-	
-	// CRITICAL DEBUG: Check parameter parsing
-	utils.Info("🔍 PARAMETER PARSING DEBUG", 
-		utils.String("currentUserCountryParam", currentUserCountryParam),
-		utils.String("currentCountry", string(currentCountry)),
-		utils.Bool("useMacroRegion", useMacroRegion))
-	
+
+	// Parse optional category parameter
+	var category *models.ProductCategory
+	if categoryParam != "" {
+		parsed, err := models.ParseCategoryFromString(strings.ToLower(categoryParam))
+		if err != nil {
+			return nil, &ComparisonError{
+				StatusCode: http.StatusBadRequest,
+				Message:    "invalid category: must be one of electronics, beauty, appliances, other",
+			}
+		}
+		category = &parsed
+	}
+
 	// Use base country's default currency if not provided
 	if currency == "" {
 		currency = baseCountry.GetCurrencyCode()
@@ -176,6 +186,7 @@ func (h *ComparisonHandler) parseAndValidateRequest(c *gin.Context) (*Comparison
 		Currency:       currency,
 		Limit:          limit,
 		UseMacroRegion: useMacroRegion,
+		Category:       category,
 	}, nil
 }
 

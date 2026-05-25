@@ -26,7 +26,7 @@ func TestExtractorRegistry(t *testing.T) {
 		registry.RegisterExtractor(mockExtractor)
 		
 		// Verify it's registered
-		extractorsList := registry.GetExtractorsForCountry(models.CountryBrazil)
+		extractorsList := registry.GetExtractorsForCountry(models.CountryBrazil, nil)
 		if len(extractorsList) != 1 {
 			t.Errorf("Expected 1 extractor for Brazil, got %d", len(extractorsList))
 		}
@@ -40,7 +40,7 @@ func TestExtractorRegistry(t *testing.T) {
 		registry := extractors.NewExtractorRegistry()
 		
 		// Test with no extractors registered
-		extractorsList := registry.GetExtractorsForCountry(models.CountryBrazil)
+		extractorsList := registry.GetExtractorsForCountry(models.CountryBrazil, nil)
 		if extractorsList != nil {
 			t.Errorf("Expected nil for unregistered country, got %v", extractorsList)
 		}
@@ -52,7 +52,7 @@ func TestExtractorRegistry(t *testing.T) {
 		registry.RegisterExtractor(mockExtractor1)
 		registry.RegisterExtractor(mockExtractor2)
 		
-		extractorsList = registry.GetExtractorsForCountry(models.CountryBrazil)
+		extractorsList = registry.GetExtractorsForCountry(models.CountryBrazil, nil)
 		if len(extractorsList) != 2 {
 			t.Errorf("Expected 2 extractors for Brazil, got %d", len(extractorsList))
 		}
@@ -71,25 +71,25 @@ func TestExtractorRegistry(t *testing.T) {
 		registry.RegisterExtractor(usExtractor)
 		
 		// Test Brazil extractors
-		brazilExtractors := registry.GetExtractorsForCountry(models.CountryBrazil)
+		brazilExtractors := registry.GetExtractorsForCountry(models.CountryBrazil, nil)
 		if len(brazilExtractors) != 1 {
 			t.Errorf("Expected 1 extractor for Brazil, got %d", len(brazilExtractors))
 		}
 		
 		// Test Portugal extractors
-		portugalExtractors := registry.GetExtractorsForCountry(models.CountryPortugal)
+		portugalExtractors := registry.GetExtractorsForCountry(models.CountryPortugal, nil)
 		if len(portugalExtractors) != 1 {
 			t.Errorf("Expected 1 extractor for Portugal, got %d", len(portugalExtractors))
 		}
 		
 		// Test US extractors
-		usExtractors := registry.GetExtractorsForCountry(models.CountryUS)
+		usExtractors := registry.GetExtractorsForCountry(models.CountryUS, nil)
 		if len(usExtractors) != 1 {
 			t.Errorf("Expected 1 extractor for US, got %d", len(usExtractors))
 		}
 		
 		// Test non-existent country
-		germanyExtractors := registry.GetExtractorsForCountry(models.CountryGermany)
+		germanyExtractors := registry.GetExtractorsForCountry(models.CountryGermany, nil)
 		if germanyExtractors != nil {
 			t.Errorf("Expected nil for Germany (no extractors), got %v", germanyExtractors)
 		}

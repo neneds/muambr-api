@@ -3,14 +3,14 @@ package extractors_test
 import (
 	"testing"
 
-	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 )
 
 // TestIdealoExtractorV2 is skipped - idealo extractor not yet implemented
 
 func TestKuantoKustaExtractor(t *testing.T) {
-	extractor := extractors.NewKuantoKustaExtractorV2()
+	extractor := other.NewKuantoKustaExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
 		country := extractor.GetCountryCode()
@@ -46,7 +46,7 @@ func TestKuantoKustaExtractor(t *testing.T) {
 }
 
 func TestMercadoLivreExtractor(t *testing.T) {
-	extractor := extractors.NewMercadoLivreExtractorV2()
+	extractor := other.NewMercadoLivreExtractorV2()
 
 	t.Run("GetCountryCode", func(t *testing.T) {
 		country := extractor.GetCountryCode()

@@ -14,7 +14,7 @@ func TestExtractorHandler_GetProductComparisons_BaseCountryOnly(t *testing.T) {
 	handler := handlers.NewExtractorHandler()
 
 	// Test with base country only (no current country, no macro region)
-	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, nil, "USD", false)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, nil, "USD", false, nil)
 
 	// Should not return an error (even if extractors fail, handler should continue)
 	assert.NoError(t, err)
@@ -31,7 +31,7 @@ func TestExtractorHandler_GetProductComparisons_BaseCountryPlusCurrentCountry(t 
 
 	// Test with base country (BR) + different current country (PT), no macro region
 	currentCountry := models.CountryPortugal
-	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", false)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", false, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -51,7 +51,7 @@ func TestExtractorHandler_GetProductComparisons_BaseCountryPlusCurrentCountryPlu
 	// - PT extractors (current country): kuantokusta_v2
 	// - EU macro region extractors (PT's macro region): kuantokusta_v2 (PT), idealo_v2 (ES)
 	currentCountry := models.CountryPortugal
-	results, err := handler.GetProductComparisons("MacBook Pro m1", models.CountryBrazil, &currentCountry, "EUR", true)
+	results, err := handler.GetProductComparisons("MacBook Pro m1", models.CountryBrazil, &currentCountry, "EUR", true, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -65,7 +65,7 @@ func TestExtractorHandler_GetProductComparisons_SameBaseAndCurrentCountry(t *tes
 
 	// Test with same base and current country - should not duplicate extractors
 	currentCountry := models.CountryBrazil
-	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", false)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", false, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -81,7 +81,7 @@ func TestExtractorHandler_GetProductComparisons_SameBaseAndCurrentCountryWithMac
 	// Base: BR, Current: BR, MacroRegion: true
 	// Should include BR extractors + LATAM macro region extractors (which includes BR)
 	currentCountry := models.CountryBrazil
-	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", true)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, &currentCountry, "USD", true, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -96,7 +96,7 @@ func TestExtractorHandler_GetProductComparisons_NoCurrentCountryWithMacroRegion(
 
 	// Test with only base country and macro region enabled, but no current country
 	// This should only use base country extractors since macro region requires current country
-	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, nil, "USD", true)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryBrazil, nil, "USD", true, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -109,7 +109,7 @@ func TestExtractorHandler_GetProductComparisons_EmptySearchTerm(t *testing.T) {
 	handler := handlers.NewExtractorHandler()
 
 	// Test with empty search term
-	results, _ := handler.GetProductComparisons("", models.CountryBrazil, nil, "USD", false)
+	results, _ := handler.GetProductComparisons("", models.CountryBrazil, nil, "USD", false, nil)
 
 	// Should handle empty search term gracefully
 	assert.NotNil(t, results) // Can be empty slice but not nil
@@ -121,7 +121,7 @@ func TestExtractorHandler_GetProductComparisons_UnsupportedCountry(t *testing.T)
 
 	// Test with a country that has no registered extractors
 	// Using a country enum that exists but has no extractors registered
-	results, err := handler.GetProductComparisons("iPhone", models.CountryGermany, nil, "USD", false)
+	results, err := handler.GetProductComparisons("iPhone", models.CountryGermany, nil, "USD", false, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -139,7 +139,7 @@ func TestExtractorHandler_GetProductComparisons_CrossMacroRegion(t *testing.T) {
 	// - PT extractors (current country - EU)
 	// - EU macro region extractors (PT, ES, etc.)
 	currentCountry := models.CountryPortugal
-	results, err := handler.GetProductComparisons("MacBook", models.CountryBrazil, &currentCountry, "EUR", true)
+	results, err := handler.GetProductComparisons("MacBook", models.CountryBrazil, &currentCountry, "EUR", true, nil)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, results)
@@ -208,7 +208,7 @@ func TestExtractorHandler_ExtractorRegistration(t *testing.T) {
 
 	for _, country := range countries {
 		t.Run(string(country), func(t *testing.T) {
-			results, err := handler.GetProductComparisons("test", country, nil, "USD", false)
+			results, err := handler.GetProductComparisons("test", country, nil, "USD", false, nil)
 			assert.NoError(t, err)
 			assert.NotNil(t, results)
 			// Don't assert on results length as extractors might fail due to network/parsing

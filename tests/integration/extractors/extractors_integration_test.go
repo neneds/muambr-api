@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"muambr-api/extractors"
+	other "muambr-api/extractors/other"
 	"muambr-api/models"
 )
 
@@ -21,7 +21,7 @@ func TestExtractorIntegration(t *testing.T) {
 	}
 
 	t.Run("AcharPromoIntegration", func(t *testing.T) {
-		extractor := extractors.NewAcharPromoExtractorV2()
+		extractor := other.NewAcharPromoExtractorV2()
 		
 		// Chat API uses AI reasoning, needs more time
 		timeout := 90 * time.Second
@@ -48,7 +48,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("MercadoLivreIntegration", func(t *testing.T) {
-		extractor := extractors.NewMercadoLivreExtractorV2()
+		extractor := other.NewMercadoLivreExtractorV2()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -73,7 +73,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("KuantoKustaIntegration", func(t *testing.T) {
-		extractor := extractors.NewKuantoKustaExtractorV2()
+		extractor := other.NewKuantoKustaExtractorV2()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -98,7 +98,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("AmazonSpainIntegration", func(t *testing.T) {
-		extractor := extractors.NewAmazonSpainExtractor()
+		extractor := other.NewAmazonSpainExtractor()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -123,7 +123,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("AmazonUSIntegration", func(t *testing.T) {
-		extractor := extractors.NewAmazonUSExtractor()
+		extractor := other.NewAmazonUSExtractor()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
@@ -148,7 +148,7 @@ func TestExtractorIntegration(t *testing.T) {
 	})
 
 	t.Run("WalmartUSAIntegration", func(t *testing.T) {
-		extractor := extractors.NewWalmartUSAExtractor()
+		extractor := other.NewWalmartUSAExtractor()
 		
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
