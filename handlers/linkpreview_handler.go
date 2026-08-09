@@ -6,32 +6,42 @@ import (
 	"muambr-api/utils"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 // LinkPreviewHandler handles link preview related endpoints
 type LinkPreviewHandler struct {
-	extractorHandler *ExtractorHandler
+	extractorHandler    *ExtractorHandler
+	comparisonProcessor *utils.ComparisonProcessor
+	comparisonEngine    *utils.ComparisonEngine
 }
 
 // NewLinkPreviewHandler creates a new LinkPreviewHandler
 func NewLinkPreviewHandler() *LinkPreviewHandler {
 	return &LinkPreviewHandler{
-		extractorHandler: NewExtractorHandler(),
+		extractorHandler:    NewExtractorHandler(),
+		comparisonProcessor: utils.NewComparisonProcessor(),
+		comparisonEngine:    utils.NewComparisonEngine(),
 	}
 }
 
 // LinkPreviewRequest represents the request for link preview
 type LinkPreviewRequest struct {
-	URL              string `form:"url" binding:"required"`
-	BaseCountry      string `form:"baseCountry"`
-	AddComparisons   bool   `form:"addComparisons"`
+	URL            string `form:"url" binding:"required"`
+	BaseCountry    string `form:"baseCountry"`
+	AddComparisons bool   `form:"addComparisons"`
+	Category       string `form:"category"`
+	Limit          int    `form:"limit"`
 }
 
 // LinkPreviewResponse represents the response with parsed data
 type LinkPreviewResponse struct {
-	ProductData *linkparsers.ParsedProductData `json:"productData"`
+	ProductData *linkparsers.ParsedProductData   `json:"productData"`
+	Country     string                           `json:"country,omitempty"`
+	Comparison  *models.ProductComparisonResult  `json:"comparison,omitempty"`
 }
 
 // GetLinkPreview handles GET /api/v1/linkpreview?url=...&baseCountry=PT&addComparisons=true
@@ -39,15 +49,18 @@ type LinkPreviewResponse struct {
 // Query Parameters:
 // - url (required): URL to parse
 // - baseCountry (optional): User's base country ISO code (PT, US, ES, DE, GB, BR)
-// - addComparisons (optional): Whether to add product comparisons (default: false) - NOT YET IMPLEMENTED
+// - addComparisons (optional): When true, run a full product comparison using extracted title/price
+// - category (optional): electronics | beauty | appliances | fashion | other
+// - limit (optional): max results per country (default 10)
 func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 	var req LinkPreviewRequest
 
-	// Bind query parameters
 	if err := c.ShouldBindQuery(&req); err != nil {
 		utils.LogError("❌ Error binding query parameters", utils.Error(err))
+		code := models.ErrorCodeInvalidRequest
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request parameters",
+			"code":    code,
 			"details": err.Error(),
 		})
 		return
@@ -58,68 +71,192 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 		utils.String("baseCountry", req.BaseCountry),
 		utils.Bool("addComparisons", req.AddComparisons))
 
-	// Validate URL
 	parsedURL, err := url.Parse(req.URL)
 	if err != nil {
 		utils.LogError("❌ Invalid URL", utils.Error(err))
+		code := models.ErrorCodeInvalidRequest
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid URL",
+			"code":    code,
 			"details": err.Error(),
 		})
 		return
 	}
 
-	// Parse the URL and get product data
 	productData, err := linkparsers.ParseURL(req.URL)
 	if err != nil {
 		utils.LogError("❌ Error parsing URL", utils.Error(err))
+		code := models.ErrorCodeProductNotFound
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Failed to parse URL",
+			"code":    code,
 			"details": err.Error(),
 		})
 		return
 	}
 
+	urlCountry := guessCountryFromURL(parsedURL)
+
 	utils.Info("✅ Successfully parsed product data",
 		utils.String("title", productData.Title),
-		utils.String("currency", productData.Currency))
+		utils.String("currency", productData.Currency),
+		utils.String("country", string(urlCountry)))
 
-	// Prepare response
 	response := LinkPreviewResponse{
 		ProductData: productData,
+		Country:     string(urlCountry),
 	}
 
-	// TODO: Add comparison feature integration when needed
 	if req.AddComparisons {
-		utils.Info("ℹ️ Comparison feature requested but not yet implemented for link preview")
-		// This would integrate with the comparison handler in the future
-		_ = parsedURL // Using this to avoid unused variable warning
+		comparison, err := h.buildComparisonFromPreview(req, productData, urlCountry)
+		if err != nil {
+			utils.Warn("Link preview comparison failed", utils.Error(err))
+			code := models.ErrorCodeInternalError
+			msg := err.Error()
+			response.Comparison = &models.ProductComparisonResult{
+				Success:      false,
+				Code:         &code,
+				Message:      &msg,
+				ComparisonID: utils.GenerateUUID(),
+				Status:       models.ComparisonStatusEmpty,
+				Prices:       []models.PriceOffer{},
+				Sections:     []models.CountrySection{},
+				Metadata:     models.ComparisonMetadata{PriceType: "retail", EntryMethod: "url"},
+				CapturedAt:   time.Now().UTC().Format(time.RFC3339),
+				ExpiresAt:    time.Now().UTC().Format(time.RFC3339),
+			}
+		} else {
+			response.Comparison = comparison
+		}
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *LinkPreviewHandler) buildComparisonFromPreview(
+	req LinkPreviewRequest,
+	productData *linkparsers.ParsedProductData,
+	urlCountry models.Country,
+) (*models.ProductComparisonResult, error) {
+	if productData.Title == "" {
+		return nil, errString("PRODUCT_NOT_FOUND: no product title extracted from URL")
+	}
+
+	baseCountry := urlCountry
+	if req.BaseCountry != "" {
+		parsed, err := models.ParseCountryFromISO(strings.ToUpper(req.BaseCountry))
+		if err != nil {
+			return nil, errString("COUNTRY_UNKNOWN: invalid baseCountry")
+		}
+		baseCountry = parsed
+	}
+
+	currentCountry := urlCountry
+	normalizedCurrency := baseCountry.GetCurrencyCode()
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 10
+	}
+
+	var category *models.ProductCategory
+	categoryConfidence := 0.5
+	if req.Category != "" {
+		parsed, err := models.ParseCategoryFromString(strings.ToLower(req.Category))
+		if err != nil {
+			return nil, errString("INVALID_REQUEST: invalid category")
+		}
+		category = &parsed
+		categoryConfidence = 1.0
+	} else {
+		other := models.CategoryOther
+		category = &other
+	}
+
+	outcome, err := h.extractorHandler.GetProductComparisonsWithMeta(
+		productData.Title,
+		baseCountry,
+		&currentCountry,
+		normalizedCurrency,
+		false,
+		category,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	sections := h.comparisonProcessor.ProcessComparisons(outcome.Comparisons, limit)
+
+	var observed *models.ObservedPriceInput
+	if productData.Price != nil && *productData.Price > 0 {
+		currency := strings.ToUpper(productData.Currency)
+		if currency == "" {
+			currency = currentCountry.GetCurrencyCode()
+		}
+		observed = &models.ObservedPriceInput{
+			Amount:   *productData.Price,
+			Currency: currency,
+			Country:  string(currentCountry),
+		}
+	}
+
+	var exchangeRate *models.ExchangeRateInfo
+	if observed != nil {
+		conversion, convErr := h.extractorHandler.GetExchangeRateService().ConvertCurrencyWithMeta(1.0, observed.Currency, normalizedCurrency)
+		if convErr == nil {
+			exchangeRate = &models.ExchangeRateInfo{
+				Base:      observed.Currency,
+				Target:    normalizedCurrency,
+				Rate:      conversion.Rate,
+				Source:    conversion.Source,
+				Timestamp: conversion.Timestamp.UTC().Format(time.RFC3339),
+			}
+		}
+	}
+
+	result := h.comparisonEngine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        productData.Title,
+		Category:           category,
+		CategoryConfidence: categoryConfidence,
+		BaseCountry:        baseCountry,
+		CurrentCountry:     currentCountry,
+		NormalizedCurrency: normalizedCurrency,
+		Observed:           observed,
+		Sections:           sections,
+		Comparisons:        outcome.Comparisons,
+		Meta:               outcome.Meta,
+		EntryMethod:        "url",
+		ExchangeRate:       exchangeRate,
+		Now:                time.Now().UTC(),
+	})
+	return &result, nil
+}
+
+type stringError string
+
+func (e stringError) Error() string { return string(e) }
+
+func errString(msg string) error { return stringError(msg) }
+
 // guessCountryFromURL tries to determine the country from the URL
 func guessCountryFromURL(pageURL *url.URL) models.Country {
 	host := pageURL.Host
 
-	if containsAny(host, []string{".br", "brazil"}) {
+	if containsAny(host, []string{".br", "brazil", "mercadolivre.com.br"}) {
 		return models.CountryBrazil
-	} else if containsAny(host, []string{".pt", "portugal"}) {
+	} else if containsAny(host, []string{".pt", "portugal", "kuantokusta"}) {
 		return models.CountryPortugal
 	} else if containsAny(host, []string{".es", "spain", "espana"}) {
 		return models.CountrySpain
-	} else if containsAny(host, []string{".uk", ".gb", "britain"}) {
+	} else if containsAny(host, []string{".uk", ".gb", "britain", "co.uk"}) {
 		return models.CountryUK
 	} else if containsString(host, ".de") {
 		return models.CountryGermany
 	}
 
-	// Default to US
 	return models.CountryUS
 }
 
-// containsAny checks if a string contains any of the substrings
 func containsAny(s string, substrs []string) bool {
 	for _, substr := range substrs {
 		if containsString(s, substr) {
@@ -129,12 +266,10 @@ func containsAny(s string, substrs []string) bool {
 	return false
 }
 
-// containsString checks if a string contains a substring
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && indexOf(s, substr) >= 0
 }
 
-// indexOf returns the index of substr in s, or -1 if not found
 func indexOf(s, substr string) int {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {

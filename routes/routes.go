@@ -8,28 +8,22 @@ import (
 
 // SetupRoutes configures all the API routes
 func SetupRoutes(r *gin.Engine) {
-	// Initialize handlers
-	comparisonHandler := handlers.NewComparisonHandler()
+	productComparisonHandler := handlers.NewProductComparisonHandler()
 	exchangeRateHandler := handlers.NewExchangeRateHandler()
 	linkPreviewHandler := handlers.NewLinkPreviewHandler()
 
-	// API v1 group - matches Swift client expectations
 	v1 := r.Group("/api/v1")
 	{
-		comparisons := v1.Group("/comparisons")
-		{
-			// GET /api/v1/comparisons/search?name=productName&baseCountry=PT&currentUserCountry=US
-			comparisons.GET("/search", comparisonHandler.GetComparisons)
-		}
+		// POST /api/v1/product-comparisons — primary comparison contract
+		v1.POST("/product-comparisons", productComparisonHandler.CreateProductComparison)
 
 		// GET /api/v1/linkpreview?url=...&baseCountry=PT&addComparisons=true
 		v1.GET("/linkpreview", linkPreviewHandler.GetLinkPreview)
 	}
 
-	// Exchange rates endpoints	
 	rates := r.Group("/rates")
 	{
-		// GET /rates/exchange-rates?baseCurrency=USD - Get exchange rates for base currency
+		// GET /rates/exchange-rates?baseCurrency=USD
 		rates.GET("/exchange-rates", exchangeRateHandler.GetExchangeRates)
 	}
 }

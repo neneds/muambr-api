@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"net/http"
+	"time"
+
 	"muambr-api/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,7 +33,7 @@ func (h *ExchangeRateHandler) GetExchangeRates(c *gin.Context) {
 	if baseCurrency == "" {
 		baseCurrency = "USD" // Default to USD
 	}
-	
+
 	filteredCurrencies := []string{"USD", "EUR", "BRL", "GBP", "JPY"}
 
 	// Get all rates for the base currency (uses cache if available)
@@ -38,11 +41,11 @@ func (h *ExchangeRateHandler) GetExchangeRates(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
+			"code":  "EXCHANGE_RATE_UNAVAILABLE",
 		})
 		return
 	}
-	
-	// Filter only the currencies we want to return
+
 	exchangeRatesList := make([]ExchangeRate, 0)
 
 	for _, curr := range filteredCurrencies {
@@ -53,10 +56,17 @@ func (h *ExchangeRateHandler) GetExchangeRates(c *gin.Context) {
 			})
 		}
 	}
-	
+
+	updatedAt := time.Now().UTC().Format(time.RFC3339)
+	if ts, ok := h.exchangeRateService.GetRateTimestamp(baseCurrency); ok {
+		updatedAt = ts.UTC().Format(time.RFC3339)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"base_currency": baseCurrency,
-		"rates": exchangeRatesList,
-		"total_rates": len(exchangeRatesList),
+		"rates":         exchangeRatesList,
+		"total_rates":   len(exchangeRatesList),
+		"updated_at":    updatedAt,
+		"source":        "exchangerate-api",
 	})
 }
