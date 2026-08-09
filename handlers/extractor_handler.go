@@ -86,8 +86,23 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 	return country, nil
 }
 
+// ExtractionOutcome is the result of running extractors for a comparison request.
+type ExtractionOutcome struct {
+	Comparisons []models.ProductComparison
+	Meta        utils.ExtractionMeta
+}
+
 // GetProductComparisons retrieves product comparisons using available extractors
 func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool, category *models.ProductCategory) ([]models.ProductComparison, error) {
+	outcome, err := h.GetProductComparisonsWithMeta(searchTerm, baseCountry, currentCountry, targetCurrency, useMacroRegion, category)
+	if err != nil {
+		return nil, err
+	}
+	return outcome.Comparisons, nil
+}
+
+// GetProductComparisonsWithMeta retrieves comparisons plus provider success/failure metadata.
+func (h *ExtractorHandler) GetProductComparisonsWithMeta(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool, category *models.ProductCategory) (*ExtractionOutcome, error) {
 	utils.Info("GetProductComparisons called",
 		utils.String("searchTerm", searchTerm),
 		utils.String("baseCountry", string(baseCountry)),
@@ -95,76 +110,81 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		utils.String("targetCurrency", targetCurrency),
 		utils.Bool("useMacroRegion", useMacroRegion),
 		utils.Any("category", category))
-	
+
 	allResults := make([]models.ProductComparison, 0)
-	
+
 	// Use a map to track extractors by their identifier to prevent duplicates
 	extractorMap := make(map[string]extractors.Extractor)
-	
+
 	// Always use extractors from the base country (country parameter)
 	baseCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(baseCountry, category)
 	for _, extractor := range baseCountryExtractors {
 		extractorMap[extractor.GetIdentifier()] = extractor
 	}
-	utils.Info("Added base country extractors", 
-		utils.String("baseCountry", string(baseCountry)), 
+	utils.Info("Added base country extractors",
+		utils.String("baseCountry", string(baseCountry)),
 		utils.Int("count", len(baseCountryExtractors)))
-	
+
 	// Add extractors from current country if different from base country
 	if currentCountry != nil && *currentCountry != baseCountry {
 		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry, category)
 		for _, extractor := range currentCountryExtractors {
 			extractorMap[extractor.GetIdentifier()] = extractor
 		}
-		utils.Info("Added current country extractors", 
-			utils.String("currentCountry", string(*currentCountry)), 
+		utils.Info("Added current country extractors",
+			utils.String("currentCountry", string(*currentCountry)),
 			utils.Int("count", len(currentCountryExtractors)))
 	}
-	
+
 	// If macro region is enabled, add extractors from all countries in the current user's macro region
 	if useMacroRegion && currentCountry != nil {
-		// Use the current country's macro region to determine which countries to include
 		macroRegion := currentCountry.GetMacroRegion()
 		countriesInRegion := models.GetCountriesInMacroRegion(macroRegion)
-		utils.Info("Processing macro region", 
+		utils.Info("Processing macro region",
 			utils.String("macroRegion", string(macroRegion)),
 			utils.String("currentCountry", string(*currentCountry)),
 			utils.Int("countries", len(countriesInRegion)))
-		
+
 		for _, country := range countriesInRegion {
 			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country, category)
 			for _, extractor := range regionExtractors {
 				extractorMap[extractor.GetIdentifier()] = extractor
 			}
 		}
-		utils.Info("Added macro region extractors", 
-			utils.String("macroRegion", string(macroRegion)), 
+		utils.Info("Added macro region extractors",
+			utils.String("macroRegion", string(macroRegion)),
 			utils.Int("totalCountries", len(countriesInRegion)),
 			utils.Int("totalExtractors", len(extractorMap)))
 	}
-	
-	// Convert map back to slice for execution
+
+	// If a specific category has no registered providers, fall back to generic ("other").
+	// Matches product rule: unknown / unavailable category → generic comparison strategy.
+	if len(extractorMap) == 0 && category != nil && *category != models.CategoryOther {
+		utils.Info("No extractors for requested category — falling back to generic providers",
+			utils.String("requestedCategory", string(*category)))
+		fallback := models.CategoryOther
+		return h.GetProductComparisonsWithMeta(searchTerm, baseCountry, currentCountry, targetCurrency, useMacroRegion, &fallback)
+	}
+
 	extractorsToUse := make([]extractors.Extractor, 0, len(extractorMap))
 	for _, extractor := range extractorMap {
 		extractorsToUse = append(extractorsToUse, extractor)
 	}
-	
-	// Log which extractors will be used for this search
+
 	extractorNames := make([]string, len(extractorsToUse))
 	extractorCountries := make([]string, len(extractorsToUse))
 	for i, extractor := range extractorsToUse {
 		extractorNames[i] = extractor.GetIdentifier()
 		extractorCountries[i] = string(extractor.GetCountryCode())
 	}
-	
-	// Log macro region info if applicable
+
 	var macroRegionInfo string
 	if currentCountry != nil && useMacroRegion {
 		macroRegion := currentCountry.GetMacroRegion()
 		countriesInRegion := models.GetCountriesInMacroRegion(macroRegion)
 		macroRegionInfo = fmt.Sprintf("%s (%v)", macroRegion, countriesInRegion)
 	}
-	
+
 	utils.Info("Starting product comparison search with deduplicated extractors",
 		utils.String("search_term", searchTerm),
 		utils.String("base_country", string(baseCountry)),
@@ -176,29 +196,67 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 		utils.Any("extractor_names", extractorNames),
 		utils.Any("extractor_countries", extractorCountries))
 
-	// Execute all selected extractors with timeout handling and parallel processing
+	var runResults []ExtractorResult
 	if h.config.EnableParallel && len(extractorsToUse) > 1 {
-		allResults = h.executeExtractorsInParallel(extractorsToUse, searchTerm, baseCountry, targetCurrency)
+		runResults = h.runExtractorsInParallel(extractorsToUse, searchTerm, baseCountry, targetCurrency)
 	} else {
-		allResults = h.executeExtractorsSequentially(extractorsToUse, searchTerm, baseCountry, targetCurrency)
-	}	// Apply currency conversion if needed
+		runResults = h.runExtractorsSequentially(extractorsToUse, searchTerm, baseCountry, targetCurrency)
+	}
+
+	meta := utils.ExtractionMeta{
+		ProvidersAttempted: len(extractorsToUse),
+		FailedProviders:    make([]string, 0),
+	}
+	for _, result := range runResults {
+		if result.Error != nil {
+			meta.ProvidersFailed++
+			meta.FailedProviders = append(meta.FailedProviders, result.ExtractorName)
+			utils.Warn("Extractor failed during product search - continuing with remaining extractors",
+				utils.String("search_term", searchTerm),
+				utils.String("extractor_name", result.ExtractorName),
+				utils.String("extractor_country", result.ExtractorCountry),
+				utils.String("base_country", string(baseCountry)),
+				utils.String("target_currency", targetCurrency),
+				utils.String("duration", result.Duration.String()),
+				utils.Error(result.Error))
+			continue
+		}
+		meta.ProvidersSucceeded++
+		utils.Info("Extractor successfully completed product search",
+			utils.String("search_term", searchTerm),
+			utils.String("extractor_name", result.ExtractorName),
+			utils.String("extractor_country", result.ExtractorCountry),
+			utils.String("duration", result.Duration.String()),
+			utils.Int("results_count", len(result.Results)))
+		allResults = append(allResults, result.Results...)
+	}
+
 	if targetCurrency != "" {
 		allResults = h.applyCountryContextAndCurrencyConversion(allResults, baseCountry, currentCountry, targetCurrency)
 	}
-	
-	// Log final results summary
+
 	utils.Info("Product comparison search completed",
 		utils.String("search_term", searchTerm),
 		utils.String("base_country", string(baseCountry)),
 		utils.Any("current_country", currentCountry),
 		utils.String("target_currency", targetCurrency),
 		utils.Int("total_results", len(allResults)),
-		utils.Int("extractors_attempted", len(extractorsToUse)))
-	
+		utils.Int("extractors_attempted", len(extractorsToUse)),
+		utils.Int("extractors_succeeded", meta.ProvidersSucceeded),
+		utils.Int("extractors_failed", meta.ProvidersFailed))
+
 	if allResults == nil {
 		allResults = make([]models.ProductComparison, 0)
 	}
-	return allResults, nil
+	return &ExtractionOutcome{
+		Comparisons: allResults,
+		Meta:        meta,
+	}, nil
+}
+
+// GetExchangeRateService exposes the shared FX service for comparison enrichment.
+func (h *ExtractorHandler) GetExchangeRateService() *utils.ExchangeRateService {
+	return h.exchangeRateService
 }
 
 // ExtractorResult represents the result of an extractor execution
@@ -210,91 +268,41 @@ type ExtractorResult struct {
 	Duration         time.Duration
 }
 
-// executeExtractorsInParallel executes extractors concurrently with timeout and error handling
-func (h *ExtractorHandler) executeExtractorsInParallel(extractorList []extractors.Extractor, searchTerm string, baseCountry models.Country, targetCurrency string) []models.ProductComparison {
-	var allResults []models.ProductComparison
+// runExtractorsInParallel executes extractors concurrently and returns per-provider results.
+func (h *ExtractorHandler) runExtractorsInParallel(extractorList []extractors.Extractor, searchTerm string, baseCountry models.Country, targetCurrency string) []ExtractorResult {
 	resultChan := make(chan ExtractorResult, len(extractorList))
-	
-	// Create a semaphore to limit concurrency
 	semaphore := make(chan struct{}, h.config.MaxConcurrency)
 	var wg sync.WaitGroup
 
-	// Launch extractors in parallel
 	for _, extractor := range extractorList {
 		wg.Add(1)
 		go func(ext extractors.Extractor) {
 			defer wg.Done()
-			
-			// Acquire semaphore
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			
-			result := h.executeExtractorWithTimeout(ext, searchTerm, baseCountry, targetCurrency)
-			resultChan <- result
+			resultChan <- h.executeExtractorWithTimeout(ext, searchTerm, baseCountry, targetCurrency)
 		}(extractor)
 	}
 
-	// Close the result channel when all goroutines complete
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
-	// Collect results from all extractors
+	results := make([]ExtractorResult, 0, len(extractorList))
 	for result := range resultChan {
-		if result.Error != nil {
-			utils.Warn("Extractor failed during parallel product search - continuing with remaining extractors",
-				utils.String("search_term", searchTerm),
-				utils.String("extractor_name", result.ExtractorName),
-				utils.String("extractor_country", result.ExtractorCountry),
-				utils.String("base_country", string(baseCountry)),
-				utils.String("target_currency", targetCurrency),
-				utils.String("duration", result.Duration.String()),
-				utils.Error(result.Error))
-		} else {
-			utils.Info("Extractor successfully completed parallel product search",
-				utils.String("search_term", searchTerm),
-				utils.String("extractor_name", result.ExtractorName),
-				utils.String("extractor_country", result.ExtractorCountry),
-				utils.String("duration", result.Duration.String()),
-				utils.Int("results_count", len(result.Results)))
-			
-			allResults = append(allResults, result.Results...)
-		}
+		results = append(results, result)
 	}
-
-	return allResults
+	return results
 }
 
-// executeExtractorsSequentially executes extractors one by one with timeout handling
-func (h *ExtractorHandler) executeExtractorsSequentially(extractorList []extractors.Extractor, searchTerm string, baseCountry models.Country, targetCurrency string) []models.ProductComparison {
-	var allResults []models.ProductComparison
-
+// runExtractorsSequentially executes extractors one by one and returns per-provider results.
+func (h *ExtractorHandler) runExtractorsSequentially(extractorList []extractors.Extractor, searchTerm string, baseCountry models.Country, targetCurrency string) []ExtractorResult {
+	results := make([]ExtractorResult, 0, len(extractorList))
 	for _, extractor := range extractorList {
-		result := h.executeExtractorWithTimeout(extractor, searchTerm, baseCountry, targetCurrency)
-		
-		if result.Error != nil {
-			utils.Warn("Extractor failed during sequential product search - continuing with remaining extractors",
-				utils.String("search_term", searchTerm),
-				utils.String("extractor_name", result.ExtractorName),
-				utils.String("extractor_country", result.ExtractorCountry),
-				utils.String("base_country", string(baseCountry)),
-				utils.String("target_currency", targetCurrency),
-				utils.String("duration", result.Duration.String()),
-				utils.Error(result.Error))
-		} else {
-			utils.Info("Extractor successfully completed sequential product search",
-				utils.String("search_term", searchTerm),
-				utils.String("extractor_name", result.ExtractorName),
-				utils.String("extractor_country", result.ExtractorCountry),
-				utils.String("duration", result.Duration.String()),
-				utils.Int("results_count", len(result.Results)))
-			
-			allResults = append(allResults, result.Results...)
-		}
+		results = append(results, h.executeExtractorWithTimeout(extractor, searchTerm, baseCountry, targetCurrency))
 	}
-
-	return allResults
+	return results
 }
 
 // executeExtractorWithTimeout executes a single extractor with timeout handling

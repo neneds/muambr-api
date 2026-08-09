@@ -142,8 +142,9 @@ func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		utils.Warn("⚠️ Non-200 status code", 
+	// 206 Partial Content is returned by some VTEX APIs for paginated catalog results.
+	if resp.StatusCode != 200 && resp.StatusCode != 206 {
+		utils.Warn("⚠️ Non-200 status code",
 			utils.String("url", url),
 			utils.Int("status", resp.StatusCode))
 		return "", fmt.Errorf("HTTP error: %d", resp.StatusCode)

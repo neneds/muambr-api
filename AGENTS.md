@@ -17,7 +17,7 @@ extractors/            # Extractor interface, registry, and base types
   extractor.go         # Extractor interface + ExtractorRegistry
   base_extractor.go    # BaseHTMLParser, BaseGoExtractor, BaseHTTPExtractor
   other/               # package other — all "general" category extractors
-handlers/              # Gin HTTP handlers (comparison, link preview, admin)
+handlers/              # Gin HTTP handlers (product comparison, link preview, FX)
 linkparsers/           # Link preview HTML parsers — one file per site
 localization/          # i18n JSON files (en.json, pt.json, es.json)
 models/                # Domain models and enums (Country, MacroRegion, ProductComparison, ProductCategory)
@@ -371,33 +371,41 @@ Handles grouping by country, sorting by price, and filtering price outliers (>60
 ## API Routes
 
 ```
-GET /api/v1/comparisons/search
-    ?name=<product>
-    &baseCountry=<ISO>          # required
-    &currentUserCountry=<ISO>   # optional
-    &currency=<code>            # optional, defaults to baseCountry currency
-    &limit=<int>                # optional, defaults to 10
-    &useMacroRegion=<bool>      # optional, uses macro region of currentUserCountry
-    &category=<value>           # optional: electronics | beauty | appliances | other
+POST /api/v1/product-comparisons
+    Body (JSON):
+      product.name               # required (unless productURL yields a title)
+      product.brand / model      # optional
+      product.category           # optional: electronics | beauty | appliances | fashion | other
+      observedPrice.amount       # recommended — price the user found
+      observedPrice.currency
+      currentCountry             # ISO; defaults to baseCountry
+      baseCountry                # required ISO
+      currency                   # optional normalization currency (defaults to baseCountry)
+      limit / useMacroRegion     # optional
+      source.type                # manual | url | camera | barcode
+      productURL                 # optional — extracts title/price when present
 
 GET /api/v1/linkpreview
     ?url=<url>
     &baseCountry=<ISO>
-    &addComparisons=<bool>
+    &addComparisons=<bool>       # when true, also runs product comparison
 
 GET /rates/exchange-rates
     ?baseCurrency=<code>
 ```
+
+See `docs/PRODUCT_COMPARISON_MOBILE.md` for the full mobile contract.
 
 ---
 
 ## Extractor Selection Logic
 
 1. Always include extractors for `baseCountry`.
-2. If `currentUserCountry` is set and differs from `baseCountry`:
-   - `useMacroRegion=true` → include all extractors whose macro region matches `currentUserCountry.GetMacroRegion()`
-   - `useMacroRegion=false` (default) → include extractors for `currentUserCountry` only.
-3. If `category` query param is provided, only extractors whose `GetCategory()` matches are included.
+2. If `currentCountry` is set and differs from `baseCountry`:
+   - `useMacroRegion=true` → include all extractors whose macro region matches `currentCountry.GetMacroRegion()`
+   - `useMacroRegion=false` (default) → include extractors for `currentCountry` only.
+3. If `category` is provided, only extractors whose `GetCategory()` matches are included.
+   - When a category has no registered providers, fall back to generic (`other`).
    - Pass `nil` to the registry methods to skip category filtering (get all categories).
    - Registry methods: `GetExtractorsForCountry(country, *models.ProductCategory)` and `GetExtractorsForMacroRegion(region, *models.ProductCategory)`.
 

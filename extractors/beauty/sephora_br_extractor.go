@@ -103,7 +103,7 @@ func (e *SephoraBRExtractor) GetComparisonsFromHTML(body string) ([]models.Produ
 		comparison := models.ProductComparison{
 			ID:          utils.GenerateUUID(),
 			ProductName: strings.TrimSpace(p.Name),
-			Price:       float64(p.Price),
+			Price:       p.Price,
 			Currency:    "BRL",
 			StoreName:   "Sephora",
 			Country:     string(models.CountryBrazil),
@@ -127,10 +127,10 @@ func (e *SephoraBRExtractor) GetComparisonsFromHTML(body string) ([]models.Produ
 
 // sephoraProduct mirrors the product objects in Sephora BR's GTM dataLayer push.
 type sephoraProduct struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Price int    `json:"price"`
-	Link  string `json:"link"`
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"` // may be int or decimal (e.g. 226.1)
+	Link  string  `json:"link"`
 }
 
 // extractSephoraBRProducts locates the 'products': [...] value inside the

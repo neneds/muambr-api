@@ -195,25 +195,72 @@ func (s *ExchangeRateService) tryV4API(baseCurrency string) (map[string]float64,
 	return v4Response.Rates, nil
 }
 
+// ConversionResult includes the converted amount plus the rate metadata used.
+type ConversionResult struct {
+	Amount    float64
+	Rate      float64
+	Timestamp time.Time
+	Source    string
+}
+
 // ConvertCurrency converts an amount from one currency to another
 func (s *ExchangeRateService) ConvertCurrency(amount float64, fromCurrency, toCurrency string) (float64, error) {
+	result, err := s.ConvertCurrencyWithMeta(amount, fromCurrency, toCurrency)
+	if err != nil {
+		return 0, err
+	}
+	return result.Amount, nil
+}
+
+// ConvertCurrencyWithMeta converts an amount and returns rate + timestamp metadata.
+func (s *ExchangeRateService) ConvertCurrencyWithMeta(amount float64, fromCurrency, toCurrency string) (*ConversionResult, error) {
+	fromCurrency = strings.ToUpper(fromCurrency)
+	toCurrency = strings.ToUpper(toCurrency)
+
 	if fromCurrency == toCurrency {
-		return amount, nil
+		return &ConversionResult{
+			Amount:    amount,
+			Rate:      1.0,
+			Timestamp: time.Now().UTC(),
+			Source:    "identity",
+		}, nil
 	}
 
-	// Get exchange rates with the from currency as base
 	rates, err := s.GetExchangeRates(fromCurrency)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get exchange rates for %s: %w", fromCurrency, err)
+		return nil, fmt.Errorf("failed to get exchange rates for %s: %w", fromCurrency, err)
 	}
 
-	// Get the conversion rate to target currency
 	rate, exists := rates[toCurrency]
 	if !exists {
-		return 0, fmt.Errorf("conversion rate not found for %s to %s", fromCurrency, toCurrency)
+		return nil, fmt.Errorf("conversion rate not found for %s to %s", fromCurrency, toCurrency)
 	}
 
-	return amount * rate, nil
+	timestamp := time.Now().UTC()
+	source := "exchangerate-api"
+	s.mutex.RLock()
+	if cached, ok := s.cache[fromCurrency]; ok {
+		timestamp = cached.Timestamp
+	}
+	s.mutex.RUnlock()
+
+	return &ConversionResult{
+		Amount:    amount * rate,
+		Rate:      rate,
+		Timestamp: timestamp,
+		Source:    source,
+	}, nil
+}
+
+// GetRateTimestamp returns the cache timestamp for a base currency, if present.
+func (s *ExchangeRateService) GetRateTimestamp(baseCurrency string) (time.Time, bool) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	cached, exists := s.cache[strings.ToUpper(baseCurrency)]
+	if !exists {
+		return time.Time{}, false
+	}
+	return cached.Timestamp, true
 }
 
 // ConvertPriceString converts a price string from one currency to another, returning formatted result

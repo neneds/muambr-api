@@ -35,16 +35,35 @@ const (
 	CategoryElectronics ProductCategory = "electronics"
 	CategoryBeauty      ProductCategory = "beauty"
 	CategoryAppliances  ProductCategory = "appliances"
+	CategoryFashion     ProductCategory = "fashion"
 	CategoryOther       ProductCategory = "other"
 )
+
+// CategoryDisplayName returns a human-readable category name.
+func (c ProductCategory) CategoryDisplayName() string {
+	switch c {
+	case CategoryElectronics:
+		return "Electronics"
+	case CategoryBeauty:
+		return "Beauty"
+	case CategoryAppliances:
+		return "Appliances"
+	case CategoryFashion:
+		return "Fashion"
+	case CategoryOther:
+		return "Other"
+	default:
+		return string(c)
+	}
+}
 
 // ParseCategoryFromString parses a string into a ProductCategory enum
 func ParseCategoryFromString(s string) (ProductCategory, error) {
 	switch ProductCategory(s) {
-	case CategoryElectronics, CategoryBeauty, CategoryAppliances, CategoryOther:
+	case CategoryElectronics, CategoryBeauty, CategoryAppliances, CategoryFashion, CategoryOther:
 		return ProductCategory(s), nil
 	default:
-		return "", fmt.Errorf("unsupported product category: %s (supported: electronics, beauty, appliances, other)", s)
+		return "", fmt.Errorf("unsupported product category: %s (supported: electronics, beauty, appliances, fashion, other)", s)
 	}
 }
 
@@ -152,19 +171,21 @@ type ConvertedPrice struct {
 
 // ProductComparison represents a single product offer matching Swift client expectations
 type ProductComparison struct {
-	ID             string           `json:"id"`
-	ProductName    string           `json:"productName"`
-	Price          float64          `json:"price"`
-	Currency       string           `json:"currency"`
-	ConvertedPrice *ConvertedPrice  `json:"convertedPrice,omitempty"`
-	StoreName      string           `json:"storeName"`
-	StoreURL       *string          `json:"storeURL,omitempty"`
-	Description    *string          `json:"description,omitempty"`
-	Country        string           `json:"country"`
-	Condition      *string          `json:"condition,omitempty"`
-	ImageURL       *string          `json:"imageURL,omitempty"`
-	LastUpdated    *string          `json:"lastUpdated,omitempty"`
-	Category       *ProductCategory `json:"category,omitempty"`
+	ID              string           `json:"id"`
+	ProductName     string           `json:"productName"`
+	Price           float64          `json:"price"`
+	Currency        string           `json:"currency"`
+	ConvertedPrice  *ConvertedPrice  `json:"convertedPrice,omitempty"`
+	StoreName       string           `json:"storeName"`
+	StoreURL        *string          `json:"storeURL,omitempty"`
+	Description     *string          `json:"description,omitempty"`
+	Country         string           `json:"country"`
+	Condition       *string          `json:"condition,omitempty"`
+	ImageURL        *string          `json:"imageURL,omitempty"`
+	LastUpdated     *string          `json:"lastUpdated,omitempty"`
+	Category        *ProductCategory `json:"category,omitempty"`
+	MatchConfidence *float64         `json:"matchConfidence,omitempty"`
+	Availability    string           `json:"availability,omitempty"`
 }
 
 // CountrySection represents a group of product comparisons from a specific country
@@ -173,14 +194,6 @@ type CountrySection struct {
 	CountryName  string               `json:"countryName"`
 	Comparisons  []ProductComparison  `json:"comparisons"`
 	ResultsCount int                  `json:"resultsCount"`
-}
-
-// ProductComparisonResponse represents the API response format expected by Swift client
-type ProductComparisonResponse struct {
-	Success      bool             `json:"success"`
-	Message      *string          `json:"message,omitempty"`
-	Sections     []CountrySection `json:"sections"`
-	TotalResults int              `json:"totalResults"`
 }
 
 
