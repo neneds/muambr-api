@@ -6,56 +6,142 @@ This file provides AI coding agents with everything needed to implement code tha
 
 ## Project Summary
 
-A pure Go REST API for multi-country product price comparisons. Go handles all HTTP routing, web scraping, HTML parsing, and response processing. No external scripting layers.
+A pure Go REST API for multi-country **retail** product price comparisons. Go handles HTTP routing, scraping/JSON fetch, HTML parsing, FX conversion, savings, and deal scoring. No external scripting layers.
+
+The mobile client’s primary contract is **`POST /api/v1/product-comparisons`**. There is no legacy GET search.
+
+---
+
+## Design Principles (SOLID, DRY, KISS)
+
+Write the **smallest reusable change**. Prefer extending existing types over new layers.
+
+### KISS — keep it small
+
+- Solve the current use case. Do not add flags, caches, or abstractions “for later”.
+- Prefer a public JSON/search API over HTML scraping. Prefer HTML+JSON-LD over brittle CSS.
+- If a site is WAF-blocked, **stop**. Do not add retries, cookie jars, or browser automation.
+- One file per extractor. One constructor. Override only what `BaseGoExtractor` cannot do.
+- JSON-only extractors use the existing **noop parser** pattern. Do not invent a second extractor base until several JSON extractors share non-trivial fetch/parse logic.
+
+### DRY — do not duplicate
+
+- HTTP: `BaseHTTPExtractor.FetchHTML` / `utils.MakeScrapingRequest` — never `http.Get`.
+- Grouping, sort, outlier filter: `ComparisonProcessor`.
+- Savings, deal score, match confidence, `normalized*` fields: `ComparisonEngine`.
+- FX: `ExchangeRateService`. Extractors return **store-native** `price` + ISO currency only.
+- Shared parse helpers live in `utils/` or the relevant base type — copy-paste between extractors is a smell.
+
+### SOLID — in this repo
+
+| Principle | Practice |
+|-----------|----------|
+| **S**ingle responsibility | Extractors fetch + map offers. Handlers validate HTTP. `ComparisonEngine` builds the decision payload. Do not compute savings inside an extractor. |
+| **O**pen/closed | New stores = new extractor + registry line. Do not special-case a site in the handler or engine. |
+| **L**iskov | Every extractor is interchangeable via `Extractor`. Same `GetComparisons` contract, same `ProductComparison` fields. |
+| **I**nterface segregation | `Extractor`, `HTMLParser`, and link `Parser` are separate. JSON extractors still embed `BaseGoExtractor` with a noop `HTMLParser` rather than forcing unused HTML methods onto a new mega-interface. |
+| **D**ependency inversion | Registry and handlers depend on `Extractor`, not concrete types. Register in `initializeExtractors` only. |
+
+### Lean reuse checklist
+
+Before adding a type, package, or helper: is there already a base extractor, processor, or util that does this? If the new helper would be used once, inline it.
 
 ---
 
 ## Directory Map
 
 ```
-extractors/            # Extractor interface, registry, and base types
-  extractor.go         # Extractor interface + ExtractorRegistry
-  base_extractor.go    # BaseHTMLParser, BaseGoExtractor, BaseHTTPExtractor
-  other/               # package other — all "general" category extractors
-handlers/              # Gin HTTP handlers (product comparison, link preview, FX)
-linkparsers/           # Link preview HTML parsers — one file per site
-localization/          # i18n JSON files (en.json, pt.json, es.json)
-models/                # Domain models and enums (Country, MacroRegion, ProductComparison, ProductCategory)
-routes/                # Route registration via Gin
+extractors/                 # Extractor interface, registry, base types
+  extractor.go
+  base_extractor.go         # BaseHTMLParser, BaseGoExtractor, BaseHTTPExtractor
+  other/                    # package other — generic / CategoryOther
+  beauty/                   # package beauty
+  appliances/               # package appliances
+handlers/                   # product comparison, link preview, FX
+linkparsers/                # link preview HTML parsers — one file per site
+localization/               # en.json, pt.json, es.json
+models/                     # Country, categories, ProductComparison, comparison result
+routes/                     # Gin route registration
 tests/
-  unit/                # Pure unit tests, no external calls
-  integration/         # External-call tests, gated by INTEGRATION_TESTS=true
-  mocks/               # Mock extractors and sample HTML fixtures
-utils/                 # Shared utilities: logging, anti-bot, comparison processor
+  unit/
+  integration/              # gated by INTEGRATION_TESTS=true
+  mocks/
+utils/                      # logging, anti-bot, FX, ComparisonProcessor, ComparisonEngine
 ```
+
+---
+
+## Current API
+
+| Method | Path | Role |
+|--------|------|------|
+| POST | `/api/v1/product-comparisons` | **Primary** comparison (manual, URL, camera, barcode) |
+| GET | `/api/v1/linkpreview` | Parse a product URL; `addComparisons=true` also runs comparison |
+| GET | `/rates/exchange-rates` | FX table (`updated_at`, `source`) |
+| GET | `/health` | Liveness |
+
+### POST `/api/v1/product-comparisons`
+
+Request (JSON):
+
+```
+product.name                 # required unless productURL yields a title
+product.brand / model        # optional
+product.category             # electronics | beauty | appliances | fashion | other
+observedPrice.amount         # recommended — price the user found
+observedPrice.currency
+currentCountry               # ISO; defaults to baseCountry
+baseCountry                  # required ISO
+currency                     # normalization target; defaults to baseCountry currency
+limit / useMacroRegion
+source.type                  # manual | url | camera | barcode
+productURL                   # optional — extracts title/price/country
+```
+
+Response: `models.ProductComparisonResult` — `comparisonId`, `status`, `observed`, `prices`, `sections`, `bestCurrentCountryPrice`, `bestBaseCountryPrice`, `savings`, `dealScore`, `exchangeRate`, `metadata`, `capturedAt`, `expiresAt`.
+
+`status`: `complete` | `partial` | `empty` | `low_confidence`.
+
+Error `code` values: `INVALID_REQUEST`, `COUNTRY_UNKNOWN`, `CURRENCY_UNKNOWN`, `PRICE_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `NO_COMPARISON_SOURCES`, `EXCHANGE_RATE_UNAVAILABLE`, `INTERNAL_ERROR` (plus reserved timeout codes).
+
+V1 is **retail price only** (`metadata.priceType: "retail"`). No landed cost / tax.
+
+### Price normalization (mobile contract)
+
+On `prices[]`, `observed`, `bestCurrentCountryPrice`, `bestBaseCountryPrice`:
+
+| Native `currency` vs request `currency` | `normalizedAmount` / `normalizedCurrency` |
+|-----------------------------------------|-------------------------------------------|
+| Same | **omit** (do not copy amount into normalized fields) |
+| Different | set to FX conversion into request currency |
+
+Savings/deal score use `MoneyAmount.ComparableAmount()` (normalized if present, else native amount).
 
 ---
 
 ## Core Interfaces
 
-### `Extractor` (extractors/extractor.go)
-
-Every price extractor **must** implement this interface:
+### `Extractor` (`extractors/extractor.go`)
 
 ```go
 type Extractor interface {
     GetCountryCode() models.Country
     GetMacroRegion() models.MacroRegion
-    GetCategory() models.ProductCategory  // e.g. models.CategoryOther
+    GetCategory() models.ProductCategory
     GetIdentifier() string
     BaseURL() string
     GetComparisons(productName string) ([]models.ProductComparison, error)
 }
 ```
 
-### `HTMLParser` (extractors/base_extractor.go)
+### `HTMLParser` (`extractors/base_extractor.go`)
 
-Responsible for parsing product fields from raw HTML. Used by `BaseGoExtractor`:
+Used by `BaseGoExtractor`. JSON-only extractors implement a noop parser.
 
 ```go
 type HTMLParser interface {
     ParseProductName(html string) string
-    ParsePrice(html string) (float64, string, error) // price, currency, error
+    ParsePrice(html string) (float64, string, error)
     ParseURL(html string, baseURL string) string
     ParseStore(html string) string
     GetProductSelectors() []string
@@ -65,95 +151,54 @@ type HTMLParser interface {
 }
 ```
 
-### `Parser` (linkparsers/parser.go)
+### `Parser` (`linkparsers/parser.go`)
 
-For link preview parsing (not product comparisons):
-
-```go
-type Parser interface {
-    ParseHTML(html string, pageURL *url.URL) *ParsedProductData
-    ExtractTitle(html string, pageURL *url.URL) string
-    ExtractPrice(html string, pageURL *url.URL) string
-    ExtractImage(html string, pageURL *url.URL) string
-    ExtractDescription(html string, pageURL *url.URL) string
-    ExtractCurrency(html string, pageURL *url.URL) string
-}
-```
+For `/api/v1/linkpreview`, not store search.
 
 ---
 
-## Key Models (models/models.go)
+## Key Models
 
-```go
-// Supported countries (ISO codes)
-const (
-    CountryBrazil   Country = "BR"
-    CountryUS       Country = "US"
-    CountryPortugal Country = "PT"
-    CountrySpain    Country = "ES"
-    CountryUK       Country = "GB"
-    CountryGermany  Country = "DE"
-)
+Countries: `BR`, `US`, `PT`, `ES`, `GB`, `DE`.  
+Macro regions: `EU`, `NA`, `LATAM`, `None`.  
+Categories: `electronics`, `beauty`, `appliances`, `fashion`, `other`.
 
-// Macro regions
-const (
-    MacroRegionEU    MacroRegion = "EU"
-    MacroRegionNA    MacroRegion = "NA"
-    MacroRegionLATAM MacroRegion = "LATAM"
-    MacroRegionNone  MacroRegion = "None"
-)
+`ProductComparison` is the **extractor output** (store-native offer). The HTTP envelope is `ProductComparisonResult` in `models/comparison_result.go`.
 
-// Product categories
-type ProductCategory string
-const (
-    CategoryElectronics ProductCategory = "electronics"
-    CategoryBeauty      ProductCategory = "beauty"
-    CategoryAppliances  ProductCategory = "appliances"
-    CategoryOther       ProductCategory = "other"
-)
-// Parse from a query string value (case-insensitive)
-func ParseCategoryFromString(s string) (ProductCategory, error) { ... }
+To add a country: constant in `models/models.go`, every `Country` switch (`GetCurrencyCode`, `GetMacroRegion`, `GetCountryName`, `GetLanguageCode`, `ParseCountryFromISO`), and `GetCountriesInMacroRegion`.
 
-// The primary result type returned by all extractors
-type ProductComparison struct {
-    ID             string           `json:"id"`
-    ProductName    string           `json:"productName"`
-    Price          float64          `json:"price"`
-    Currency       string           `json:"currency"`
-    ConvertedPrice *ConvertedPrice  `json:"convertedPrice,omitempty"`
-    StoreName      string           `json:"storeName"`
-    StoreURL       *string          `json:"storeURL,omitempty"`
-    Description    *string          `json:"description,omitempty"`
-    Country        string           `json:"country"`
-    Condition      *string          `json:"condition,omitempty"`
-    ImageURL       *string          `json:"imageURL,omitempty"`
-    LastUpdated    *string          `json:"lastUpdated,omitempty"`
-    Category       *ProductCategory `json:"category,omitempty"`
-}
+---
 
-// API response shape (sections grouped by country)
-type CountrySection struct {
-    Country      string              `json:"country"`
-    CountryName  string              `json:"countryName"`
-    Comparisons  []ProductComparison `json:"comparisons"`
-    ResultsCount int                 `json:"resultsCount"`
-}
-```
+## Registered Extractors
 
-To add a new country: add a constant to `models/models.go`, update all switch statements in `Country` methods (`GetCurrencyCode`, `GetMacroRegion`, `GetCountryName`, `GetLanguageCode`, `ParseCountryFromISO`), and add the country to the `GetCountriesInMacroRegion` slice.
+| Identifier | Package | Country | Category | Source | Notes |
+|------------|---------|---------|----------|--------|--------|
+| `mercadolivre_v2` | other | BR | other | HTML | **WAF** (Akamai `_bmstate`) — often empty |
+| `acharpromo_v2` | other | BR | other | SSE/JSON | Working |
+| `kuantokusta_v2` | other | PT | other | HTML/JSON | Working |
+| `amazon_spain` | other | ES | other | HTML | **WAF** (503) — often empty |
+| `amazon_usa` | other | US | other | HTML | Working |
+| `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
+| `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
+| `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
+| `primor_pt_v1` | beauty | PT | beauty | Empathy JSON | Working — do **not** scrape `pt.primor.eu` HTML (AWS WAF) |
+| `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
+
+No `electronics/` or `fashion/` extractors yet. Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
+
+`FetchHTML` treats HTTP **200 and 206** as success (VTEX pagination).
 
 ---
 
 ## How to Add a New Price Extractor
 
-Extractors live in **category-scoped sub-packages** under `extractors/`. All current extractors are in the `other` category and live in `extractors/other/` (`package other`). To add a new extractor in the `other` category, create a file there. For a new category (e.g. `electronics`), create `extractors/electronics/` with `package electronics`.
+Extractors live in **category-scoped** packages: `extractors/other/`, `extractors/beauty/`, `extractors/appliances/`, or a new `extractors/<category>/` with matching `package` name.
 
 ### Step 0 — Verify the target is not WAF-blocked
 
-Before writing any code, confirm the target search endpoint responds with real data from a plain HTTP client. Run both commands and check the response headers and status code:
+Confirm the **actual search/API URL** (not the homepage) returns real data from a plain HTTP client:
 
 ```bash
-# Check the search/API endpoint (replace URL with the actual target)
 curl -si \
   -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
   -H "Accept: application/json, text/html" \
@@ -161,24 +206,24 @@ curl -si \
   | head -20
 ```
 
-**Stop and do not implement the extractor if you see any of the following:**
+**Stop and do not implement** if you see:
 
-| Signal | WAF type | Meaning |
-|---|---|---|
-| `HTTP/2 202` + `x-amzn-waf-action: challenge` | AWS WAF | JS challenge required — Go HTTP client cannot solve |
-| `HTTP/1.1 403` + body contains `errors.edgesuite.net` | Akamai | Akamai EdgeSuite blocking the request |
-| `HTTP/1.1 403` + `server: cloudflare` | Cloudflare | Cloudflare bot protection active |
-| Empty body with `server: awselb/2.0` | AWS WAF | Request absorbed by WAF before reaching origin |
+| Signal | WAF type |
+|--------|----------|
+| `HTTP/2 202` + `x-amzn-waf-action: challenge` | AWS WAF |
+| `HTTP/1.1 403` + `errors.edgesuite.net` | Akamai |
+| `HTTP/1.1 403` + `server: cloudflare` | Cloudflare challenge |
+| Empty body + `server: awselb/2.0` | AWS WAF |
 
-A WAF-blocked extractor will never return results in production regardless of code quality. We do not currently have a WAF bypass solution (headless browser or proxy service). **Do not implement it** — find an alternative site for the same country/category instead.
+`server: cloudflare` with **HTTP 200 and a real JSON/HTML body** is OK (e.g. Empathy). A WAF-blocked extractor will never work in production. Find another site for that country/category.
 
-### Step 1 — Create the parser struct
+### Step 1 — Parser (HTML scrapers only)
 
 ```go
 // extractors/other/mysite_extractor.go
 package other
 
-import "muambr-api/extractors"  // needed to reference BaseHTMLParser etc.
+import "muambr-api/extractors"
 
 type MySiteParser struct {
     *extractors.BaseHTMLParser
@@ -194,12 +239,14 @@ func (p *MySiteParser) GetPriceSelectors() []string   { return []string{`span.pr
 func (p *MySiteParser) GetURLSelectors() []string     { return []string{`a.product-link[href]`} }
 
 func (p *MySiteParser) ParseProductName(html string) string { /* regex or goquery */ }
-func (p *MySiteParser) ParsePrice(html string) (float64, string, error) { /* return price, "EUR", nil */ }
-func (p *MySiteParser) ParseURL(html string, baseURL string) string { /* return absolute URL */ }
+func (p *MySiteParser) ParsePrice(html string) (float64, string, error) { /* price, "EUR", nil */ }
+func (p *MySiteParser) ParseURL(html string, baseURL string) string { /* absolute URL */ }
 func (p *MySiteParser) ParseStore(html string) string { return "MySite" }
 ```
 
-### Step 2 — Create the extractor struct
+JSON-only: copy the noop parser from `epocacosmeticos_extractor.go` / `primor_pt_extractor.go`.
+
+### Step 2 — Extractor
 
 ```go
 type MySiteExtractor struct {
@@ -210,250 +257,111 @@ func NewMySiteExtractor() *MySiteExtractor {
     parser := NewMySiteParser()
     base := extractors.NewBaseGoExtractor(
         "https://www.mysite.com",
-        models.CountryPortugal, // or whichever country
+        models.CountryPortugal,
         "mysite_v1",
         parser,
     )
     return &MySiteExtractor{BaseGoExtractor: base}
 }
 
-// GetCategory returns the category for registry filtering
 func (e *MySiteExtractor) GetCategory() models.ProductCategory {
-    return models.CategoryOther // change for electronics/beauty/appliances
+    return models.CategoryOther
 }
 
-// Override BuildSearchURL for the site's specific search URL pattern
 func (e *MySiteExtractor) BuildSearchURL(productName string) (string, error) {
     q := url.QueryEscape(productName)
     return fmt.Sprintf("%s/search?q=%s", e.GetBaseURL(), q), nil
 }
-
-// Override GetComparisons only if the default BaseGoExtractor flow doesn't work
-func (e *MySiteExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
-    searchURL, err := e.BuildSearchURL(productName)
-    if err != nil {
-        return nil, err
-    }
-    html, err := e.FetchHTML(searchURL)
-    if err != nil {
-        return nil, err
-    }
-    return e.GetComparisonsFromHTML(html)
-}
 ```
 
-If the site provides JSON-LD structured data, implement `extractFromJSONLD` first and fall back to HTML parsing (see `mercadolivre_extractor_v2.go` for the pattern).
+Override `GetComparisons` when the default HTML flow does not apply (JSON API, SSE). Prefer JSON-LD first, HTML fallback (`mercadolivre_extractor_v2.go`).
 
-If the parser methods are unused (JSON-only extractor), use the noop pattern from `mercadolivre_extractor_v2.go`.
+Return store-native `Price` + ISO `Currency`. Do not set `ConvertedPrice` in the extractor.
 
-### Step 3 — Register the extractor
+### Step 3 — Register
 
-In `handlers/extractor_handler.go`, inside `initializeExtractors`. Import the package alias first:
+In `handlers/extractor_handler.go` `initializeExtractors`:
 
 ```go
-import other "muambr-api/extractors/other"
+import beauty "muambr-api/extractors/beauty"
 
-// inside initializeExtractors:
-registry.RegisterExtractor(other.NewMySiteExtractor())
+registry.RegisterExtractor(beauty.NewMySiteExtractor())
 ```
 
-### Step 4 — Add tests
+### Step 4 — Tests
 
-Choose the test type based on how much parsing logic the extractor contains:
+| Extractor type | Unit tests? | Integration tests? |
+|----------------|-------------|--------------------|
+| HTML / CSS / regex / JSON-LD / SSE | Yes — fixture + `GetComparisonsFromHTML` | Yes |
+| Trivial JSON unmarshal (VTEX, Empathy, GraphQL) | No | Yes |
 
-**Write unit tests** when the extractor has complex parsing logic that can regress silently:
-- SSE stream parsing, HTML parsing with CSS selectors, JSON-LD extraction, regex-based field extraction
-- Save a real response fixture in `tests/mocks/extractors/sample_responses/` and expose a `GetComparisonsFromHTML(body string)` (or equivalent) method for offline testing
-- Unit test file: `tests/unit/extractors/<category>/<sitename>_test.go`
-
-**Write only integration tests** when the extractor does trivial JSON unmarshaling over an external API (e.g. VTEX catalog API, Magento 2 GraphQL):
-- The real failure modes are external: API endpoint changes, response schema changes, anti-bot measures — a unit test with a stale fixture cannot catch these
-- Integration test file: `tests/integration/extractors/<category>/<sitename>_integration_test.go`
-- Use the shared `runExtractorTest` helper pattern (goroutine + timeout channel) so a slow or unreachable site does not block the test suite
-
-**Test folder structure mirrors the extractor sub-packages:**
-```
-extractors/beauty/    →  tests/unit/extractors/beauty/       (if unit tests needed)
-                         tests/integration/extractors/beauty/
-extractors/other/    →  tests/unit/extractors/other/        (or flat in tests/unit/extractors/)
-                         tests/integration/extractors/other/
-```
+Fixtures: `tests/mocks/extractors/sample_responses/`.  
+Tests mirror packages: `tests/unit/extractors/<category>/`, `tests/integration/extractors/<category>/`.  
+Integration tests use the shared goroutine + timeout helper and skip unless `INTEGRATION_TESTS=true`.
 
 ---
 
 ## How to Add a New Link Parser
 
-Link parsers are used by the `/api/v1/linkpreview` endpoint.
+Used by `GET /api/v1/linkpreview`.
 
-### Step 1 — Create the parser
-
-```go
-// linkparsers/mysite_parser.go
-package linkparsers
-
-import "net/url"
-
-type MySiteParser struct {
-    ShareHTMLParser
-}
-
-func (p *MySiteParser) ExtractTitle(html string, pageURL *url.URL) string {
-    // site-specific patterns first, then fallback to generic
-    if title := extractWithRegex(`<h1[^>]*id="productTitle"[^>]*>([^<]+)</h1>`, html); title != "" {
-        return title
-    }
-    return p.ShareHTMLParser.ExtractTitle(html, pageURL)
-}
-
-func (p *MySiteParser) ExtractPrice(html string, pageURL *url.URL) string {
-    return extractWithRegex(`<span[^>]*class="price"[^>]*>([^<]+)</span>`, html)
-}
-
-// Implement remaining Parser interface methods, delegating to ShareHTMLParser as fallback
-func (p *MySiteParser) ExtractImage(html string, pageURL *url.URL) string {
-    return p.ShareHTMLParser.ExtractImage(html, pageURL)
-}
-func (p *MySiteParser) ExtractDescription(html string, pageURL *url.URL) string {
-    return p.ShareHTMLParser.ExtractDescription(html, pageURL)
-}
-func (p *MySiteParser) ExtractCurrency(html string, pageURL *url.URL) string {
-    return p.ShareHTMLParser.ExtractCurrency(html, pageURL)
-}
-func (p *MySiteParser) ParseHTML(html string, pageURL *url.URL) *ParsedProductData {
-    return (&ShareHTMLParser{}).ParseHTML(html, pageURL) // override if needed
-}
-```
-
-### Step 2 — Register in the parser registry
-
-In `linkparsers/site_parsers.go`, add to `siteParserRegistry`:
-
-```go
-"mysite.com": func() Parser { return &MySiteParser{} },
-```
-
-The registry uses exact hostname matching (with `www.` stripped). The `createParser` function falls back to `ShareHTMLParser` when no match is found.
+Site-specific extractors first, then `ShareHTMLParser`. Register hostname (no `www.`) in `linkparsers/site_parsers.go` `siteParserRegistry`. Unmatched hosts fall back to `ShareHTMLParser`.
 
 ---
 
-## Utilities Reference
-
-### Logging (utils/logger.go)
+## Utilities
 
 ```go
 utils.Info("message", utils.String("key", value), utils.Int("count", n))
 utils.Warn("message", utils.Error(err))
 utils.Error("message", utils.Error(err))
-utils.Debug("message")
 ```
 
-Do **not** commit debug-only log lines. Remove them after troubleshooting.
+Do not commit debug-only logs.
 
-### HTTP with anti-bot (utils/antibot.go)
-
-Use `utils.MakeScrapingRequest(url, config)` or `BaseHTTPExtractor.FetchHTML(url)` — never raw `http.Get`.
-
-### Localization (localization/localizer.go)
-
-```go
-localization.T("api.errors.unsupported_country_iso")
-localization.TP("api.errors.unsupported_country_iso", map[string]string{"code": isoCode})
-```
-
-All user-facing strings must reference a key present in `localization/en.json` (and ideally `pt.json`, `es.json`).
-
-### ComparisonProcessor (utils/comparison_processor.go)
-
-Handles grouping by country, sorting by price, and filtering price outliers (>60% below average). Handlers call `processor.ProcessComparisons(comparisons, limit)` — extractors should not duplicate this logic.
+- HTTP: `utils.MakeScrapingRequest` or `FetchHTML` — never raw `http.Get`.
+- i18n: keys in `localization/en.json` (and `pt.json` / `es.json`).
+- `ComparisonProcessor`: group by country, sort, drop prices &lt; 60% of average.
+- `ComparisonEngine`: match confidence, best prices, savings, deal score, omit same-currency `normalized*`.
 
 ---
 
-## API Routes
+## Extractor Selection
 
-```
-POST /api/v1/product-comparisons
-    Body (JSON):
-      product.name               # required (unless productURL yields a title)
-      product.brand / model      # optional
-      product.category           # optional: electronics | beauty | appliances | fashion | other
-      observedPrice.amount       # recommended — price the user found
-      observedPrice.currency
-      currentCountry             # ISO; defaults to baseCountry
-      baseCountry                # required ISO
-      currency                   # optional normalization currency (defaults to baseCountry)
-      limit / useMacroRegion     # optional
-      source.type                # manual | url | camera | barcode
-      productURL                 # optional — extracts title/price when present
-
-GET /api/v1/linkpreview
-    ?url=<url>
-    &baseCountry=<ISO>
-    &addComparisons=<bool>       # when true, also runs product comparison
-
-GET /rates/exchange-rates
-    ?baseCurrency=<code>
-```
-
-See `docs/PRODUCT_COMPARISON_MOBILE.md` for the full mobile contract.
-
----
-
-## Extractor Selection Logic
-
-1. Always include extractors for `baseCountry`.
-2. If `currentCountry` is set and differs from `baseCountry`:
-   - `useMacroRegion=true` → include all extractors whose macro region matches `currentCountry.GetMacroRegion()`
-   - `useMacroRegion=false` (default) → include extractors for `currentCountry` only.
-3. If `category` is provided, only extractors whose `GetCategory()` matches are included.
-   - When a category has no registered providers, fall back to generic (`other`).
-   - Pass `nil` to the registry methods to skip category filtering (get all categories).
-   - Registry methods: `GetExtractorsForCountry(country, *models.ProductCategory)` and `GetExtractorsForMacroRegion(region, *models.ProductCategory)`.
+1. Always include `baseCountry` extractors.
+2. If `currentCountry` differs from `baseCountry`:
+   - `useMacroRegion=true` → all extractors in `currentCountry`’s macro region
+   - else → `currentCountry` only
+3. If `category` is set, keep matching `GetCategory()`; if none, fall back to `other`.
+4. `nil` category → all categories for those countries.
 
 ---
 
 ## Testing Commands
 
 ```bash
-make test              # Unit tests only
-make test-all          # Unit + integration tests
-make test-coverage     # HTML coverage report in coverage/
+make test              # unit tests
+make test-all          # unit + integration
+make test-coverage     # HTML report in coverage/
 
-# Run integration tests directly
 INTEGRATION_TESTS=true go test ./tests/integration/...
 ```
 
-Integration tests are skipped unless `INTEGRATION_TESTS=true` is set. Never gate unit tests behind that flag.
-
-### When to write unit tests vs integration tests
-
-| Extractor type | Parsing complexity | Write unit tests? | Write integration tests? |
-|---|---|---|---|
-| HTML scraper (CSS selectors, regex) | High | Yes — save HTML fixture, test offline | Yes |
-| SSE stream parser | High | Yes — save SSE fixture, test offline | Yes |
-| JSON-LD + HTML fallback | High | Yes — save HTML fixture, test offline | Yes |
-| VTEX catalog JSON API | Low (trivial unmarshal) | No | Yes |
-| Magento 2 GraphQL API | Low (trivial unmarshal) | No | Yes |
-| Any simple REST JSON API | Low (trivial unmarshal) | No | Yes |
-
-**Rule of thumb:** if the extractor overrides `GetComparisonsFromHTML` or has custom regex/selector parsing, add unit tests. If it just calls an external API and unmarshals the response, integration tests are sufficient — they catch the real failure modes (schema changes, endpoint changes, auth).
+Never gate unit tests on `INTEGRATION_TESTS`.
 
 ---
 
 ## Conventions Checklist
 
-- [ ] Extractor file in the correct category sub-package: `extractors/other/`, `extractors/electronics/`, etc.
-- [ ] Package declaration matches the directory name (`package other`, `package electronics`)
-- [ ] Import `"muambr-api/extractors"` to access `BaseHTMLParser`, `BaseGoExtractor`, etc.
-- [ ] Use `extractors.BaseHTMLParser`, `extractors.NewBaseHTMLParser(...)`, `extractors.NewBaseGoExtractor(...)`
-- [ ] Extractor file named `<sitename>_extractor[_v2].go`
-- [ ] Parser struct named `<SiteName>Parser`, extractor struct named `<SiteName>Extractor`
-- [ ] Constructor named `New<SiteName>Extractor()` / `New<SiteName>Parser()`
-- [ ] `GetIdentifier()` returns a stable snake_case string (used for logging/registry)
-- [ ] `GetCategory()` returns the appropriate `models.ProductCategory` constant
-- [ ] All prices returned as `float64`; currency as ISO 4217 code (`"EUR"`, `"USD"`, `"BRL"`)
-- [ ] `ProductComparison.Country` is set to the string value of the `models.Country` constant
-- [ ] Extractor registered in `initializeExtractors` in `handlers/extractor_handler.go` via the category package alias
-- [ ] Link parser registered in `siteParserRegistry` in `linkparsers/site_parsers.go`
-- [ ] No raw `http.Get` — always go through anti-bot utilities
-- [ ] No debug log lines committed
-- [ ] New country constants added to **all** switch statements in `models/models.go`
+- [ ] Change is lean: no extra abstraction used only once
+- [ ] Shared behavior lives in base types / `utils`, not copied
+- [ ] Extractors do not compute FX, savings, or deal score
+- [ ] File in the correct category package; `package` name matches directory
+- [ ] Import `"muambr-api/extractors"` for `BaseHTMLParser` / `BaseGoExtractor`
+- [ ] File `<sitename>_extractor[_v2].go`; types `New<Site>Extractor` / `New<Site>Parser`
+- [ ] `GetIdentifier()` stable snake_case; `GetCategory()` uses a `models` constant
+- [ ] Prices `float64`; currency ISO 4217; `Country` is the ISO constant string
+- [ ] Registered in `initializeExtractors`
+- [ ] Link parsers registered in `siteParserRegistry`
+- [ ] No raw `http.Get`; no debug logs; WAF check done before implementing
+- [ ] New countries updated in **all** `Country` switches in `models/models.go`
