@@ -3,37 +3,37 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"sync"
-	"time"
 	"muambr-api/extractors"
 	appliances "muambr-api/extractors/appliances"
 	beauty "muambr-api/extractors/beauty"
 	other "muambr-api/extractors/other"
 	"muambr-api/models"
 	"muambr-api/utils"
+	"strconv"
+	"sync"
+	"time"
 )
 
 // ExtractorConfig holds configuration for extractor execution
 type ExtractorConfig struct {
-	Timeout           time.Duration
-	RetryAttempts     int
-	EnableParallel    bool
-	MaxConcurrency    int
+	Timeout        time.Duration
+	RetryAttempts  int
+	EnableParallel bool
+	MaxConcurrency int
 }
 
 // ExtractorHandler handles country detection and price extraction coordination
 type ExtractorHandler struct {
 	extractorRegistry   *extractors.ExtractorRegistry
 	exchangeRateService *utils.ExchangeRateService
-	config             ExtractorConfig
+	config              ExtractorConfig
 }
 
 // NewExtractorHandler creates a new ExtractorHandler with initialized extractors
 func NewExtractorHandler() *ExtractorHandler {
 	registry := extractors.NewExtractorRegistry()
 	initializeExtractors(registry)
-	
+
 	return &ExtractorHandler{
 		extractorRegistry:   registry,
 		exchangeRateService: utils.NewExchangeRateService(),
@@ -51,16 +51,15 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	utils.Info("Registering V2 extractors architecture")
 
 	// other category — generic extractors used when no category is specified
-	registry.RegisterExtractor(other.NewMercadoLivreExtractorV2())
 	registry.RegisterExtractor(other.NewKuantoKustaExtractorV2())
-	registry.RegisterExtractor(other.NewAmazonSpainExtractor())
 	registry.RegisterExtractor(other.NewAcharPromoExtractorV2())
 	registry.RegisterExtractor(other.NewWalmartUSAExtractor())
-	registry.RegisterExtractor(other.NewAmazonUSExtractor())
 
 	// beauty category extractors
 	registry.RegisterExtractor(beauty.NewEpocaCosmeticosExtractor())
 	registry.RegisterExtractor(beauty.NewSephoraBRExtractor())
+	registry.RegisterExtractor(beauty.NewPrimorPTExtractor())
+	registry.RegisterExtractor(beauty.NewPerfumesECompanhiaPTExtractor())
 
 	// appliances category extractors
 	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())
@@ -73,16 +72,16 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 	if countryParam == "" {
 		return "", nil
 	}
-	
+
 	// Parse and validate the provided country code
 	country, err := models.ParseCountryFromISO(countryParam)
 	if err != nil {
 		return "", &CountryValidationError{
-			Code:            countryParam,
+			Code:           countryParam,
 			SupportedCodes: []string{"PT", "US", "ES", "DE", "GB", "BR"},
 		}
 	}
-	
+
 	return country, nil
 }
 
@@ -308,7 +307,7 @@ func (h *ExtractorHandler) runExtractorsSequentially(extractorList []extractors.
 // executeExtractorWithTimeout executes a single extractor with timeout handling
 func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extractor, searchTerm string, baseCountry models.Country, targetCurrency string) ExtractorResult {
 	start := time.Now()
-	
+
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), h.config.Timeout)
 	defer cancel()
@@ -323,8 +322,8 @@ func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extr
 				resultChan <- ExtractorResult{
 					ExtractorName:    extractor.GetIdentifier(),
 					ExtractorCountry: string(extractor.GetCountryCode()),
-					Error:           fmt.Errorf("extractor panicked: %v", r),
-					Duration:        time.Since(start),
+					Error:            fmt.Errorf("extractor panicked: %v", r),
+					Duration:         time.Since(start),
 				}
 			}
 		}()
@@ -334,8 +333,8 @@ func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extr
 			ExtractorName:    extractor.GetIdentifier(),
 			ExtractorCountry: string(extractor.GetCountryCode()),
 			Results:          results,
-			Error:           err,
-			Duration:        time.Since(start),
+			Error:            err,
+			Duration:         time.Since(start),
 		}
 	}()
 
@@ -347,20 +346,20 @@ func (h *ExtractorHandler) executeExtractorWithTimeout(extractor extractors.Extr
 		return ExtractorResult{
 			ExtractorName:    extractor.GetIdentifier(),
 			ExtractorCountry: string(extractor.GetCountryCode()),
-			Error:           fmt.Errorf("extractor timeout after %v: %w", h.config.Timeout, ctx.Err()),
-			Duration:        time.Since(start),
+			Error:            fmt.Errorf("extractor timeout after %v: %w", h.config.Timeout, ctx.Err()),
+			Duration:         time.Since(start),
 		}
 	}
 }
 
 // applyCountryContextAndCurrencyConversion applies country context and currency conversion to comparison results
 func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons []models.ProductComparison, baseCountry models.Country, currentCountry *models.Country, targetCurrency string) []models.ProductComparison {
-	
+
 	// Apply country context and currency conversion
 	for i := range comparisons {
 		// Add simple country context: "StoreName - CountryCode" (use product's actual country, not base country)
 		comparisons[i].StoreName += " - " + comparisons[i].Country
-		
+
 		// Apply currency conversion: convert from product's currency to target currency
 		if targetCurrency != "" && comparisons[i].Currency != targetCurrency {
 			convertedPrice := h.convertCurrency(comparisons[i].Price, comparisons[i].Currency, targetCurrency)
@@ -373,7 +372,7 @@ func (h *ExtractorHandler) applyCountryContextAndCurrencyConversion(comparisons 
 			}
 		}
 	}
-	
+
 	return comparisons
 }
 
@@ -388,15 +387,15 @@ func (h *ExtractorHandler) convertCurrency(price float64, fromCurrency string, t
 	if fromCurrency == toCurrency {
 		return nil // No conversion needed
 	}
-	
+
 	// Convert float64 to string for the exchange rate service
 	priceStr := strconv.FormatFloat(price, 'f', 2, 64)
-	
+
 	// Use the exchange rate service to convert the price
 	convertedPriceStr, err := h.exchangeRateService.ConvertPriceString(priceStr, fromCurrency, toCurrency)
 	if err != nil {
 		// Log error and return nil - this will allow the product to still be shown without conversion
-		utils.Warn("Currency conversion failed", 
+		utils.Warn("Currency conversion failed",
 			utils.String("fromCurrency", fromCurrency),
 			utils.String("toCurrency", toCurrency),
 			utils.Float64("price", price),
@@ -404,17 +403,17 @@ func (h *ExtractorHandler) convertCurrency(price float64, fromCurrency string, t
 		)
 		return nil
 	}
-	
+
 	// Convert back to float64
 	convertedPrice, err := strconv.ParseFloat(convertedPriceStr, 64)
 	if err != nil {
-		utils.LogError("Failed to parse converted price", 
+		utils.LogError("Failed to parse converted price",
 			utils.String("convertedPriceStr", convertedPriceStr),
 			utils.Error(err),
 		)
 		return nil
 	}
-	
+
 	return &ConvertedPriceResult{
 		Amount:   convertedPrice,
 		Currency: toCurrency,
@@ -423,8 +422,8 @@ func (h *ExtractorHandler) convertCurrency(price float64, fromCurrency string, t
 
 // CountryValidationError represents an error in country code validation
 type CountryValidationError struct {
-	Code            string   `json:"code"`
-	SupportedCodes  []string `json:"supportedCodes"`
+	Code           string   `json:"code"`
+	SupportedCodes []string `json:"supportedCodes"`
 }
 
 func (e *CountryValidationError) Error() string {

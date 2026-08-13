@@ -9,7 +9,7 @@ import (
 
 func TestAmazonParser_ExtractTitle(t *testing.T) {
 	parser := &linkparsers.AmazonParser{}
-	pageURL, _ := url.Parse("https://amazon.es/product")
+	pageURL, _ := url.Parse("https://amazon.de/product")
 
 	testCases := []struct {
 		name        string
@@ -58,7 +58,7 @@ func TestAmazonParser_ExtractTitle(t *testing.T) {
 
 func TestAmazonParser_ExtractPrice(t *testing.T) {
 	parser := &linkparsers.AmazonParser{}
-	pageURL, _ := url.Parse("https://amazon.es/product")
+	pageURL, _ := url.Parse("https://amazon.de/product")
 
 	testCases := []struct {
 		name         string
@@ -140,8 +140,8 @@ func TestAmazonParser_ExtractCurrency(t *testing.T) {
 		expectedCurrency string
 	}{
 		{
-			name: "Spain Amazon - EUR",
-			url:  "https://amazon.es/product",
+			name: "Germany Amazon - EUR",
+			url:  "https://amazon.de/product",
 			html: `<html><body><span class="a-price-symbol">€</span></body></html>`,
 			expectedCurrency: "eur",
 		},
@@ -182,7 +182,7 @@ func TestAmazonParser_ExtractCurrency(t *testing.T) {
 
 func TestAmazonParser_ExtractImage(t *testing.T) {
 	parser := &linkparsers.AmazonParser{}
-	pageURL, _ := url.Parse("https://amazon.es/product")
+	pageURL, _ := url.Parse("https://amazon.de/product")
 
 	testCases := []struct {
 		name        string
@@ -255,9 +255,9 @@ func TestAmazonParser_ParseHTML_RealData(t *testing.T) {
 		url      string
 	}{
 		{
-			name:     "Amazon ES Real Product",
+			name:     "Amazon DE Real Product (EUR fixture)",
 			filename: "amazon_es_ref_lp_17328039031_1_2_7c0a6edd.html",
-			url:      "https://amazon.es/product",
+			url:      "https://amazon.de/product",
 		},
 		{
 			name:     "Amazon BR Real Product",

@@ -156,17 +156,17 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}/api/v1/linkpreview?url=https://amazon.es/dp/B0C1JJQMTC&baseCountry=PT",
+          "raw": "{{base_url}}/api/v1/linkpreview?url=https://www.amazon.com.br/dp/B0CH3WBKN6&baseCountry=BR",
           "host": ["{{base_url}}"],
           "path": ["api", "v1", "linkpreview"],
           "query": [
             {
               "key": "url",
-              "value": "https://amazon.es/dp/B0C1JJQMTC"
+              "value": "https://www.amazon.com.br/dp/B0CH3WBKN6"
             },
             {
               "key": "baseCountry",
-              "value": "PT"
+              "value": "BR"
             }
           ]
         }

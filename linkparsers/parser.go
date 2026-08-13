@@ -55,7 +55,7 @@ func (p *ShareHTMLParser) ParseHTML(html string, pageURL *url.URL) *ParsedProduc
 		utils.String("title", title),
 		utils.String("currency", currency),
 		utils.String("imageURL", imageURL))
-	
+
 	if price != nil {
 		utils.Info("📄 ShareHTMLParser: Extracted price", utils.Float64("price", *price))
 	}
@@ -144,18 +144,18 @@ func extractPriceFromHTML(html string) string {
 	utils.Debug("💰 LinkPreviewParser: Starting price extraction")
 
 	patterns := []string{
-		`\$[0-9,]+(?:\.[0-9]{2})?`,     // $99.99, $1,999.99
-		`€[0-9,]+(?:\.[0-9]{2})?`,      // €99.99
-		`£[0-9,]+(?:\.[0-9]{2})?`,      // £99.99
-		`R\$[0-9,]+(?:\,[0-9]{2})?`,    // R$99,99
-		`[0-9,]+\.[0-9]{2}\s*USD`,      // 99.99 USD
-		`[0-9,]+\,[0-9]{2}\s*EUR`,      // 99,99 EUR
+		`\$[0-9,]+(?:\.[0-9]{2})?`,  // $99.99, $1,999.99
+		`€[0-9,]+(?:\.[0-9]{2})?`,   // €99.99
+		`£[0-9,]+(?:\.[0-9]{2})?`,   // £99.99
+		`R\$[0-9,]+(?:\,[0-9]{2})?`, // R$99,99
+		`[0-9,]+\.[0-9]{2}\s*USD`,   // 99.99 USD
+		`[0-9,]+\,[0-9]{2}\s*EUR`,   // 99,99 EUR
 	}
 
 	for i, pattern := range patterns {
 		utils.Debug("💰 LinkPreviewParser: Trying price pattern", utils.Int("pattern", i+1))
 		if match := extractWithRegex(pattern, html); match != "" {
-			utils.Info("✅ LinkPreviewParser: Found price with pattern", 
+			utils.Info("✅ LinkPreviewParser: Found price with pattern",
 				utils.Int("pattern", i+1),
 				utils.String("price", match))
 			return match
@@ -179,7 +179,7 @@ func parsePrice(priceString string) *float64 {
 	cleanedString = strings.ReplaceAll(cleanedString, "€", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "£", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "R$", "")
-	cleanedString = strings.ReplaceAll(cleanedString, "R ", "")  // Handle remaining R space
+	cleanedString = strings.ReplaceAll(cleanedString, "R ", "") // Handle remaining R space
 	cleanedString = strings.ReplaceAll(cleanedString, "USD", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "EUR", "")
 	cleanedString = strings.ReplaceAll(cleanedString, "GBP", "")
@@ -252,7 +252,7 @@ func extractCurrencyFromHTML(html string) string {
 
 func guessCurrencyFromURL(pageURL *url.URL) string {
 	utils.Debug("🌐 LinkPreviewParser: Guessing currency from URL", utils.String("url", pageURL.String()))
-	
+
 	host := strings.ToLower(pageURL.Host)
 	utils.Debug("🌐 LinkPreviewParser: URL host", utils.String("host", host))
 
@@ -279,25 +279,25 @@ func filterTitle(title string) string {
 
 	// Decode HTML entities first
 	filteredTitle := title
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&quot;", "")  // Remove quotes to avoid iOS validation issues
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&quot;", "") // Remove quotes to avoid iOS validation issues
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&amp;", "")  // Remove & symbol
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&lt;", "")   // Remove < symbol
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&gt;", "")   // Remove > symbol
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&#x20;", " ")
 	filteredTitle = strings.ReplaceAll(filteredTitle, "&nbsp;", " ")
-	filteredTitle = strings.ReplaceAll(filteredTitle, "&apos;", "")  // Remove apostrophe to avoid iOS validation issues
+	filteredTitle = strings.ReplaceAll(filteredTitle, "&apos;", "") // Remove apostrophe to avoid iOS validation issues
 
 	utils.Debug("🔤 LinkPreviewParser: After HTML entity decoding", utils.String("title", filteredTitle))
 
 	// Handle Amazon case specifically
 	if strings.Contains(filteredTitle, ": Amazon") || strings.Contains(filteredTitle, "Amazon.es") || strings.Contains(filteredTitle, "amazon.") {
-		amazonPatterns := []string{": Amazon.es: Electronica", ": Amazon.es", ": Amazon.", "Amazon.es"}  // Removed accented characters
+		amazonPatterns := []string{": Amazon.es: Electronica", ": Amazon.es", ": Amazon.", "Amazon.es"} // Removed accented characters
 		for _, pattern := range amazonPatterns {
 			if idx := strings.Index(strings.ToLower(filteredTitle), strings.ToLower(pattern)); idx != -1 {
 				beforeSeparator := strings.TrimSpace(filteredTitle[:idx])
 				if len(beforeSeparator) > 10 {
 					filteredTitle = beforeSeparator
-					utils.Debug("🔤 LinkPreviewParser: Removed Amazon info", 
+					utils.Debug("🔤 LinkPreviewParser: Removed Amazon info",
 						utils.String("pattern", pattern),
 						utils.String("result", beforeSeparator))
 					break
@@ -324,13 +324,13 @@ func filterTitle(title string) string {
 
 	// Remove unnecessary patterns
 	patternsToRemove := []string{
-		`\d+V\s*$`,                      // Voltage like "127V", "220V" at end
-		`\d+W\s*$`,                      // Wattage like "1450W" at end
-		`\d+\s*em\s*\d+\s*$`,            // "3 em 1", "2 em 1" at end
-		`\s+\(Reacondicionado\)\s*$`,    // "(Reacondicionado)" at end
-		`\s+\(Recondicionado\)\s*$`,     // "(Recondicionado)" at end
-		`\s+\(Usado\)\s*$`,              // "(Usado)" at end
-		`\s+\(Used\)\s*$`,               // "(Used)" at end
+		`\d+V\s*$`,                   // Voltage like "127V", "220V" at end
+		`\d+W\s*$`,                   // Wattage like "1450W" at end
+		`\d+\s*em\s*\d+\s*$`,         // "3 em 1", "2 em 1" at end
+		`\s+\(Reacondicionado\)\s*$`, // "(Reacondicionado)" at end
+		`\s+\(Recondicionado\)\s*$`,  // "(Recondicionado)" at end
+		`\s+\(Usado\)\s*$`,           // "(Usado)" at end
+		`\s+\(Used\)\s*$`,            // "(Used)" at end
 	}
 
 	for _, pattern := range patternsToRemove {
@@ -346,14 +346,14 @@ func filterTitle(title string) string {
 	var validChars []rune
 	for _, char := range filteredTitle {
 		if (char >= 'a' && char <= 'z') ||
-		   (char >= 'A' && char <= 'Z') ||
-		   (char >= '0' && char <= '9') ||
-		   char == ' ' ||
-		   char == '.' ||
-		   char == ',' ||
-		   char == '!' ||
-		   char == '?' ||
-		   char == '-' {
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == ' ' ||
+			char == '.' ||
+			char == ',' ||
+			char == '!' ||
+			char == '?' ||
+			char == '-' {
 			validChars = append(validChars, char)
 		}
 	}
@@ -371,7 +371,7 @@ func filterTitle(title string) string {
 		} else {
 			filteredTitle = filteredTitle[:maxLength]
 		}
-		utils.Debug("🔤 LinkPreviewParser: Truncated title", 
+		utils.Debug("🔤 LinkPreviewParser: Truncated title",
 			utils.Int("maxLength", maxLength),
 			utils.String("result", filteredTitle))
 	}
@@ -400,12 +400,12 @@ func extractWithRegex(pattern, html string) string {
 // extractMultipleWithRegex extracts multiple matches using regex patterns (inspired by amazon_scraper.go)
 func extractMultipleWithRegex(patterns []string, html string) []string {
 	var results []string
-	
+
 	for i, pattern := range patterns {
 		utils.Debug("🔍 Parser: Trying extraction pattern", utils.Int("pattern", i+1))
 		re := regexp.MustCompile("(?i)" + pattern)
 		matches := re.FindAllStringSubmatch(html, -1)
-		
+
 		for _, match := range matches {
 			if len(match) > 1 {
 				result := strings.TrimSpace(match[1])
@@ -414,22 +414,22 @@ func extractMultipleWithRegex(patterns []string, html string) []string {
 				}
 			}
 		}
-		
+
 		// If we found results with this pattern, we can break or continue depending on use case
 		if len(results) > 0 {
-			utils.Debug("🔍 Parser: Found matches with pattern", 
+			utils.Debug("🔍 Parser: Found matches with pattern",
 				utils.Int("pattern", i+1),
 				utils.Int("count", len(results)))
 		}
 	}
-	
+
 	return results
 }
 
 // filterProductTitles filters out unwanted titles using logic from amazon_scraper.go
 func filterProductTitles(titles []string) []string {
 	var filtered []string
-	
+
 	for _, title := range titles {
 		lower := strings.ToLower(title)
 		if title != "" &&
@@ -443,7 +443,7 @@ func filterProductTitles(titles []string) []string {
 			filtered = append(filtered, title)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -452,10 +452,39 @@ func extractStructuredDataTitle(html string) string {
 	return extractWithRegex(pattern, html)
 }
 
+// productJSONLDPrice returns the first Product schema.org offer price in ld+json.
+func productJSONLDPrice(html string) string {
+	rest := html
+	for {
+		idx := strings.Index(strings.ToLower(rest), `type="application/ld+json"`)
+		if idx < 0 {
+			return ""
+		}
+		rest = rest[idx:]
+		start := strings.Index(rest, ">")
+		end := strings.Index(strings.ToLower(rest), "</script>")
+		if start < 0 || end < 0 || end <= start {
+			if len(rest) < 2 {
+				return ""
+			}
+			rest = rest[1:]
+			continue
+		}
+		block := rest[start+1 : end]
+		rest = rest[end+9:]
+		if !strings.Contains(block, `"Product"`) {
+			continue
+		}
+		if price := extractWithRegex(`"price"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?`, block); price != "" {
+			return price
+		}
+	}
+}
+
 func extractStructuredDataPrice(html string) string {
 	patterns := []string{
-		`"price":(\d+(?:\.\d+)?)`,  // "price":1050
-		`"price":"([^"]+)"`,         // "price":"1050.00"
+		`"price":(\d+(?:\.\d+)?)`, // "price":1050
+		`"price":"([^"]+)"`,       // "price":"1050.00"
 	}
 
 	for _, pattern := range patterns {

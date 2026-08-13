@@ -37,7 +37,7 @@ func TestExtractorHandler_GetProductComparisons_BaseCountryPlusCurrentCountry(t 
 	assert.NotNil(t, results)
 
 	// Should attempt both BR and PT extractors
-	// BR: mercadolivre_v2, acharpromo_v2
+	// BR: acharpromo_v2
 	// PT: kuantokusta_v2
 }
 
@@ -47,9 +47,9 @@ func TestExtractorHandler_GetProductComparisons_BaseCountryPlusCurrentCountryPlu
 
 	// Test with base country (BR) + current country (PT) + macro region enabled
 	// This should include:
-	// - BR extractors (base country): mercadolivre_v2, acharpromo_v2
+	// - BR extractors (base country): acharpromo_v2
 	// - PT extractors (current country): kuantokusta_v2
-	// - EU macro region extractors (PT's macro region): kuantokusta_v2 (PT), idealo_v2 (ES)
+	// - EU macro region extractors (PT's macro region): kuantokusta_v2 (PT)
 	currentCountry := models.CountryPortugal
 	results, err := handler.GetProductComparisons("MacBook Pro m1", models.CountryBrazil, &currentCountry, "EUR", true, nil)
 
@@ -201,9 +201,9 @@ func TestExtractorHandler_ExtractorRegistration(t *testing.T) {
 	// and verify no panic/errors occur with known countries
 
 	countries := []models.Country{
-		models.CountryBrazil,   // Should have mercadolivre_v2, acharpromo_v2
+		models.CountryBrazil,   // Should have acharpromo_v2
 		models.CountryPortugal, // Should have kuantokusta_v2
-		models.CountrySpain,    // Should have idealo_v2
+		models.CountrySpain,    // no extractors currently
 	}
 
 	for _, country := range countries {

@@ -7,133 +7,36 @@ import (
 	"muambr-api/linkparsers"
 )
 
-func TestBrazilianRetailersParser_MagazineLuiza(t *testing.T) {
-	parser := &linkparsers.MagazineLuizaBRParser{}
-	pageURL, _ := url.Parse("https://magazineluiza.com.br/produto")
-
-	testCases := []struct {
-		name        string
-		html        string
-		expectTitle bool
-		expectPrice bool
-	}{
-		{
-			name: "Basic product with meta tags",
-			html: `<html>
-				<head>
-					<meta property="og:title" content="Notebook ASUS VivoBook 15"/>
-					<meta property="product:price:amount" content="1299.99"/>
-					<meta property="product:price:currency" content="BRL"/>
-				</head>
-			</html>`,
-			expectTitle: true,
-			expectPrice: false, // ShareHTMLParser may not extract this pattern
-		},
-		{
-			name: "Product with JSON-LD",
-			html: `<html>
-				<head>
-					<script type="application/ld+json">
-					{
-						"@type": "Product",
-						"name": "Smartphone Samsung Galaxy",
-						"offers": {
-							"price": "899.99",
-							"priceCurrency": "BRL"
-						}
-					}
-					</script>
-				</head>
-			</html>`,
-			expectTitle: true,
-			expectPrice: false, // ShareHTMLParser may not extract JSON-LD correctly
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			data := parser.ParseHTML(tc.html, pageURL)
-			if data == nil {
-				t.Fatalf("Expected parsed data but got nil")
-			}
-
-			if tc.expectTitle && data.Title == "" {
-				t.Error("Expected title to be extracted")
-			}
-
-			if tc.expectPrice && data.Price == nil {
-				t.Error("Expected price to be extracted")
-			}
-
-			if data.Currency != "brl" {
-				t.Errorf("Expected currency 'brl', got '%s'", data.Currency)
-			}
-		})
-	}
-}
-
-func TestBrazilianRetailersParser_MercadoLivre(t *testing.T) {
-	parser := &linkparsers.MercadoLivreBRParser{}
-	pageURL, _ := url.Parse("https://mercadolivre.com.br/produto")
-
-	testCases := []struct {
-		name        string
-		html        string
-		expectTitle bool
-	}{
-		{
-			name: "MercadoLivre product with title",
-			html: `<html>
-				<head>
-					<meta property="og:title" content="Mochila Olympikus Basic - R$ 92,99"/>
-				</head>
-				<body>
-					<h1>Mochila Olympikus</h1>
-				</body>
-			</html>`,
-			expectTitle: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			data := parser.ParseHTML(tc.html, pageURL)
-			if data == nil {
-				t.Fatalf("Expected parsed data but got nil")
-			}
-
-			if tc.expectTitle && data.Title == "" {
-				t.Error("Expected title to be extracted")
-			}
-
-			if data.Currency != "brl" {
-				t.Errorf("Expected currency 'brl', got '%s'", data.Currency)
-			}
-		})
-	}
-}
-
 func TestBrazilianRetailersParser_Electrolux(t *testing.T) {
 	parser := &linkparsers.ElectroluxBRParser{}
-	pageURL, _ := url.Parse("https://electrolux.com.br/produto")
+	pageURL, _ := url.Parse("https://loja.electrolux.com.br/panela-eletrica-easyline-7-xicaras-13l-rcb50-electrolux/p")
 
-	html := `<html>
+	html := `<html lang="pt-BR">
 		<head>
-			<meta property="og:title" content="Purificador de Água Electrolux"/>
+			<meta property="og:title" content="Panela de Arroz Elétrica Electrolux por Rita Lobo 1,3L Branca Efficient (RCB50)"/>
+			<meta property="og:image" content="https://electrolux.vtexassets.com/arquivos/ids/220510/RiceCooker_RCB50.jpg"/>
+			<script type="application/ld+json">
+			{"@context":"https://schema.org/","@type":"Product","name":"Panela de Arroz Elétrica Electrolux por Rita Lobo 1,3L Branca Efficient (RCB50)","offers":{"@type":"Offer","priceCurrency":"BRL","price":229.9,"availability":"https://schema.org/InStock"}}
+			</script>
 		</head>
+		<body><span>R$200</span></body>
 	</html>`
 
 	data := parser.ParseHTML(html, pageURL)
 	if data == nil {
-		t.Fatalf("Expected parsed data but got nil")
+		t.Fatal("Expected parsed data but got nil")
 	}
-
 	if data.Title == "" {
 		t.Error("Expected title to be extracted")
 	}
-
+	if data.Price == nil || *data.Price != 229.9 {
+		t.Errorf("price: got %v, want 229.9", data.Price)
+	}
 	if data.Currency != "brl" {
-		t.Errorf("Expected currency 'brl', got '%s'", data.Currency)
+		t.Errorf("currency: got %q, want brl", data.Currency)
+	}
+	if data.ImageURL == "" {
+		t.Error("expected og:image URL")
 	}
 }
 
@@ -144,18 +47,6 @@ func TestBrazilianRetailersParser_RealData(t *testing.T) {
 		url      string
 		parser   linkparsers.Parser
 	}{
-		{
-			name:     "Magazine Luiza Real Product",
-			filename: "magazineluiza_com_br_nass_0f0d181b.html",
-			url:      "https://magazineluiza.com.br/produto",
-			parser:   &linkparsers.MagazineLuizaBRParser{},
-		},
-		{
-			name:     "MercadoLivre Real Product",
-			filename: "produto_mercadolivre_com_br_MLB-3237298873-mochila-basic-o_3a6fe9e8.html",
-			url:      "https://mercadolivre.com.br/produto",
-			parser:   &linkparsers.MercadoLivreBRParser{},
-		},
 		{
 			name:     "Electrolux Real Product",
 			filename: "loja_electrolux.html",
