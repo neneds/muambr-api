@@ -102,6 +102,13 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 
 // GetProductComparisonsWithMeta retrieves comparisons plus provider success/failure metadata.
 func (h *ExtractorHandler) GetProductComparisonsWithMeta(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool, category *models.ProductCategory) (*ExtractionOutcome, error) {
+	if sanitized := utils.SanitizeSearchQuery(searchTerm); sanitized != searchTerm {
+		utils.Info("Sanitized search query",
+			utils.String("original", searchTerm),
+			utils.String("sanitized", sanitized))
+		searchTerm = sanitized
+	}
+
 	utils.Info("GetProductComparisons called",
 		utils.String("searchTerm", searchTerm),
 		utils.String("baseCountry", string(baseCountry)),
