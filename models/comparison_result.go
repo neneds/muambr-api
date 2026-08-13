@@ -40,16 +40,31 @@ const (
 )
 
 // MoneyAmount is a price with optional normalization to the comparison currency.
+// normalizedAmount / normalizedCurrency are set only when Currency differs from
+// the request currency; otherwise they are omitted so the client does not show
+// a duplicate "converted" value.
 type MoneyAmount struct {
-	Amount             float64 `json:"amount"`
-	Currency           string  `json:"currency"`
-	Country            string  `json:"country,omitempty"`
-	NormalizedAmount   float64 `json:"normalizedAmount"`
-	NormalizedCurrency string  `json:"normalizedCurrency"`
-	Store              string  `json:"store,omitempty"`
-	URL                *string `json:"url,omitempty"`
+	Amount             float64  `json:"amount"`
+	Currency           string   `json:"currency"`
+	Country            string   `json:"country,omitempty"`
+	NormalizedAmount   *float64 `json:"normalizedAmount,omitempty"`
+	NormalizedCurrency *string  `json:"normalizedCurrency,omitempty"`
+	Store              string   `json:"store,omitempty"`
+	URL                *string  `json:"url,omitempty"`
 	MatchConfidence    *float64 `json:"matchConfidence,omitempty"`
-	CapturedAt         *string `json:"capturedAt,omitempty"`
+	CapturedAt         *string  `json:"capturedAt,omitempty"`
+}
+
+// ComparableAmount is the price in the request (normalization) currency.
+// When normalized fields are omitted, Amount is already in that currency.
+func (m *MoneyAmount) ComparableAmount() float64 {
+	if m == nil {
+		return 0
+	}
+	if m.NormalizedAmount != nil {
+		return *m.NormalizedAmount
+	}
+	return m.Amount
 }
 
 // ObservedPriceInput is the price the user actually found (request body).
@@ -127,13 +142,15 @@ type ComparisonMetadata struct {
 }
 
 // PriceOffer is a single store price in the comparison result.
+// normalizedAmount / normalizedCurrency are omitted when Currency already
+// matches the request currency.
 type PriceOffer struct {
 	Store              string   `json:"store"`
 	Country            string   `json:"country"`
 	Amount             float64  `json:"amount"`
 	Currency           string   `json:"currency"`
-	NormalizedAmount   float64  `json:"normalizedAmount"`
-	NormalizedCurrency string   `json:"normalizedCurrency"`
+	NormalizedAmount   *float64 `json:"normalizedAmount,omitempty"`
+	NormalizedCurrency *string  `json:"normalizedCurrency,omitempty"`
 	URL                *string  `json:"url,omitempty"`
 	Availability       string   `json:"availability,omitempty"`
 	MatchConfidence    float64  `json:"matchConfidence"`

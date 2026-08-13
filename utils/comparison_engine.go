@@ -190,8 +190,6 @@ func (e *ComparisonEngine) flattenOffers(sections []models.CountrySection, norma
 	var offers []models.PriceOffer
 	for _, section := range sections {
 		for _, c := range section.Comparisons {
-			normalized := e.processor.getEffectivePrice(c)
-
 			conf := 0.5
 			if c.MatchConfidence != nil {
 				conf = *c.MatchConfidence
@@ -205,18 +203,15 @@ func (e *ComparisonEngine) flattenOffers(sections []models.CountrySection, norma
 				availability = "unknown"
 			}
 
-			normCurrency := normalizedCurrency
-			if c.ConvertedPrice != nil {
-				normCurrency = c.ConvertedPrice.Currency
-			}
+			normAmt, normCur := conversionFields(c.Currency, normalizedCurrency, convertedAmountPtr(c))
 
 			offers = append(offers, models.PriceOffer{
 				Store:              c.StoreName,
 				Country:            c.Country,
 				Amount:             c.Price,
 				Currency:           c.Currency,
-				NormalizedAmount:   normalized,
-				NormalizedCurrency: normCurrency,
+				NormalizedAmount:   normAmt,
+				NormalizedCurrency: normCur,
 				URL:                c.StoreURL,
 				Availability:       availability,
 				MatchConfidence:    conf,
@@ -259,12 +254,14 @@ func (e *ComparisonEngine) bestPriceInCountry(sections []models.CountrySection, 
 		conf = *best.MatchConfidence
 	}
 
+	normAmt, normCur := conversionFields(best.Currency, normalizedCurrency, convertedAmountPtr(*best))
+
 	return &models.MoneyAmount{
 		Amount:             best.Price,
 		Currency:           best.Currency,
 		Country:            best.Country,
-		NormalizedAmount:   bestEffective,
-		NormalizedCurrency: normalizedCurrency,
+		NormalizedAmount:   normAmt,
+		NormalizedCurrency: normCur,
 		Store:              best.StoreName,
 		URL:                best.StoreURL,
 		MatchConfidence:    &conf,
@@ -284,21 +281,22 @@ func (e *ComparisonEngine) normalizeObserved(
 		country = string(currentCountry)
 	}
 
-	normalized := observed.Amount
-	if strings.EqualFold(observed.Currency, normalizedCurrency) {
-		normalized = observed.Amount
-	} else if rateInfo != nil && rateInfo.Rate > 0 &&
+	var converted *float64
+	if !strings.EqualFold(observed.Currency, normalizedCurrency) &&
+		rateInfo != nil && rateInfo.Rate > 0 &&
 		strings.EqualFold(rateInfo.Base, observed.Currency) &&
 		strings.EqualFold(rateInfo.Target, normalizedCurrency) {
-		normalized = observed.Amount * rateInfo.Rate
+		v := round2(observed.Amount * rateInfo.Rate)
+		converted = &v
 	}
+	normAmt, normCur := conversionFields(observed.Currency, normalizedCurrency, converted)
 
 	return &models.MoneyAmount{
 		Amount:             observed.Amount,
 		Currency:           strings.ToUpper(observed.Currency),
 		Country:            country,
-		NormalizedAmount:   round2(normalized),
-		NormalizedCurrency: normalizedCurrency,
+		NormalizedAmount:   normAmt,
+		NormalizedCurrency: normCur,
 		Store:              observed.Store,
 		CapturedAt:         &capturedAt,
 	}
@@ -317,15 +315,15 @@ func (e *ComparisonEngine) calculateSavings(
 	var comparedAmount float64
 	comparedAgainst := "observed"
 	if observed != nil {
-		comparedAmount = observed.NormalizedAmount
+		comparedAmount = observed.ComparableAmount()
 	} else if bestCurrent != nil {
-		comparedAmount = bestCurrent.NormalizedAmount
+		comparedAmount = bestCurrent.ComparableAmount()
 		comparedAgainst = "best_current"
 	} else {
 		return nil
 	}
 
-	baseAmount := bestBase.NormalizedAmount
+	baseAmount := bestBase.ComparableAmount()
 	if baseAmount <= 0 {
 		return nil
 	}
@@ -492,4 +490,23 @@ func averageMatchConfidence(offers []models.PriceOffer) float64 {
 
 func round2(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// conversionFields returns normalized amount/currency only when the native
+// currency differs from the request currency and a converted amount is available.
+func conversionFields(nativeCurrency, targetCurrency string, convertedAmount *float64) (*float64, *string) {
+	if strings.EqualFold(nativeCurrency, targetCurrency) || convertedAmount == nil {
+		return nil, nil
+	}
+	amt := round2(*convertedAmount)
+	cur := strings.ToUpper(targetCurrency)
+	return &amt, &cur
+}
+
+func convertedAmountPtr(c models.ProductComparison) *float64 {
+	if c.ConvertedPrice == nil {
+		return nil
+	}
+	v := c.ConvertedPrice.Price
+	return &v
 }

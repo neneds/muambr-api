@@ -101,11 +101,19 @@ func TestComparisonEngine_BuildResult_SavingsAndDealScore(t *testing.T) {
 	assert.NotEmpty(t, result.ComparisonID)
 	assert.Equal(t, "2026-08-09T03:00:00Z", result.CapturedAt)
 	require.NotNil(t, result.Observed)
-	assert.InDelta(t, 1891.58, result.Observed.NormalizedAmount, 0.01)
+	require.NotNil(t, result.Observed.NormalizedAmount)
+	require.NotNil(t, result.Observed.NormalizedCurrency)
+	assert.InDelta(t, 1891.58, *result.Observed.NormalizedAmount, 0.01)
+	assert.Equal(t, "BRL", *result.Observed.NormalizedCurrency)
 	require.NotNil(t, result.BestBaseCountryPrice)
-	assert.Equal(t, 2499.0, result.BestBaseCountryPrice.NormalizedAmount)
+	assert.Equal(t, 2499.0, result.BestBaseCountryPrice.Amount)
+	assert.Equal(t, "BRL", result.BestBaseCountryPrice.Currency)
+	assert.Nil(t, result.BestBaseCountryPrice.NormalizedAmount)
+	assert.Nil(t, result.BestBaseCountryPrice.NormalizedCurrency)
 	require.NotNil(t, result.BestCurrentCountryPrice)
-	assert.InDelta(t, 1891.58, result.BestCurrentCountryPrice.NormalizedAmount, 0.01)
+	require.NotNil(t, result.BestCurrentCountryPrice.NormalizedAmount)
+	assert.InDelta(t, 1891.58, *result.BestCurrentCountryPrice.NormalizedAmount, 0.01)
+	assert.Equal(t, "BRL", *result.BestCurrentCountryPrice.NormalizedCurrency)
 	require.NotNil(t, result.Savings)
 	assert.True(t, result.Savings.IsCheaper)
 	assert.InDelta(t, 607.42, result.Savings.Amount, 0.1)
@@ -214,4 +222,114 @@ func TestComparisonEngine_SavingsWithoutObservedUsesBestCurrent(t *testing.T) {
 	assert.Equal(t, "best_current", result.Savings.ComparedAgainst)
 	assert.True(t, result.Savings.IsCheaper)
 	assert.InDelta(t, 500.0, result.Savings.Amount, 0.01)
+	require.Len(t, result.Prices, 2)
+	for _, offer := range result.Prices {
+		if offer.Currency == "BRL" {
+			assert.Nil(t, offer.NormalizedAmount)
+			assert.Nil(t, offer.NormalizedCurrency)
+		} else {
+			require.NotNil(t, offer.NormalizedAmount)
+			require.NotNil(t, offer.NormalizedCurrency)
+			assert.Equal(t, "BRL", *offer.NormalizedCurrency)
+			assert.InDelta(t, 1500.0, *offer.NormalizedAmount, 0.01)
+		}
+	}
+}
+
+func TestComparisonEngine_OmitsNormalizedWhenAlreadyInRequestCurrency(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	sections := []models.CountrySection{
+		{
+			Country: "BR",
+			Comparisons: []models.ProductComparison{
+				{ProductName: "Creme", Price: 554.69, Currency: "BRL", Country: "BR", StoreName: "Época Cosméticos"},
+			},
+			ResultsCount: 1,
+		},
+		{
+			Country: "DE",
+			Comparisons: []models.ProductComparison{
+				{
+					ProductName:    "Creme",
+					Price:          89,
+					Currency:       "EUR",
+					ConvertedPrice: &models.ConvertedPrice{Price: 523.47, Currency: "BRL"},
+					Country:        "DE",
+					StoreName:      "Some EU Store",
+				},
+			},
+			ResultsCount: 1,
+		},
+	}
+
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "Creme",
+		BaseCountry:        models.CountryBrazil,
+		CurrentCountry:     models.CountryGermany,
+		NormalizedCurrency: "BRL",
+		Observed: &models.ObservedPriceInput{
+			Amount:   554.69,
+			Currency: "BRL",
+			Country:  "BR",
+		},
+		Sections: sections,
+		Meta:     utils.ExtractionMeta{ProvidersAttempted: 2, ProvidersSucceeded: 2},
+		Now:      time.Now().UTC(),
+	})
+
+	require.NotNil(t, result.Observed)
+	assert.Equal(t, 554.69, result.Observed.Amount)
+	assert.Equal(t, "BRL", result.Observed.Currency)
+	assert.Nil(t, result.Observed.NormalizedAmount)
+	assert.Nil(t, result.Observed.NormalizedCurrency)
+
+	require.NotNil(t, result.BestBaseCountryPrice)
+	assert.Nil(t, result.BestBaseCountryPrice.NormalizedAmount)
+	assert.Nil(t, result.BestBaseCountryPrice.NormalizedCurrency)
+
+	require.NotNil(t, result.BestCurrentCountryPrice)
+	require.NotNil(t, result.BestCurrentCountryPrice.NormalizedAmount)
+	assert.InDelta(t, 523.47, *result.BestCurrentCountryPrice.NormalizedAmount, 0.01)
+	assert.Equal(t, "BRL", *result.BestCurrentCountryPrice.NormalizedCurrency)
+
+	require.Len(t, result.Prices, 2)
+}
+
+func TestComparisonEngine_ObservedForeignCurrencyIsNormalized(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "Creme",
+		BaseCountry:        models.CountryBrazil,
+		CurrentCountry:     models.CountryGermany,
+		NormalizedCurrency: "BRL",
+		Observed: &models.ObservedPriceInput{
+			Amount:   89,
+			Currency: "EUR",
+			Country:  "DE",
+		},
+		ExchangeRate: &models.ExchangeRateInfo{
+			Base:   "EUR",
+			Target: "BRL",
+			Rate:   5.8828,
+		},
+		Sections: []models.CountrySection{
+			{
+				Country: "BR",
+				Comparisons: []models.ProductComparison{
+					{ProductName: "Creme", Price: 600, Currency: "BRL", Country: "BR", StoreName: "BR Store"},
+				},
+				ResultsCount: 1,
+			},
+		},
+		Meta: utils.ExtractionMeta{ProvidersAttempted: 1, ProvidersSucceeded: 1},
+		Now:  time.Now().UTC(),
+	})
+
+	require.NotNil(t, result.Observed)
+	assert.Equal(t, 89.0, result.Observed.Amount)
+	assert.Equal(t, "EUR", result.Observed.Currency)
+	require.NotNil(t, result.Observed.NormalizedAmount)
+	require.NotNil(t, result.Observed.NormalizedCurrency)
+	assert.Equal(t, "BRL", *result.Observed.NormalizedCurrency)
+	assert.InDelta(t, 523.57, *result.Observed.NormalizedAmount, 0.01)
 }

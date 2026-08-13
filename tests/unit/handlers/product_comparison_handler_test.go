@@ -109,5 +109,6 @@ func TestCreateProductComparison_ValidRequestShape(t *testing.T) {
 	require.NotNil(t, resp.Observed)
 	assert.Equal(t, 349.0, resp.Observed.Amount)
 	assert.Equal(t, "USD", resp.Observed.Currency)
-	assert.Equal(t, "BRL", resp.Observed.NormalizedCurrency)
+	require.NotNil(t, resp.Observed.NormalizedCurrency)
+	assert.Equal(t, "BRL", *resp.Observed.NormalizedCurrency)
 }
