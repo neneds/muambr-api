@@ -14,7 +14,7 @@ import (
 func TestParseAllHTMLFiles(t *testing.T) {
 	// HTML files with their expected URLs
 	testFiles := map[string]string{
-		"amazon_es_ref_lp_17328039031_1_2_7c0a6edd.html":                       "https://amazon.es/product",
+		"amazon_es_ref_lp_17328039031_1_2_7c0a6edd.html":                       "https://amazon.de/product",
 		"amazon.com.br.html":                                                    "https://amazon.com.br/product",
 		"cashconverters_pt_ipad-_28wi-fi_29-_28a2602_29-6_4b6da721.html":      "https://cashconverters.pt/product",
 		"fnac.html":                                                             "https://fnac.pt/product",

@@ -21,6 +21,7 @@ Write the **smallest reusable change**. Prefer extending existing types over new
 - Solve the current use case. Do not add flags, caches, or abstractions “for later”.
 - Prefer a public JSON/search API over HTML scraping. Prefer HTML+JSON-LD over brittle CSS.
 - If a site is WAF-blocked, **stop**. Do not add retries, cookie jars, or browser automation.
+- **Feasibility first:** when a new store, HAR, or hostname is proposed for an extractor or link parser, probe the live search/API (or product page) and report the verdict **before writing any implementation**. Homepage HARs and image-only captures are not enough.
 - One file per extractor. One constructor. Override only what `BaseGoExtractor` cannot do.
 - JSON-only extractors use the existing **noop parser** pattern. Do not invent a second extractor base until several JSON extractors share non-trivial fetch/parse logic.
 
@@ -173,18 +174,16 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 
 | Identifier | Package | Country | Category | Source | Notes |
 |------------|---------|---------|----------|--------|--------|
-| `mercadolivre_v2` | other | BR | other | HTML | **WAF** (Akamai `_bmstate`) — often empty |
 | `acharpromo_v2` | other | BR | other | SSE/JSON | Working |
 | `kuantokusta_v2` | other | PT | other | HTML/JSON | Working |
-| `amazon_spain` | other | ES | other | HTML | **WAF** (503) — often empty |
-| `amazon_usa` | other | US | other | HTML | Working |
 | `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
 | `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
 | `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
 | `primor_pt_v1` | beauty | PT | beauty | Empathy JSON | Working — do **not** scrape `pt.primor.eu` HTML (AWS WAF) |
+| `perfumes_e_companhia_pt_v1` | beauty | PT | beauty | Doofinder JSON | Working — Origin required; do **not** scrape `/pt/pesquisa/` HTML (client-rendered) |
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 
-No `electronics/` or `fashion/` extractors yet. Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
+No `electronics/` or `fashion/` extractors yet. No Spain store extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
 
 `FetchHTML` treats HTTP **200 and 206** as success (VTEX pagination).
 
@@ -194,9 +193,11 @@ No `electronics/` or `fashion/` extractors yet. Unknown / empty category → `ot
 
 Extractors live in **category-scoped** packages: `extractors/other/`, `extractors/beauty/`, `extractors/appliances/`, or a new `extractors/<category>/` with matching `package` name.
 
-### Step 0 — Verify the target is not WAF-blocked
+### Step 0 — Feasibility first (mandatory, before any code)
 
-Confirm the **actual search/API URL** (not the homepage) returns real data from a plain HTTP client:
+When a store, HAR, or hostname is proposed: **do not implement yet**. Probe first, then report feasible / blocked / need a better HAR. Only write extractor code after a live probe succeeds.
+
+Confirm the **actual search/API URL** (not the homepage, not product images) returns real product name + price from a plain HTTP client:
 
 ```bash
 curl -si \
@@ -215,7 +216,9 @@ curl -si \
 | `HTTP/1.1 403` + `server: cloudflare` | Cloudflare challenge |
 | Empty body + `server: awselb/2.0` | AWS WAF |
 
-`server: cloudflare` with **HTTP 200 and a real JSON/HTML body** is OK (e.g. Empathy). A WAF-blocked extractor will never work in production. Find another site for that country/category.
+`server: cloudflare` with **HTTP 200 and a real JSON/HTML body** is OK (e.g. Empathy, Doofinder). A WAF-blocked extractor will never work in production. Find another site for that country/category.
+
+A homepage HAR with only images/static assets is **not** a passing probe. Capture Network while searching, or find the JSON search endpoint (Empathy, Doofinder, VTEX, SFCC `format=ajax`) and curl that URL. Client-rendered search HTML with no product tiles is a fail — keep looking for JSON.
 
 ### Step 1 — Parser (HTML scrapers only)
 
@@ -244,7 +247,7 @@ func (p *MySiteParser) ParseURL(html string, baseURL string) string { /* absolut
 func (p *MySiteParser) ParseStore(html string) string { return "MySite" }
 ```
 
-JSON-only: copy the noop parser from `epocacosmeticos_extractor.go` / `primor_pt_extractor.go`.
+JSON-only: copy the noop parser from `epocacosmeticos_extractor.go` / `primor_pt_extractor.go` / `perfumes_e_companhia_pt_extractor.go`.
 
 ### Step 2 — Extractor
 
@@ -274,7 +277,7 @@ func (e *MySiteExtractor) BuildSearchURL(productName string) (string, error) {
 }
 ```
 
-Override `GetComparisons` when the default HTML flow does not apply (JSON API, SSE). Prefer JSON-LD first, HTML fallback (`mercadolivre_extractor_v2.go`).
+Override `GetComparisons` when the default HTML flow does not apply (JSON API, SSE). Prefer JSON-LD first, HTML fallback.
 
 Return store-native `Price` + ISO `Currency`. Do not set `ConvertedPrice` in the extractor.
 
@@ -293,7 +296,7 @@ registry.RegisterExtractor(beauty.NewMySiteExtractor())
 | Extractor type | Unit tests? | Integration tests? |
 |----------------|-------------|--------------------|
 | HTML / CSS / regex / JSON-LD / SSE | Yes — fixture + `GetComparisonsFromHTML` | Yes |
-| Trivial JSON unmarshal (VTEX, Empathy, GraphQL) | No | Yes |
+| Trivial JSON unmarshal (VTEX, Empathy, Doofinder, GraphQL) | No | Yes |
 
 Fixtures: `tests/mocks/extractors/sample_responses/`.  
 Tests mirror packages: `tests/unit/extractors/<category>/`, `tests/integration/extractors/<category>/`.  
@@ -304,6 +307,10 @@ Integration tests use the shared goroutine + timeout helper and skip unless `INT
 ## How to Add a New Link Parser
 
 Used by `GET /api/v1/linkpreview`.
+
+### Step 0 — Feasibility first (mandatory, before any code)
+
+When a hostname is proposed: **do not implement yet**. `curl` a real product URL (not the homepage) and confirm title + price are present in the HTML or JSON-LD. If the page is WAF-blocked or the price is injected only after JS, report blocked and stop. Only write a parser after the probe succeeds.
 
 Site-specific extractors first, then `ShareHTMLParser`. Register hostname (no `www.`) in `linkparsers/site_parsers.go` `siteParserRegistry`. Unmatched hosts fall back to `ShareHTMLParser`.
 
@@ -363,5 +370,6 @@ Never gate unit tests on `INTEGRATION_TESTS`.
 - [ ] Prices `float64`; currency ISO 4217; `Country` is the ISO constant string
 - [ ] Registered in `initializeExtractors`
 - [ ] Link parsers registered in `siteParserRegistry`
-- [ ] No raw `http.Get`; no debug logs; WAF check done before implementing
+- [ ] No raw `http.Get`; no debug logs
+- [ ] Feasibility probe done **before** any extractor or link-parser code (live search/API or product page; not homepage HAR)
 - [ ] New countries updated in **all** `Country` switches in `models/models.go`

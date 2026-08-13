@@ -27,9 +27,9 @@ func TestParserForURL(t *testing.T) {
 		expectedParser string
 	}{
 		{
-			name:           "Amazon ES",
+			name:           "Amazon ES (unsupported — generic fallback)",
 			url:            "https://amazon.es/product/123",
-			expectedParser: "AmazonParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
 			name:           "Amazon BR",
@@ -37,14 +37,24 @@ func TestParserForURL(t *testing.T) {
 			expectedParser: "AmazonParser",
 		},
 		{
-			name:           "OLX PT",
-			url:            "https://olx.pt/item/123",
-			expectedParser: "OLXPTParser",
+			name:           "Amazon short link",
+			url:            "https://a.co/d/abc",
+			expectedParser: "AmazonParser",
 		},
 		{
-			name:           "OLX BR",
-			url:            "https://olx.br/item/123",
-			expectedParser: "OLXBRParser",
+			name:           "Amazon subdomain",
+			url:            "https://smile.amazon.com/dp/B0",
+			expectedParser: "AmazonParser",
+		},
+		{
+			name:           "OLX PT (unsupported — CloudFront 403)",
+			url:            "https://olx.pt/item/123",
+			expectedParser: "ShareHTMLParser",
+		},
+		{
+			name:           "OLX BR (unsupported — generic fallback)",
+			url:            "https://olx.com.br/item/123",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
 			name:           "Cash Converters PT",
@@ -52,14 +62,14 @@ func TestParserForURL(t *testing.T) {
 			expectedParser: "CashConvertersPTParser",
 		},
 		{
-			name:           "Magazine Luiza BR",
+			name:           "Magazine Luiza BR (unsupported — 403)",
 			url:            "https://magazineluiza.com.br/product/123",
-			expectedParser: "MagazineLuizaBRParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
-			name:           "MercadoLivre BR",
+			name:           "MercadoLivre BR (unsupported — generic fallback)",
 			url:            "https://mercadolivre.com.br/product/123",
-			expectedParser: "MercadoLivreBRParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
 			name:           "Electrolux BR",
@@ -67,29 +77,39 @@ func TestParserForURL(t *testing.T) {
 			expectedParser: "ElectroluxBRParser",
 		},
 		{
-			name:           "Fnac PT",
+			name:           "Fnac PT (unsupported — could not reach)",
 			url:            "https://fnac.pt/product/123",
-			expectedParser: "FnacPTParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
-			name:           "Worten PT",
+			name:           "Worten PT (unsupported — Cloudflare challenge)",
 			url:            "https://worten.pt/product/123",
-			expectedParser: "WortenPTParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
-			name:           "Primark",
+			name:           "Primark (unsupported — 403 maintenance)",
 			url:            "https://primark.com/product/123",
-			expectedParser: "PrimarkParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
-			name:           "Primor EU",
+			name:           "Primor EU (unsupported — AWS WAF)",
 			url:            "https://primor.eu/product/123",
-			expectedParser: "PrimorEUParser",
+			expectedParser: "ShareHTMLParser",
 		},
 		{
-			name:           "Zara",
+			name:           "Primor PT subdomain (unsupported — AWS WAF)",
+			url:            "https://pt.primor.eu/pt_pt/product.html",
+			expectedParser: "ShareHTMLParser",
+		},
+		{
+			name:           "Zara (unsupported — Akamai Bot Manager)",
 			url:            "https://zara.com/product/123",
-			expectedParser: "ZaraParser",
+			expectedParser: "ShareHTMLParser",
+		},
+		{
+			name:           "Perfumes e Companhia PT",
+			url:            "https://perfumesecompanhia.pt/pt/product/123.html",
+			expectedParser: "PerfumesECompanhiaParser",
 		},
 		{
 			name:           "Walmart",
@@ -120,28 +140,12 @@ func TestParserForURL(t *testing.T) {
 			switch parser.(type) {
 			case *linkparsers.AmazonParser:
 				parserType = "AmazonParser"
-			case *linkparsers.OLXPTParser:
-				parserType = "OLXPTParser"
-			case *linkparsers.OLXBRParser:
-				parserType = "OLXBRParser"
 			case *linkparsers.CashConvertersPTParser:
 				parserType = "CashConvertersPTParser"
-			case *linkparsers.MagazineLuizaBRParser:
-				parserType = "MagazineLuizaBRParser"
-			case *linkparsers.MercadoLivreBRParser:
-				parserType = "MercadoLivreBRParser"
 			case *linkparsers.ElectroluxBRParser:
 				parserType = "ElectroluxBRParser"
-			case *linkparsers.FnacPTParser:
-				parserType = "FnacPTParser"
-			case *linkparsers.WortenPTParser:
-				parserType = "WortenPTParser"
-			case *linkparsers.PrimarkParser:
-				parserType = "PrimarkParser"
-			case *linkparsers.PrimorEUParser:
-				parserType = "PrimorEUParser"
-			case *linkparsers.ZaraParser:
-				parserType = "ZaraParser"
+			case *linkparsers.PerfumesECompanhiaParser:
+				parserType = "PerfumesECompanhiaParser"
 			case *linkparsers.WalmartParser:
 				parserType = "WalmartParser"
 			case *linkparsers.ShareHTMLParser:
@@ -165,22 +169,6 @@ func TestParseHTML_Integration(t *testing.T) {
 		validate func(*testing.T, *linkparsers.ParsedProductData)
 	}{
 		{
-			name:     "Amazon ES iPhone",
-			filename: "amazon_es_ref_lp_17328039031_1_2_7c0a6edd.html",
-			url:      "https://amazon.es/product",
-			validate: func(t *testing.T, data *linkparsers.ParsedProductData) {
-				if data.Title == "" {
-					t.Error("Expected title to be extracted")
-				}
-				if data.Currency != "eur" {
-					t.Errorf("Expected currency 'eur', got '%s'", data.Currency)
-				}
-				if data.Price == nil {
-					t.Error("Expected price to be extracted")
-				}
-			},
-		},
-		{
 			name:     "Amazon BR Product",
 			filename: "amazon.com.br.html",
 			url:      "https://amazon.com.br/product",
@@ -194,31 +182,12 @@ func TestParseHTML_Integration(t *testing.T) {
 			},
 		},
 		{
-			name:     "OLX BR iPhone",
-			filename: "olx_br.html",
-			url:      "https://olx.br/product",
-			validate: func(t *testing.T, data *linkparsers.ParsedProductData) {
-				if data.Title == "" {
-					t.Error("Expected title to be extracted")
-				}
-				if data.Currency != "brl" {
-					t.Errorf("Expected currency 'brl', got '%s'", data.Currency)
-				}
-				if data.Price == nil {
-					t.Error("Expected price to be extracted")
-				}
-			},
-		},
-		{
-			name:     "OLX PT iPhone",
+			name:     "OLX PT iPhone (generic fallback — CloudFront 403)",
 			filename: "olx_pt_iphone-16-pro-max-256-gb-IDJ2Y_58a0707c.html",
 			url:      "https://olx.pt/product",
 			validate: func(t *testing.T, data *linkparsers.ParsedProductData) {
-				if data.Title == "" {
-					t.Error("Expected title to be extracted")
-				}
-				if data.Currency != "eur" {
-					t.Errorf("Expected currency 'eur', got '%s'", data.Currency)
+				if data == nil {
+					t.Fatal("Expected parsed data but got nil")
 				}
 			},
 		},

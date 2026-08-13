@@ -7,33 +7,14 @@ import (
 	"testing"
 )
 
-// TestParseAmazonES tests Amazon Spain parser
-func TestParseAmazonES(t *testing.T) {
-	html, err := loadTestHTML("amazon_es_ref_lp_17328039031_1_2_7c0a6edd.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestAmazonESUsesGenericParser: amazon.es is not in the site registry (buy-box
+// price is not in SSR HTML). Unmatched hosts fall back to ShareHTMLParser.
+func TestAmazonESUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://amazon.es/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for amazon.es, got %T", parser)
 	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency == "" {
-		t.Error("Expected currency to be extracted")
-	}
-	t.Logf("Currency: %s", data.Currency)
-
-	if data.Currency != "eur" && data.Currency != "brl" {
-		t.Errorf("Expected currency to be 'eur' or 'brl', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
 // TestParseAmazonBR tests Amazon Brazil parser
@@ -84,28 +65,14 @@ func TestParseCashConvertersPT(t *testing.T) {
 	t.Logf("Description: %s", data.Description)
 }
 
-// TestParseFnac tests Fnac parser
-func TestParseFnac(t *testing.T) {
-	html, err := loadTestHTML("fnac.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestFnacUsesGenericParser: fnac.pt is not in the site registry (could not
+// reach a product page). Unmatched hosts fall back to ShareHTMLParser.
+func TestFnacUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://fnac.pt/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for fnac.pt, got %T", parser)
 	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "eur" {
-		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
 // TestParseElectrolux tests Electrolux Brazil parser
@@ -132,196 +99,119 @@ func TestParseElectrolux(t *testing.T) {
 	t.Logf("Description: %s", data.Description)
 }
 
-// TestParseMagazineLuiza tests Magazine Luiza parser
-func TestParseMagazineLuiza(t *testing.T) {
-	html, err := loadTestHTML("magazineluiza_com_br_nass_0f0d181b.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestMagazineLuizaUsesGenericParser: magazineluiza.com.br is not in the site
+// registry (cold fetch 403 "Não é possível acessar a página"). Unmatched hosts
+// fall back to ShareHTMLParser.
+func TestMagazineLuizaUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://magazineluiza.com.br/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for magazineluiza.com.br, got %T", parser)
 	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "brl" {
-		t.Errorf("Expected currency to be 'brl', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
-// TestParseOLXBR tests OLX Brazil parser
-func TestParseOLXBR(t *testing.T) {
-	html, err := loadTestHTML("olx_br.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
+// TestOLXBRUsesGenericParser: olx.com.br is not in the site registry (cold fetch
+// is Cloudflare 403). Unmatched hosts fall back to ShareHTMLParser.
+func TestOLXBRUsesGenericParser(t *testing.T) {
+	for _, raw := range []string{
+		"https://olx.com.br/anuncio",
+		"https://sp.olx.com.br/sao-paulo-e-regiao/anuncio",
+		"https://olx.br/product/123",
+	} {
+		pageURL, _ := url.Parse(raw)
+		parser := ParserForURL(pageURL)
+		if _, ok := parser.(*ShareHTMLParser); !ok {
+			t.Errorf("expected ShareHTMLParser for %s, got %T", raw, parser)
+		}
 	}
-
-	pageURL, _ := url.Parse("https://olx.br/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
-	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "brl" {
-		t.Errorf("Expected currency to be 'brl', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
-// TestParseOLXPT tests OLX Portugal parser
-func TestParseOLXPT(t *testing.T) {
-	html, err := loadTestHTML("olx_pt_iphone-16-pro-max-256-gb-IDJ2Y_58a0707c.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestOLXPTUsesGenericParser: olx.pt is not in the site registry (cold fetch
+// is CloudFront 403). Unmatched hosts fall back to ShareHTMLParser.
+func TestOLXPTUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://olx.pt/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for olx.pt, got %T", parser)
 	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "eur" {
-		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
-// TestParsePrimark tests Primark parser
-func TestParsePrimark(t *testing.T) {
-	html, err := loadTestHTML("primark.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestPrimarkUsesGenericParser: primark.com is not in the site registry (cold
+// fetch is HTTP 403 "Planned maintenance"). Unmatched hosts fall back to ShareHTMLParser.
+func TestPrimarkUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://primark.com/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for primark.com, got %T", parser)
 	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "eur" {
-		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
-// TestParsePrimor tests Primor EU parser
-func TestParsePrimor(t *testing.T) {
-	html, err := loadTestHTML("primor_eu_calvin-klein-ck-one-colonia-un_c4dbb5af.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
+// TestPrimorUsesGenericParser: primor.eu is not in the site registry (cold fetch
+// is AWS WAF HTTP 202 challenge). Unmatched hosts fall back to ShareHTMLParser.
+func TestPrimorUsesGenericParser(t *testing.T) {
+	for _, raw := range []string{
+		"https://primor.eu/product/123",
+		"https://pt.primor.eu/pt_pt/creme-de-noite-multi-intensivo.html",
+	} {
+		pageURL, _ := url.Parse(raw)
+		parser := ParserForURL(pageURL)
+		if _, ok := parser.(*ShareHTMLParser); !ok {
+			t.Errorf("expected ShareHTMLParser for %s, got %T", raw, parser)
+		}
 	}
-
-	pageURL, _ := url.Parse("https://primor.eu/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
-	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "eur" {
-		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
-// TestParseMercadoLivre tests Mercado Livre parser
-func TestParseMercadoLivre(t *testing.T) {
-	html, err := loadTestHTML("produto_mercadolivre_com_br_MLB-3237298873-mochila-basic-o_3a6fe9e8.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
-	pageURL, _ := url.Parse("https://mercadolivre.com.br/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
-	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "brl" {
-		t.Errorf("Expected currency to be 'brl', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
-}
-
-// TestParseWorten tests Worten parser
-func TestParseWorten(t *testing.T) {
-	html, err := loadTestHTML("worten.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
-	pageURL, _ := url.Parse("https://worten.pt/product/123")
-	data := ParseHTML(html, pageURL)
-
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
-	}
-	t.Logf("Title: %s", data.Title)
-
-	if data.Currency != "eur" {
-		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
-	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
-}
-
-// TestParseZara tests Zara parser
-func TestParseZara(t *testing.T) {
-	html, err := loadTestHTML("zara_com_seoul-edt-90-ml--3-04-fl--oz--_940553b0.html")
-	if err != nil {
-		t.Fatalf("Failed to load test HTML: %v", err)
-	}
-
+// TestZaraUsesGenericParser: zara.com is not in the site registry (cold fetch
+// is Akamai Bot Manager interstitial). Unmatched hosts fall back to ShareHTMLParser.
+func TestZaraUsesGenericParser(t *testing.T) {
 	pageURL, _ := url.Parse("https://zara.com/product/123")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for zara.com, got %T", parser)
+	}
+}
+
+// TestMercadoLivreUsesGenericParser: mercadolivre.com.br is not in the site
+// registry (cold fetch redirects to /gz/account-verification). Unmatched hosts
+// fall back to ShareHTMLParser.
+func TestMercadoLivreUsesGenericParser(t *testing.T) {
+	pageURL, _ := url.Parse("https://mercadolivre.com.br/product/123")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for mercadolivre.com.br, got %T", parser)
+	}
+}
+
+// TestWortenUsesGenericParser: worten.pt is not in the site registry (cold
+// fetch is Cloudflare 403 challenge). Unmatched hosts fall back to ShareHTMLParser.
+func TestWortenUsesGenericParser(t *testing.T) {
+	pageURL, _ := url.Parse("https://worten.pt/product/123")
+	parser := ParserForURL(pageURL)
+	if _, ok := parser.(*ShareHTMLParser); !ok {
+		t.Errorf("expected ShareHTMLParser for worten.pt, got %T", parser)
+	}
+}
+
+// TestParsePerfumesECompanhia tests Perfumes e Companhia Portugal parser
+func TestParsePerfumesECompanhia(t *testing.T) {
+	pageURL, _ := url.Parse("https://www.perfumesecompanhia.pt/pt/yves-saint-laurent-libre-berry-crush-eau-de-parfum/436615.html")
+	html := `<html lang="pt"><head>
+		<meta property="og:title" content="Libre - Berry Crush Eau de Parfum - Yves Saint Laurent | Perfumes e Companhia"/>
+		<script type="application/ld+json">
+		{"@context":"http://schema.org/","@type":"Product","name":"Berry Crush Eau de Parfum","offers":{"@type":"Offer","priceCurrency":"EUR","price":"128.60"}}
+		</script>
+	</head></html>`
 	data := ParseHTML(html, pageURL)
 
-	if data.Title == "" {
-		t.Error("Expected title to be extracted")
+	if data.Title != "Libre - Berry Crush Eau de Parfum - Yves Saint Laurent" {
+		t.Errorf("title: got %q", data.Title)
 	}
-	t.Logf("Title: %s", data.Title)
-
+	if data.Price == nil || *data.Price != 128.60 {
+		t.Errorf("price: got %v, want 128.60", data.Price)
+	}
 	if data.Currency != "eur" {
 		t.Errorf("Expected currency to be 'eur', got: %s", data.Currency)
 	}
-
-	t.Logf("Price: %v", data.Price)
-	t.Logf("Image: %s", data.ImageURL)
-	t.Logf("Description: %s", data.Description)
 }
 
 // TestParserSelection tests that the correct parser is selected for each URL
@@ -330,19 +220,21 @@ func TestParserSelection(t *testing.T) {
 		urlStr         string
 		expectedParser string
 	}{
-		{"https://amazon.es/product", "AmazonParser"},
+		{"https://amazon.es/product", "ShareHTMLParser"},
 		{"https://amazon.com.br/product", "AmazonParser"},
-		{"https://olx.pt/product", "OLXPTParser"},
-		{"https://olx.br/product", "OLXBRParser"},
-		{"https://fnac.pt/product", "FnacPTParser"},
+		{"https://olx.pt/product", "ShareHTMLParser"},
+		{"https://olx.br/product", "ShareHTMLParser"},
+		{"https://olx.com.br/product", "ShareHTMLParser"},
+		{"https://fnac.pt/product", "ShareHTMLParser"},
 		{"https://cashconverters.pt/product", "CashConvertersPTParser"},
-		{"https://magazineluiza.com.br/product", "MagazineLuizaBRParser"},
-		{"https://mercadolivre.com.br/product", "MercadoLivreBRParser"},
+		{"https://magazineluiza.com.br/product", "ShareHTMLParser"},
+		{"https://mercadolivre.com.br/product", "ShareHTMLParser"},
 		{"https://electrolux.com.br/product", "ElectroluxBRParser"},
-		{"https://primark.com/product", "PrimarkParser"},
-		{"https://primor.eu/product", "PrimorEUParser"},
-		{"https://worten.pt/product", "WortenPTParser"},
-		{"https://zara.com/product", "ZaraParser"},
+		{"https://primark.com/product", "ShareHTMLParser"},
+		{"https://primor.eu/product", "ShareHTMLParser"},
+		{"https://worten.pt/product", "ShareHTMLParser"},
+		{"https://zara.com/product", "ShareHTMLParser"},
+		{"https://perfumesecompanhia.pt/product", "PerfumesECompanhiaParser"},
 		{"https://unknown-site.com/product", "ShareHTMLParser"},
 	}
 
@@ -378,28 +270,12 @@ func getParserType(parser Parser) string {
 	switch parser.(type) {
 	case *AmazonParser:
 		return "AmazonParser"
-	case *OLXPTParser:
-		return "OLXPTParser"
-	case *OLXBRParser:
-		return "OLXBRParser"
-	case *FnacPTParser:
-		return "FnacPTParser"
 	case *CashConvertersPTParser:
 		return "CashConvertersPTParser"
-	case *MagazineLuizaBRParser:
-		return "MagazineLuizaBRParser"
-	case *MercadoLivreBRParser:
-		return "MercadoLivreBRParser"
 	case *ElectroluxBRParser:
 		return "ElectroluxBRParser"
-	case *PrimarkParser:
-		return "PrimarkParser"
-	case *PrimorEUParser:
-		return "PrimorEUParser"
-	case *WortenPTParser:
-		return "WortenPTParser"
-	case *ZaraParser:
-		return "ZaraParser"
+	case *PerfumesECompanhiaParser:
+		return "PerfumesECompanhiaParser"
 	case *ShareHTMLParser:
 		return "ShareHTMLParser"
 	default:

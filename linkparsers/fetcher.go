@@ -1,7 +1,6 @@
 package linkparsers
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"muambr-api/utils"
@@ -88,7 +87,7 @@ func FetchHTML(urlStr string) (string, error) {
 	defer resp.Body.Close()
 
 	// Read response body with proper decompression handling
-	body, err := readResponseBody(resp)
+	body, err := utils.ReadDecompressedBody(resp)
 	if err != nil {
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -198,35 +197,4 @@ func ScrapeProductTitles(searchURL string, maxResults int) ([]string, error) {
 		utils.Int("filtered", len(filteredTitles)))
 
 	return filteredTitles, nil
-}
-
-// readResponseBody reads and decompresses the response body if needed
-func readResponseBody(resp *http.Response) ([]byte, error) {
-	var reader io.Reader = resp.Body
-	
-	// Check if response is gzip compressed
-	if resp.Header.Get("Content-Encoding") == "gzip" {
-		gzipReader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			utils.Warn("⚠️ Failed to create gzip reader, falling back to raw read", utils.Error(err))
-			// Fall back to reading raw body
-			return io.ReadAll(resp.Body)
-		}
-		defer gzipReader.Close()
-		reader = gzipReader
-		
-		utils.Debug("📦 Detected gzip compression, decompressing content")
-	}
-	
-	// Read the content (compressed or uncompressed)
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-	
-	utils.Debug("📄 Response body read successfully", 
-		utils.Int("bytes", len(body)),
-		utils.String("compression", resp.Header.Get("Content-Encoding")))
-	
-	return body, nil
 }

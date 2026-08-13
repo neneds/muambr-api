@@ -47,31 +47,6 @@ func TestExtractorIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("MercadoLivreIntegration", func(t *testing.T) {
-		extractor := other.NewMercadoLivreExtractorV2()
-		
-		timeout := 30 * time.Second
-		done := make(chan bool, 1)
-		var results []models.ProductComparison
-		var err error
-		
-		go func() {
-			results, err = extractor.GetComparisons("iPhone")
-			done <- true
-		}()
-		
-		select {
-		case <-done:
-			if err != nil {
-				t.Logf("MercadoLivre extraction failed (this may be expected due to anti-bot protection): %v", err)
-			} else {
-				t.Logf("MercadoLivre extraction succeeded with %d results", len(results))
-			}
-		case <-time.After(timeout):
-			t.Errorf("MercadoLivre extraction timed out after %v", timeout)
-		}
-	})
-
 	t.Run("KuantoKustaIntegration", func(t *testing.T) {
 		extractor := other.NewKuantoKustaExtractorV2()
 		
@@ -94,56 +69,6 @@ func TestExtractorIntegration(t *testing.T) {
 			}
 		case <-time.After(timeout):
 			t.Errorf("KuantoKusta extraction timed out after %v", timeout)
-		}
-	})
-
-	t.Run("AmazonSpainIntegration", func(t *testing.T) {
-		extractor := other.NewAmazonSpainExtractor()
-		
-		timeout := 30 * time.Second
-		done := make(chan bool, 1)
-		var results []models.ProductComparison
-		var err error
-		
-		go func() {
-			results, err = extractor.GetComparisons("iPhone")
-			done <- true
-		}()
-		
-		select {
-		case <-done:
-			if err != nil {
-				t.Logf("Amazon Spain extraction failed (this may be expected due to anti-bot protection): %v", err)
-			} else {
-				t.Logf("Amazon Spain extraction succeeded with %d results", len(results))
-			}
-		case <-time.After(timeout):
-			t.Errorf("Amazon Spain extraction timed out after %v", timeout)
-		}
-	})
-
-	t.Run("AmazonUSIntegration", func(t *testing.T) {
-		extractor := other.NewAmazonUSExtractor()
-		
-		timeout := 30 * time.Second
-		done := make(chan bool, 1)
-		var results []models.ProductComparison
-		var err error
-		
-		go func() {
-			results, err = extractor.GetComparisons("iPhone")
-			done <- true
-		}()
-		
-		select {
-		case <-done:
-			if err != nil {
-				t.Logf("Amazon US extraction failed (this may be expected due to anti-bot protection): %v", err)
-			} else {
-				t.Logf("Amazon US extraction succeeded with %d results", len(results))
-			}
-		case <-time.After(timeout):
-			t.Errorf("Amazon US extraction timed out after %v", timeout)
 		}
 	})
 

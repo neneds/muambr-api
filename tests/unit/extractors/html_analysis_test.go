@@ -118,7 +118,6 @@ func TestHTMLDataAnalysis(t *testing.T) {
 		site     string
 	}{
 		{"AcharPromo", "acharpromo_ipad10_search.html", "achar.promo"},
-		{"MercadoLivre", "mercadolivre_ipad10_search.html", "mercadolivre.com.br"},
 		{"KuantoKusta", "kuantokusta_ipad10_search.html", "kuantokusta.pt"},
 	}
 
@@ -165,7 +164,6 @@ func TestHTMLDataUsability(t *testing.T) {
 	t.Run("VerifyAllTestDataExists", func(t *testing.T) {
 		testFiles := []string{
 			"acharpromo_ipad10_search.html",
-			"mercadolivre_ipad10_search.html", 
 			"kuantokusta_ipad10_search.html",
 		}
 		

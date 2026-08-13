@@ -45,31 +45,3 @@ func TestKuantoKustaExtractor(t *testing.T) {
 	})
 }
 
-func TestMercadoLivreExtractor(t *testing.T) {
-	extractor := other.NewMercadoLivreExtractorV2()
-
-	t.Run("GetCountryCode", func(t *testing.T) {
-		country := extractor.GetCountryCode()
-		expected := models.CountryBrazil
-		if country != expected {
-			t.Errorf("Expected country code %s, got %s", expected, country)
-		}
-	})
-
-	t.Run("GetMacroRegion", func(t *testing.T) {
-		region := extractor.GetMacroRegion()
-		expected := models.MacroRegionLATAM
-		if region != expected {
-			t.Errorf("Expected macro region %s, got %s", expected, region)
-		}
-	})
-
-	t.Run("GetIdentifier", func(t *testing.T) {
-		identifier := extractor.GetIdentifier()
-		expected := "mercadolivre_v2"
-		if identifier != expected {
-			t.Errorf("Expected identifier %s, got %s", expected, identifier)
-		}
-	})
-}
-

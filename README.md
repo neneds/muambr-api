@@ -70,8 +70,7 @@ curl "http://localhost:8080/api/comparisons?name=iPhone%2015&country=PT&currentC
 **Supported Extractors:**
 - **KuantoKusta** (Portugal) - Portuguese price comparison service
   - URL Format: `https://www.kuantokusta.pt/search?q={product_name}`
-- **Mercado Livre** (Brazil) - Brazilian marketplace and price comparison
-  - URL Format: `https://lista.mercadolivre.com.br/{product-name}`
+- **AcharPromo** (Brazil) - Brazilian price comparison
 - **Idealo** (Spain) - Spanish price comparison and product search
   - URL Format: `https://www.idealo.es/resultados.html?q={product_name}`
 
