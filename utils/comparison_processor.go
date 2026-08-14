@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"sort"
 	"muambr-api/models"
+	"sort"
 )
 
 // ComparisonProcessor handles the processing and filtering of product comparisons
@@ -25,16 +25,16 @@ func (cp *ComparisonProcessor) ProcessComparisons(comparisons []models.ProductCo
 
 	// Step 1: Filter out price outliers (values 60% below average)
 	filteredComparisons := cp.filterPriceOutliers(comparisons)
-	
+
 	// Step 2: Group comparisons by country
 	countryGroups := cp.groupComparisonsByCountry(filteredComparisons)
-	
+
 	// Step 3: Process each country group: sort by price and apply per-country limit
 	var sections []models.CountrySection
 	for countryCode, countryComparisons := range countryGroups {
 		// Sort by price (smallest first) and apply limit
 		processedComparisons := cp.sortAndLimitCountryComparisons(countryComparisons, limit)
-		
+
 		// Create country section
 		section := models.CountrySection{
 			Country:      countryCode,
@@ -44,7 +44,7 @@ func (cp *ComparisonProcessor) ProcessComparisons(comparisons []models.ProductCo
 		}
 		sections = append(sections, section)
 	}
-	
+
 	return sections
 }
 
@@ -54,11 +54,11 @@ func (cp *ComparisonProcessor) filterPriceOutliers(comparisons []models.ProductC
 		// Don't filter if we have too few comparisons
 		return comparisons
 	}
-	
+
 	// Calculate average price using effective prices (converted if available)
 	var totalPrice float64
 	var validPrices []float64
-	
+
 	for _, comparison := range comparisons {
 		effectivePrice := cp.getEffectivePrice(comparison)
 		if effectivePrice > 0 { // Only consider positive prices
@@ -66,14 +66,14 @@ func (cp *ComparisonProcessor) filterPriceOutliers(comparisons []models.ProductC
 			validPrices = append(validPrices, effectivePrice)
 		}
 	}
-	
+
 	if len(validPrices) == 0 {
 		return comparisons // Return original if no valid prices found
 	}
-	
+
 	averagePrice := totalPrice / float64(len(validPrices))
 	minAcceptablePrice := averagePrice * cp.priceOutlierThreshold
-	
+
 	// Filter out products with prices below the threshold
 	var filteredComparisons []models.ProductComparison
 	for _, comparison := range comparisons {
@@ -91,14 +91,14 @@ func (cp *ComparisonProcessor) filterPriceOutliers(comparisons []models.ProductC
 				Float64("min_acceptable_price", minAcceptablePrice))
 		}
 	}
-	
+
 	return filteredComparisons
 }
 
 // groupComparisonsByCountry groups product comparisons by country using the Country field
 func (cp *ComparisonProcessor) groupComparisonsByCountry(comparisons []models.ProductComparison) map[string][]models.ProductComparison {
 	countryGroups := make(map[string][]models.ProductComparison)
-	
+
 	for _, comparison := range comparisons {
 		// Use the Country field directly from the ProductComparison model
 		countryCode := comparison.Country
@@ -107,7 +107,7 @@ func (cp *ComparisonProcessor) groupComparisonsByCountry(comparisons []models.Pr
 		}
 		countryGroups[countryCode] = append(countryGroups[countryCode], comparison)
 	}
-	
+
 	return countryGroups
 }
 
@@ -119,12 +119,12 @@ func (cp *ComparisonProcessor) sortAndLimitCountryComparisons(comparisons []mode
 		priceJ := cp.getEffectivePrice(comparisons[j])
 		return priceI < priceJ
 	})
-	
+
 	// Apply per-country limit
 	if limit > 0 && len(comparisons) > limit {
 		return comparisons[:limit]
 	}
-	
+
 	return comparisons
 }
 
@@ -142,11 +142,4 @@ func (cp *ComparisonProcessor) getCountryName(countryCode string) string {
 		return country.GetCountryName()
 	}
 	return countryCode // Fallback to country code if not found
-}
-
-// SetPriceOutlierThreshold allows customization of the price filtering threshold
-func (cp *ComparisonProcessor) SetPriceOutlierThreshold(threshold float64) {
-	if threshold > 0 && threshold <= 1.0 {
-		cp.priceOutlierThreshold = threshold
-	}
 }

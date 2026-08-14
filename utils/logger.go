@@ -9,22 +9,22 @@ import (
 type Logger interface {
 	// Info logs an informational message
 	Info(msg string, fields ...Field)
-	
+
 	// Warn logs a warning message
 	Warn(msg string, fields ...Field)
-	
+
 	// Error logs an error message
 	Error(msg string, fields ...Field)
-	
+
 	// Debug logs a debug message
 	Debug(msg string, fields ...Field)
-	
+
 	// Fatal logs a fatal message and exits the application
 	Fatal(msg string, fields ...Field)
-	
+
 	// With creates a child logger with additional fields
 	With(fields ...Field) Logger
-	
+
 	// Sync flushes any buffered log entries
 	Sync() error
 }
@@ -81,7 +81,7 @@ func NewZapLoggerWithConfig(config zap.Config) (*ZapLogger, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return &ZapLogger{logger: logger}, nil
 }
 
@@ -90,7 +90,7 @@ func NewDevelopmentZapLogger() (*ZapLogger, error) {
 	config := zap.NewDevelopmentConfig()
 	config.EncoderConfig.TimeKey = "timestamp"
 	config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	
+
 	return NewZapLoggerWithConfig(config)
 }
 
@@ -156,16 +156,6 @@ func (z *ZapLogger) Sync() error {
 
 // Global logger instance
 var globalLogger Logger
-
-// InitLogger initializes the global logger
-func InitLogger() error {
-	logger, err := NewZapLogger()
-	if err != nil {
-		return err
-	}
-	globalLogger = logger
-	return nil
-}
 
 // InitDevelopmentLogger initializes the global logger for development
 func InitDevelopmentLogger() error {

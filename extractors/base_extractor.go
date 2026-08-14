@@ -56,12 +56,12 @@ type BaseHTTPExtractor struct {
 // NewBaseHTTPExtractor creates a new base extractor with anti-bot protection
 func NewBaseHTTPExtractor(baseURL string, countryCode models.Country) *BaseHTTPExtractor {
 	config := utils.DefaultAntiBotConfig(baseURL)
-	
+
 	// Customize config based on country and site
 	config.UserAgentRotation = true
 	config.MinDelay = 1000 * time.Millisecond
 	config.MaxDelay = 3000 * time.Millisecond
-	
+
 	return &BaseHTTPExtractor{
 		baseURL:     baseURL,
 		countryCode: countryCode,
@@ -76,13 +76,13 @@ func readResponseBody(resp *http.Response) ([]byte, error) {
 
 // FetchHTML implements the HTTPClient interface
 func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
-	utils.Info("🌐 Fetching HTML content", 
+	utils.Info("🌐 Fetching HTML content",
 		utils.String("url", url),
 		utils.String("country", string(b.countryCode)))
 
 	resp, err := utils.MakeAntiBotRequest(url, b.config)
 	if err != nil {
-		utils.LogError("❌ Failed to fetch HTML", 
+		utils.LogError("❌ Failed to fetch HTML",
 			utils.String("url", url),
 			utils.Error(err))
 		return "", fmt.Errorf("failed to fetch HTML: %w", err)
@@ -103,7 +103,7 @@ func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
 	}
 
 	html := string(body)
-	utils.Info("✅ Successfully fetched HTML", 
+	utils.Info("✅ Successfully fetched HTML",
 		utils.String("url", url),
 		utils.Int("size", len(html)))
 
@@ -153,11 +153,11 @@ func (b *BaseHTMLParser) ExtractWithRegex(pattern, html string) string {
 // ExtractMultipleWithRegex extracts multiple matches using regex patterns
 func (b *BaseHTMLParser) ExtractMultipleWithRegex(patterns []string, html string) []string {
 	var results []string
-	
+
 	for _, pattern := range patterns {
 		re := regexp.MustCompile("(?i)" + pattern)
 		matches := re.FindAllStringSubmatch(html, -1)
-		
+
 		for _, match := range matches {
 			if len(match) > 1 {
 				result := strings.TrimSpace(match[1])
@@ -166,12 +166,12 @@ func (b *BaseHTMLParser) ExtractMultipleWithRegex(patterns []string, html string
 				}
 			}
 		}
-		
+
 		if len(results) > 0 {
 			break
 		}
 	}
-	
+
 	return results
 }
 
@@ -196,7 +196,7 @@ func (b *BaseHTMLParser) ParsePriceText(priceText string, defaultCurrency string
 	// Clean the price text
 	cleanedPrice := priceText
 	cleanedPrice = regexp.MustCompile(`[^\d.,]`).ReplaceAllString(cleanedPrice, "")
-	
+
 	// Handle different decimal formats
 	if currency == "BRL" {
 		// Brazilian format: 1.234,56 -> 1234.56
@@ -215,7 +215,7 @@ func (b *BaseHTMLParser) ParsePriceText(priceText string, defaultCurrency string
 
 	price, err := strconv.ParseFloat(cleanedPrice, 64)
 	if err != nil {
-		utils.Debug("❌ Failed to parse price", 
+		utils.Debug("❌ Failed to parse price",
 			utils.String("original", priceText),
 			utils.String("cleaned", cleanedPrice),
 			utils.Error(err))
@@ -230,16 +230,16 @@ func (b *BaseHTMLParser) ExtractJSONLD(html string) ([]map[string]interface{}, e
 	pattern := `<script[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>`
 	re := regexp.MustCompile("(?i)" + pattern)
 	matches := re.FindAllStringSubmatch(html, -1)
-	
+
 	var results []map[string]interface{}
-	
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			var data interface{}
 			if err := json.Unmarshal([]byte(match[1]), &data); err != nil {
 				continue
 			}
-			
+
 			// Handle different JSON-LD structures
 			switch v := data.(type) {
 			case map[string]interface{}:
@@ -253,7 +253,7 @@ func (b *BaseHTMLParser) ExtractJSONLD(html string) ([]map[string]interface{}, e
 			}
 		}
 	}
-	
+
 	return results, nil
 }
 
@@ -269,7 +269,7 @@ type GoExtractor interface {
 type BaseGoExtractor struct {
 	*BaseHTTPExtractor
 	*BaseHTMLParser
-	Parser HTMLParser
+	Parser      HTMLParser
 	countryCode models.Country
 	macroRegion models.MacroRegion
 	identifier  string
@@ -306,7 +306,7 @@ func (b *BaseGoExtractor) BaseURL() string {
 
 // GetComparisons implements the main extraction workflow
 func (b *BaseGoExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
-	utils.Info("🚀 Starting BASE product extraction", 
+	utils.Info("🚀 Starting BASE product extraction",
 		utils.String("product", productName),
 		utils.String("extractor", b.identifier),
 		utils.String("country", string(b.countryCode)))
@@ -329,7 +329,7 @@ func (b *BaseGoExtractor) GetComparisons(productName string) ([]models.ProductCo
 		return nil, fmt.Errorf("failed to extract comparisons: %w", err)
 	}
 
-	utils.Info("✅ Extraction completed", 
+	utils.Info("✅ Extraction completed",
 		utils.String("extractor", b.identifier),
 		utils.Int("results", len(comparisons)))
 
@@ -339,14 +339,14 @@ func (b *BaseGoExtractor) GetComparisons(productName string) ([]models.ProductCo
 // GetComparisonsFromHTML extracts products from HTML using the injected parser
 func (b *BaseGoExtractor) GetComparisonsFromHTML(html string) ([]models.ProductComparison, error) {
 	var comparisons []models.ProductComparison
-	
+
 	// Get product selectors from the specific parser
 	productSelectors := b.Parser.GetProductSelectors()
-	
+
 	for _, selector := range productSelectors {
 		// Use regex to find product containers
 		products := b.ExtractMultipleWithRegex([]string{selector}, html)
-		
+
 		for _, productHTML := range products {
 			// Parse individual product
 			name := b.Parser.ParseProductName(productHTML)
@@ -380,7 +380,7 @@ func (b *BaseGoExtractor) GetComparisonsFromHTML(html string) ([]models.ProductC
 
 			comparisons = append(comparisons, comparison)
 		}
-		
+
 		// If we found results with this selector, stop trying others
 		if len(comparisons) > 0 {
 			break
@@ -388,12 +388,4 @@ func (b *BaseGoExtractor) GetComparisonsFromHTML(html string) ([]models.ProductC
 	}
 
 	return comparisons, nil
-}
-
-// min helper function for use across extractors
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

@@ -166,7 +166,7 @@ Categories: `electronics`, `beauty`, `appliances`, `fashion`, `other`.
 
 `ProductComparison` is the **extractor output** (store-native offer). The HTTP envelope is `ProductComparisonResult` in `models/comparison_result.go`.
 
-To add a country: constant in `models/models.go`, every `Country` switch (`GetCurrencyCode`, `GetMacroRegion`, `GetCountryName`, `GetLanguageCode`, `ParseCountryFromISO`), and `GetCountriesInMacroRegion`.
+To add a country: constant in `models/models.go`, every `Country` switch (`GetCurrencyCode`, `GetMacroRegion`, `GetCountryName`, `ParseCountryFromISO`), and `GetCountriesInMacroRegion`.
 
 ---
 

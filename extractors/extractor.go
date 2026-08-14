@@ -55,37 +55,6 @@ func (r *ExtractorRegistry) GetExtractorsForCountry(country models.Country, cate
 	return filterByCategory(all, *category)
 }
 
-// GetExtractorsForMacroRegion returns all extractors available for a given macro region.
-// When category is non-nil only extractors matching that category are returned.
-func (r *ExtractorRegistry) GetExtractorsForMacroRegion(macroRegion models.MacroRegion, category *models.ProductCategory) []Extractor {
-	var result []Extractor
-	for _, extractors := range r.extractors {
-		for _, extractor := range extractors {
-			if extractor.GetMacroRegion() == macroRegion {
-				result = append(result, extractor)
-			}
-		}
-	}
-	if category == nil {
-		return result
-	}
-	return filterByCategory(result, *category)
-}
-
-// GetAllExtractors returns all registered extractors grouped by country
-func (r *ExtractorRegistry) GetAllExtractors() map[models.Country][]Extractor {
-	return r.extractors
-}
-
-// GetSupportedCountries returns a list of all countries that have registered extractors
-func (r *ExtractorRegistry) GetSupportedCountries() []models.Country {
-	var countries []models.Country
-	for country := range r.extractors {
-		countries = append(countries, country)
-	}
-	return countries
-}
-
 // filterByCategory returns only the extractors whose category matches the given value
 func filterByCategory(extractors []Extractor, category models.ProductCategory) []Extractor {
 	var result []Extractor

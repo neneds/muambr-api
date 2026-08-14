@@ -2,8 +2,8 @@ package models
 
 import (
 	"fmt"
-	"strings"
 	"muambr-api/localization"
+	"strings"
 )
 
 // Country represents the country enum using ISO codes
@@ -93,7 +93,7 @@ func (c Country) GetMacroRegion() MacroRegion {
 	case CountryPortugal, CountrySpain, CountryGermany:
 		return MacroRegionEU
 	case CountryUK:
-		return MacroRegionEU		
+		return MacroRegionEU
 	default:
 		return MacroRegionNone
 	}
@@ -119,35 +119,17 @@ func (c Country) GetCountryName() string {
 	}
 }
 
-// GetLanguageCode returns the language code for the country
-func (c Country) GetLanguageCode() string {
-	switch c {
-	case CountryBrazil:
-		return "pt" // Portuguese for Brazil
-	case CountryUS, CountryUK:
-		return "en" // English for US and UK
-	case CountryPortugal:
-		return "pt" // Portuguese for Portugal
-	case CountrySpain:
-		return "es" // Spanish for Spain
-	case CountryGermany:
-		return "en" // English for Germany (we don't have German yet)
-	default:
-		return "en" // Default to English
-	}
-}
-
 // GetCountriesInMacroRegion returns all countries that belong to the specified macro region
 func GetCountriesInMacroRegion(region MacroRegion) []Country {
 	var countries []Country
 	allCountries := []Country{CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany}
-	
+
 	for _, country := range allCountries {
 		if country.GetMacroRegion() == region {
 			countries = append(countries, country)
 		}
 	}
-	
+
 	return countries
 }
 
@@ -190,10 +172,8 @@ type ProductComparison struct {
 
 // CountrySection represents a group of product comparisons from a specific country
 type CountrySection struct {
-	Country      string               `json:"country"`
-	CountryName  string               `json:"countryName"`
-	Comparisons  []ProductComparison  `json:"comparisons"`
-	ResultsCount int                  `json:"resultsCount"`
+	Country      string              `json:"country"`
+	CountryName  string              `json:"countryName"`
+	Comparisons  []ProductComparison `json:"comparisons"`
+	ResultsCount int                 `json:"resultsCount"`
 }
-
-

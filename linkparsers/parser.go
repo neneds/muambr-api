@@ -22,11 +22,6 @@ type Parser interface {
 // ShareHTMLParser is the base parser with generic extraction methods
 type ShareHTMLParser struct{}
 
-// NewShareHTMLParser creates a new base parser
-func NewShareHTMLParser() *ShareHTMLParser {
-	return &ShareHTMLParser{}
-}
-
 // ParserForURL creates the appropriate parser for the given URL
 func ParserForURL(pageURL *url.URL) Parser {
 	return createParser(pageURL)
@@ -395,56 +390,6 @@ func extractWithRegex(pattern, html string) string {
 		return strings.TrimSpace(matches[1])
 	}
 	return ""
-}
-
-// extractMultipleWithRegex extracts multiple matches using regex patterns (inspired by amazon_scraper.go)
-func extractMultipleWithRegex(patterns []string, html string) []string {
-	var results []string
-
-	for i, pattern := range patterns {
-		utils.Debug("🔍 Parser: Trying extraction pattern", utils.Int("pattern", i+1))
-		re := regexp.MustCompile("(?i)" + pattern)
-		matches := re.FindAllStringSubmatch(html, -1)
-
-		for _, match := range matches {
-			if len(match) > 1 {
-				result := strings.TrimSpace(match[1])
-				if result != "" {
-					results = append(results, result)
-				}
-			}
-		}
-
-		// If we found results with this pattern, we can break or continue depending on use case
-		if len(results) > 0 {
-			utils.Debug("🔍 Parser: Found matches with pattern",
-				utils.Int("pattern", i+1),
-				utils.Int("count", len(results)))
-		}
-	}
-
-	return results
-}
-
-// filterProductTitles filters out unwanted titles using logic from amazon_scraper.go
-func filterProductTitles(titles []string) []string {
-	var filtered []string
-
-	for _, title := range titles {
-		lower := strings.ToLower(title)
-		if title != "" &&
-			!strings.Contains(lower, "check each product") &&
-			!strings.Contains(lower, "let us know") &&
-			!strings.Contains(lower, "results") &&
-			!strings.Contains(lower, "your search") &&
-			!strings.Contains(lower, "amazon.com") &&
-			!strings.Contains(lower, "www.amazon") &&
-			len(title) > 10 {
-			filtered = append(filtered, title)
-		}
-	}
-
-	return filtered
 }
 
 func extractStructuredDataTitle(html string) string {
