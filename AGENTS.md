@@ -27,7 +27,7 @@ Write the **smallest reusable change**. Prefer extending existing types over new
 
 ### DRY — do not duplicate
 
-- HTTP: `BaseHTTPExtractor.FetchHTML` / `utils.MakeScrapingRequest` — never `http.Get`.
+- HTTP: `BaseHTTPExtractor.FetchHTML` / `utils.MakeAntiBotRequest` — never `http.Get`.
 - Grouping, sort, outlier filter: `ComparisonProcessor`.
 - Savings, deal score, match confidence, `normalized*` fields: `ComparisonEngine`.
 - FX: `ExchangeRateService`. Extractors return **store-native** `price` + ISO currency only.
@@ -328,7 +328,7 @@ utils.Error("message", utils.Error(err))
 
 Do not commit debug-only logs.
 
-- HTTP: `utils.MakeScrapingRequest` or `FetchHTML` — never raw `http.Get`.
+- HTTP: `utils.MakeAntiBotRequest` or `FetchHTML` — never raw `http.Get`.
 - i18n: keys in `localization/en.json` (and `pt.json` / `es.json`).
 - `ComparisonProcessor`: group by country, sort, drop prices &lt; 60% of average.
 - `ComparisonEngine`: match confidence, best prices, savings, deal score, omit same-currency `normalized*`.

@@ -78,7 +78,7 @@ func (e *PerfumesECompanhiaPTExtractor) FetchHTML(targetURL string) (string, err
 	if err != nil {
 		return "", fmt.Errorf("perfumes_e_companhia_pt: failed to build request: %w", err)
 	}
-	req.Header.Set("User-Agent", utils.GetRandomUserAgent())
+	req.Header.Set("User-Agent", utils.DefaultUserAgent)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Origin", "https://www.perfumesecompanhia.pt")
 	req.Header.Set("Referer", "https://www.perfumesecompanhia.pt/")

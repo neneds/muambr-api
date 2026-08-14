@@ -56,7 +56,7 @@ INTEGRATION_TESTS=true go test ./tests/integration/...
 - Price outlier filtering removes items >60% below average (configurable in `ComparisonProcessor`)
 
 ### HTTP Client Integration
-- Go extractors use `utils.MakeScrapingRequest` for anti-bot protection
+- Go extractors use `utils.MakeAntiBotRequest` for outbound HTTP
 - HTML parsing done natively with goquery CSS selectors
 - Gzip decompression handled automatically in base extractor
 

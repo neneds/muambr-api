@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"muambr-api/models"
 	"muambr-api/utils"
@@ -49,24 +48,13 @@ type ProductExtractor interface {
 type BaseHTTPExtractor struct {
 	baseURL     string
 	countryCode models.Country
-	userAgent   string
-	config      *utils.AntiBotConfig
 }
 
-// NewBaseHTTPExtractor creates a new base extractor with anti-bot protection
+// NewBaseHTTPExtractor creates a new base extractor with the shared HTTP client.
 func NewBaseHTTPExtractor(baseURL string, countryCode models.Country) *BaseHTTPExtractor {
-	config := utils.DefaultAntiBotConfig(baseURL)
-
-	// Customize config based on country and site
-	config.UserAgentRotation = true
-	config.MinDelay = 1000 * time.Millisecond
-	config.MaxDelay = 3000 * time.Millisecond
-
 	return &BaseHTTPExtractor{
 		baseURL:     baseURL,
 		countryCode: countryCode,
-		config:      config,
-		userAgent:   utils.GetRandomUserAgent(),
 	}
 }
 
@@ -80,7 +68,7 @@ func (b *BaseHTTPExtractor) FetchHTML(url string) (string, error) {
 		utils.String("url", url),
 		utils.String("country", string(b.countryCode)))
 
-	resp, err := utils.MakeAntiBotRequest(url, b.config)
+	resp, err := utils.MakeAntiBotRequest(url)
 	if err != nil {
 		utils.LogError("❌ Failed to fetch HTML",
 			utils.String("url", url),
@@ -117,7 +105,7 @@ func (b *BaseHTTPExtractor) GetBaseURL() string {
 
 // GetUserAgent implements the HTTPClient interface
 func (b *BaseHTTPExtractor) GetUserAgent() string {
-	return b.userAgent
+	return utils.DefaultUserAgent
 }
 
 // BuildSearchURL implements the HTTPClient interface (default implementation)

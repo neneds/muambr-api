@@ -58,7 +58,7 @@ type acharPromoChatRequest struct {
 type acharPromoChatMessage struct {
 	ID       string                      `json:"id"`
 	Role     string                      `json:"role"`
-	Parts    []acharPromoChatMessagePart  `json:"parts"`
+	Parts    []acharPromoChatMessagePart `json:"parts"`
 	Metadata acharPromoChatMessageMeta   `json:"metadata"`
 }
 
@@ -194,7 +194,6 @@ func (e *AcharPromoExtractorV2) fetchChatProducts(chatURL string, body []byte) (
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "https://achar.promo")
 	req.Header.Set("Referer", "https://achar.promo/")
-	req.Header.Set("User-Agent", utils.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("User-Agent", "ai-sdk/5.0.107 runtime/browser")
 
@@ -301,6 +300,7 @@ func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []
 
 	return comparisons
 }
+
 // GetCategory returns the product category this extractor is optimised for
 func (e *AcharPromoExtractorV2) GetCategory() models.ProductCategory {
 	return models.CategoryOther
