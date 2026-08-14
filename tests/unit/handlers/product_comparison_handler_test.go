@@ -38,6 +38,25 @@ func TestCreateProductComparison_MissingProductName(t *testing.T) {
 	assert.False(t, resp.Success)
 	require.NotNil(t, resp.Code)
 	assert.Equal(t, models.ErrorCodeInvalidRequest, *resp.Code)
+	require.NotNil(t, resp.Message)
+	assert.Equal(t, "Product name is required", *resp.Message)
+}
+
+func TestCreateProductComparison_MissingProductName_Portuguese(t *testing.T) {
+	router := setupProductComparisonRouter()
+	body := `{"baseCountry":"BR","currentCountry":"US","product":{}}`
+	req, _ := http.NewRequest("POST", "/api/v1/product-comparisons", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept-Language", "pt-BR")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp models.ProductComparisonResult
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotNil(t, resp.Message)
+	assert.Equal(t, "Nome do produto é obrigatório", *resp.Message)
 }
 
 func TestCreateProductComparison_InvalidCountry(t *testing.T) {

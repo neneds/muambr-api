@@ -41,6 +41,40 @@ func TestLocalizer(t *testing.T) {
 	}
 }
 
+func TestLanguageFromAccept(t *testing.T) {
+	cases := map[string]string{
+		"":                        "en",
+		"fr":                      "en",
+		"en-US,en;q=0.9":          "en",
+		"pt-BR,pt;q=0.9,en;q=0.8": "pt",
+		"es-ES,es;q=0.9":          "es",
+		"pt":                      "pt",
+	}
+	for header, want := range cases {
+		if got := LanguageFromAccept(header); got != want {
+			t.Errorf("LanguageFromAccept(%q) = %q, want %q", header, got, want)
+		}
+	}
+}
+
+func TestTAccept(t *testing.T) {
+	if err := InitLocalizer("en"); err != nil {
+		t.Fatalf("Failed to initialize localizer: %v", err)
+	}
+	en := TAccept("en-US", "api.errors.product_name_required")
+	if en != "Product name is required" {
+		t.Errorf("English TAccept incorrect: %s", en)
+	}
+	pt := TAccept("pt-BR", "api.errors.product_name_required")
+	if pt != "Nome do produto é obrigatório" {
+		t.Errorf("Portuguese TAccept incorrect: %s", pt)
+	}
+	es := TAccept("es", "api.errors.product_name_required")
+	if es != "El nombre del producto es requerido" {
+		t.Errorf("Spanish TAccept incorrect: %s", es)
+	}
+}
+
 func TestLanguageSwitching(t *testing.T) {
 	// Initialize with English
 	err := InitLocalizer("en")

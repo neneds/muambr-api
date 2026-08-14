@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"muambr-api/linkparsers"
+	"muambr-api/localization"
 	"muambr-api/models"
 	"muambr-api/utils"
 	"net/http"
@@ -59,7 +60,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 		utils.LogError("❌ Error binding query parameters", utils.Error(err))
 		code := models.ErrorCodeInvalidRequest
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request parameters",
+			"error":   localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.invalid_request_parameters"),
 			"code":    code,
 			"details": err.Error(),
 		})
@@ -76,7 +77,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 		utils.LogError("❌ Invalid URL", utils.Error(err))
 		code := models.ErrorCodeInvalidRequest
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid URL",
+			"error":   localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.invalid_url"),
 			"code":    code,
 			"details": err.Error(),
 		})
@@ -88,7 +89,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 		utils.LogError("❌ Error parsing URL", utils.Error(err))
 		code := models.ErrorCodeProductNotFound
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "Failed to parse URL",
+			"error":   localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.failed_parse_url"),
 			"code":    code,
 			"details": err.Error(),
 		})
@@ -112,7 +113,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 		if err != nil {
 			utils.Warn("Link preview comparison failed", utils.Error(err))
 			code := models.ErrorCodeInternalError
-			msg := err.Error()
+			msg := localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.internal_server_error")
 			response.Comparison = &models.ProductComparisonResult{
 				Success:      false,
 				Code:         &code,
@@ -126,6 +127,7 @@ func (h *LinkPreviewHandler) GetLinkPreview(c *gin.Context) {
 				ExpiresAt:    time.Now().UTC().Format(time.RFC3339),
 			}
 		} else {
+			localizeEmptyComparisonMessage(c, comparison)
 			response.Comparison = comparison
 		}
 	}

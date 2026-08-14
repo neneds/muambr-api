@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"muambr-api/localization"
 	"muambr-api/utils"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +41,7 @@ func (h *ExchangeRateHandler) GetExchangeRates(c *gin.Context) {
 	rates, err := h.exchangeRateService.GetExchangeRates(baseCurrency)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error": localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.exchange_rate_unavailable"),
 			"code":  "EXCHANGE_RATE_UNAVAILABLE",
 		})
 		return

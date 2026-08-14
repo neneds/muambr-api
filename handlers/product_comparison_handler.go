@@ -49,7 +49,7 @@ type CreateProductComparisonRequest struct {
 func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	var req CreateProductComparisonRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "Invalid request body")
+		h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "api.errors.invalid_request_body")
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 		if err != nil {
 			utils.Warn("Failed to parse product URL for comparison", utils.Error(err), utils.String("url", productURL))
 			if productName == "" {
-				h.sendError(c, http.StatusBadRequest, models.ErrorCodeProductNotFound, "Could not extract product from URL")
+				h.sendError(c, http.StatusBadRequest, models.ErrorCodeProductNotFound, "api.errors.product_not_found_url")
 				return
 			}
 		} else {
@@ -99,17 +99,17 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	}
 
 	if productName == "" {
-		h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, localization.T("api.errors.product_name_required"))
+		h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "api.errors.product_name_required")
 		return
 	}
 	if req.BaseCountry == "" {
-		h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, localization.T("api.errors.base_country_required"))
+		h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.base_country_required")
 		return
 	}
 
 	baseCountry, err := models.ParseCountryFromISO(strings.ToUpper(req.BaseCountry))
 	if err != nil {
-		h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, localization.T("api.errors.invalid_country_code"))
+		h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	if req.CurrentCountry != "" {
 		detected, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(req.CurrentCountry))
 		if err != nil || detected == "" {
-			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, localization.T("api.errors.invalid_country_code"))
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
 			return
 		}
 		currentCountry = detected
@@ -131,11 +131,11 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 
 	if req.ObservedPrice != nil {
 		if req.ObservedPrice.Amount <= 0 {
-			h.sendError(c, http.StatusBadRequest, models.ErrorCodePriceNotFound, "observedPrice.amount must be greater than 0")
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodePriceNotFound, "api.errors.observed_price_amount")
 			return
 		}
 		if strings.TrimSpace(req.ObservedPrice.Currency) == "" {
-			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCurrencyUnknown, "observedPrice.currency is required")
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCurrencyUnknown, "api.errors.observed_price_currency")
 			return
 		}
 		req.ObservedPrice.Currency = strings.ToUpper(req.ObservedPrice.Currency)
@@ -157,7 +157,7 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	if req.Product.Category != nil {
 		parsed, err := models.ParseCategoryFromString(string(*req.Product.Category))
 		if err != nil {
-			h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "invalid category: must be one of electronics, beauty, appliances, fashion, other")
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "api.errors.invalid_category")
 			return
 		}
 		category = &parsed
@@ -179,12 +179,12 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 		category,
 	)
 	if err != nil {
-		h.sendError(c, http.StatusInternalServerError, models.ErrorCodeInternalError, localization.T("api.errors.failed_get_comparisons"))
+		h.sendError(c, http.StatusInternalServerError, models.ErrorCodeInternalError, "api.errors.failed_get_comparisons")
 		return
 	}
 
 	if outcome.Meta.ProvidersAttempted == 0 {
-		h.sendError(c, http.StatusNotFound, models.ErrorCodeNoComparisonSources, "No comparison sources available for this country/category")
+		h.sendError(c, http.StatusNotFound, models.ErrorCodeNoComparisonSources, "api.errors.no_comparison_sources")
 		return
 	}
 
@@ -196,7 +196,7 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	if req.ObservedPrice != nil &&
 		!strings.EqualFold(req.ObservedPrice.Currency, normalizedCurrency) &&
 		exchangeRateInfo == nil {
-		h.sendError(c, http.StatusServiceUnavailable, models.ErrorCodeExchangeRateUnavailable, "Exchange rate unavailable for currency conversion")
+		h.sendError(c, http.StatusServiceUnavailable, models.ErrorCodeExchangeRateUnavailable, "api.errors.exchange_rate_unavailable")
 		return
 	}
 
@@ -218,7 +218,20 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 		Now:                time.Now().UTC(),
 	})
 
+	localizeEmptyComparisonMessage(c, &result)
+
 	c.JSON(http.StatusOK, result)
+}
+
+func localizeEmptyComparisonMessage(c *gin.Context, result *models.ProductComparisonResult) {
+	if result == nil || result.Message == nil || result.Code == nil {
+		return
+	}
+	if *result.Code != models.ErrorCodeProductNotFound {
+		return
+	}
+	msg := localization.TAccept(c.GetHeader("Accept-Language"), "api.errors.no_comparable_prices")
+	result.Message = &msg
 }
 
 func (h *ProductComparisonHandler) buildExchangeRateInfo(observed *models.ObservedPriceInput, targetCurrency string) *models.ExchangeRateInfo {
@@ -262,7 +275,8 @@ func (h *ProductComparisonHandler) buildExchangeRateInfo(observed *models.Observ
 	}
 }
 
-func (h *ProductComparisonHandler) sendError(c *gin.Context, status int, code models.APIErrorCode, message string) {
+func (h *ProductComparisonHandler) sendError(c *gin.Context, status int, code models.APIErrorCode, messageKey string) {
+	message := localization.TAccept(c.GetHeader("Accept-Language"), messageKey)
 	c.JSON(status, models.ProductComparisonResult{
 		Success:      false,
 		Code:         &code,

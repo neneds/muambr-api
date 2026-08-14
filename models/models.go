@@ -2,7 +2,6 @@ package models
 
 import (
 	"fmt"
-	"muambr-api/localization"
 	"strings"
 )
 
@@ -139,9 +138,7 @@ func ParseCountryFromISO(isoCode string) (Country, error) {
 	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany:
 		return Country(strings.ToUpper(isoCode)), nil
 	default:
-		return "", fmt.Errorf(localization.TP("api.errors.unsupported_country_iso", map[string]string{
-			"code": isoCode,
-		}))
+		return "", fmt.Errorf("unsupported country ISO code: %s", isoCode)
 	}
 }
 

@@ -33,7 +33,7 @@ func main() {
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept-Language")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -46,8 +46,8 @@ func main() {
 	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status":  localization.T("api.health.status_ok"),
-			"message": localization.T("api.health.message"),
+			"status":  localization.TAccept(c.GetHeader("Accept-Language"), "api.health.status_ok"),
+			"message": localization.TAccept(c.GetHeader("Accept-Language"), "api.health.message"),
 		})
 	})
 

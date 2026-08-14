@@ -1,18 +1,20 @@
 package localization
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"strings"
 	"sync"
 )
 
+//go:embed *.json
+var localeFS embed.FS
+
 // Localizer handles string localization
 type Localizer struct {
-	messages    map[string]map[string]interface{}
-	mu          sync.RWMutex
+	messages map[string]map[string]interface{}
+	mu       sync.RWMutex
 }
 
 // RequestLocalizer is a request-scoped localizer that doesn't change global state
@@ -25,14 +27,25 @@ type RequestLocalizer struct {
 var globalLocalizer *Localizer
 var once sync.Once
 
-// InitLocalizer initializes the global localizer with the specified language
+// InitLocalizer initializes the global localizer and preloads en, pt, and es.
 func InitLocalizer(lang string) error {
 	var err error
 	once.Do(func() {
 		globalLocalizer = &Localizer{
-			messages:    make(map[string]map[string]interface{}),
+			messages: make(map[string]map[string]interface{}),
+		}
+		if lang == "" {
+			lang = "en"
 		}
 		err = globalLocalizer.LoadLanguage(lang)
+		for _, extra := range []string{"en", "pt", "es"} {
+			if extra == lang {
+				continue
+			}
+			if loadErr := globalLocalizer.LoadLanguage(extra); loadErr != nil && err == nil {
+				err = loadErr
+			}
+		}
 	})
 	return err
 }
@@ -40,7 +53,6 @@ func InitLocalizer(lang string) error {
 // GetLocalizer returns the global localizer instance
 func GetLocalizer() *Localizer {
 	if globalLocalizer == nil {
-		// Initialize with English as default if not already initialized
 		InitLocalizer("en")
 	}
 	return globalLocalizer
@@ -51,38 +63,18 @@ func (l *Localizer) LoadLanguage(lang string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	filename := fmt.Sprintf("%s.json", lang)
-	
-	// Try multiple possible paths to find the localization files
-	possiblePaths := []string{
-		filepath.Join("localization", filename),
-		filepath.Join("..", "localization", filename),
-		filename,
-	}
-	
-	var data []byte
-	var err error
-	var filePath string
-	
-	for _, path := range possiblePaths {
-		data, err = ioutil.ReadFile(path)
-		if err == nil {
-			filePath = path
-			break
-		}
-	}
-	
+	data, err := localeFS.ReadFile(lang + ".json")
 	if err != nil {
-		return fmt.Errorf("failed to read language file %s (tried paths: %v): %w", filename, possiblePaths, err)
+		return fmt.Errorf("failed to read language file %s.json: %w", lang, err)
 	}
 
 	var messages map[string]interface{}
 	if err := json.Unmarshal(data, &messages); err != nil {
-		return fmt.Errorf("failed to parse language file %s: %w", filePath, err)
+		return fmt.Errorf("failed to parse language file %s.json: %w", lang, err)
 	}
 
 	l.messages[lang] = messages
-	
+
 	return nil
 }
 
@@ -117,7 +109,7 @@ func (l *Localizer) SetLanguage(lang string) error {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -156,14 +148,14 @@ func (l *Localizer) GetWithParams(keyPath string, params map[string]string) stri
 // get is the internal method for RequestLocalizer to retrieve localized strings
 func (rl *RequestLocalizer) get(keyPath string, params map[string]string) string {
 	keys := strings.Split(keyPath, ".")
-	
+
 	messages, exists := rl.globalLocalizer.messages[rl.currentLang]
 	if !exists {
 		return keyPath // Return key path if language not found
 	}
 
 	var current interface{} = messages
-	
+
 	// Navigate through the nested structure
 	for _, key := range keys {
 		if m, ok := current.(map[string]interface{}); ok {
@@ -199,14 +191,14 @@ func (rl *RequestLocalizer) get(keyPath string, params map[string]string) string
 // get is the internal method for global Localizer to retrieve localized strings
 func (l *Localizer) get(keyPath string, params map[string]string, lang string) string {
 	keys := strings.Split(keyPath, ".")
-	
+
 	messages, exists := l.messages[lang]
 	if !exists {
 		return keyPath // Return key path if language not found
 	}
 
 	var current interface{} = messages
-	
+
 	// Navigate through the nested structure
 	for _, key := range keys {
 		if m, ok := current.(map[string]interface{}); ok {
@@ -287,4 +279,38 @@ func TRP(localizer *RequestLocalizer, keyPath string, params map[string]string) 
 		return TP(keyPath, params) // Fallback to global if localizer is nil
 	}
 	return localizer.GetWithParams(keyPath, params)
+}
+
+// LanguageFromAccept maps an Accept-Language header to a supported locale (en, pt, es).
+func LanguageFromAccept(header string) string {
+	if header == "" {
+		return "en"
+	}
+	for _, part := range strings.Split(header, ",") {
+		tag := strings.TrimSpace(part)
+		if i := strings.Index(tag, ";"); i >= 0 {
+			tag = strings.TrimSpace(tag[:i])
+		}
+		tag = strings.ToLower(tag)
+		switch {
+		case tag == "pt" || strings.HasPrefix(tag, "pt-"):
+			return "pt"
+		case tag == "es" || strings.HasPrefix(tag, "es-"):
+			return "es"
+		case tag == "en" || strings.HasPrefix(tag, "en-"):
+			return "en"
+		}
+	}
+	return "en"
+}
+
+// TAccept translates a key using the language from an Accept-Language header.
+func TAccept(acceptLanguage, keyPath string) string {
+	GetLocalizer()
+	lang := LanguageFromAccept(acceptLanguage)
+	rl, err := NewRequestLocalizer(lang)
+	if err != nil {
+		return T(keyPath)
+	}
+	return rl.Get(keyPath)
 }

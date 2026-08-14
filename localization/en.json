@@ -11,7 +11,18 @@
       "unsupported_country_iso": "unsupported country ISO code: {{code}}",
       "invalid_country_iso": "Invalid country ISO code: {{code}}",
       "failed_get_comparisons": "Failed to get product comparisons",
-      "internal_server_error": "Internal server error occurred"
+      "internal_server_error": "Internal server error occurred",
+      "invalid_request_body": "Invalid request body",
+      "product_not_found_url": "Could not extract product from URL",
+      "observed_price_amount": "observedPrice.amount must be greater than 0",
+      "observed_price_currency": "observedPrice.currency is required",
+      "invalid_category": "invalid category: must be one of electronics, beauty, appliances, fashion, other",
+      "no_comparison_sources": "No comparison sources available for this country/category",
+      "exchange_rate_unavailable": "Exchange rate unavailable for currency conversion",
+      "invalid_request_parameters": "Invalid request parameters",
+      "invalid_url": "Invalid URL",
+      "failed_parse_url": "Failed to parse URL",
+      "no_comparable_prices": "We couldn't find comparable prices."
     },
     "success": {
       "no_comparisons_found": "No comparisons found for this product",
