@@ -22,18 +22,18 @@ func TestExtractorIntegration(t *testing.T) {
 
 	t.Run("AcharPromoIntegration", func(t *testing.T) {
 		extractor := other.NewAcharPromoExtractorV2()
-		
+
 		// Chat API uses AI reasoning, needs more time
 		timeout := 90 * time.Second
 		done := make(chan bool, 1)
 		var results []models.ProductComparison
 		var err error
-		
+
 		go func() {
 			results, err = extractor.GetComparisons("iPhone")
 			done <- true
 		}()
-		
+
 		select {
 		case <-done:
 			// Test completed
@@ -49,17 +49,17 @@ func TestExtractorIntegration(t *testing.T) {
 
 	t.Run("KuantoKustaIntegration", func(t *testing.T) {
 		extractor := other.NewKuantoKustaExtractorV2()
-		
+
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
 		var results []models.ProductComparison
 		var err error
-		
+
 		go func() {
 			results, err = extractor.GetComparisons("iPhone")
 			done <- true
 		}()
-		
+
 		select {
 		case <-done:
 			if err != nil {
@@ -72,19 +72,44 @@ func TestExtractorIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("WalmartUSAIntegration", func(t *testing.T) {
-		extractor := other.NewWalmartUSAExtractor()
-		
+	t.Run("AmericanasBRIntegration", func(t *testing.T) {
+		extractor := other.NewAmericanasBRExtractor()
+
 		timeout := 30 * time.Second
 		done := make(chan bool, 1)
 		var results []models.ProductComparison
 		var err error
-		
+
+		go func() {
+			results, err = extractor.GetComparisons("smart tv lg")
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Americanas BR extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Americanas BR extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Americanas BR extraction timed out after %v", timeout)
+		}
+	})
+
+	t.Run("WalmartUSAIntegration", func(t *testing.T) {
+		extractor := other.NewWalmartUSAExtractor()
+
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+
 		go func() {
 			results, err = extractor.GetComparisons("iPhone")
 			done <- true
 		}()
-		
+
 		select {
 		case <-done:
 			if err != nil {
@@ -97,4 +122,3 @@ func TestExtractorIntegration(t *testing.T) {
 		}
 	})
 }
-

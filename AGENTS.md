@@ -175,6 +175,7 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | Identifier | Package | Country | Category | Source | Notes |
 |------------|---------|---------|----------|--------|--------|
 | `acharpromo_v2` | other | BR | other | SSE/JSON | Working |
+| `americanas_br_v1` | other | BR | other | VTEX JSON | Working |
 | `kuantokusta_v2` | other | PT | other | HTML/JSON | Working |
 | `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
 | `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
@@ -182,6 +183,7 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `primor_pt_v1` | beauty | PT | beauty | Empathy JSON | Working — do **not** scrape `pt.primor.eu` HTML (AWS WAF) |
 | `perfumes_e_companhia_pt_v1` | beauty | PT | beauty | Doofinder JSON | Working — Origin required; do **not** scrape `/pt/pesquisa/` HTML (client-rendered) |
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
+| `fastshop_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 
 No `electronics/` or `fashion/` extractors yet. No Spain store extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
 

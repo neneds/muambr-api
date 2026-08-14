@@ -47,4 +47,7 @@ func TestAppliancesExtractorsIntegration(t *testing.T) {
 	runAppliancesExtractorTest(t, "CarrefourBRIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
 		return appliances.NewCarrefourBRExtractor().GetComparisons(searchQuery)
 	})
+	runAppliancesExtractorTest(t, "FastshopBRIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
+		return appliances.NewFastshopBRExtractor().GetComparisons(searchQuery)
+	})
 }

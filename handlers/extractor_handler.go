@@ -53,6 +53,7 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	// other category — generic extractors used when no category is specified
 	registry.RegisterExtractor(other.NewKuantoKustaExtractorV2())
 	registry.RegisterExtractor(other.NewAcharPromoExtractorV2())
+	registry.RegisterExtractor(other.NewAmericanasBRExtractor())
 	registry.RegisterExtractor(other.NewWalmartUSAExtractor())
 
 	// beauty category extractors
@@ -63,6 +64,7 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 
 	// appliances category extractors
 	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())
+	registry.RegisterExtractor(appliances.NewFastshopBRExtractor())
 
 	utils.Info("All V2 extractors registered successfully")
 }
