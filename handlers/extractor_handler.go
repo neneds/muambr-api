@@ -61,6 +61,8 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(beauty.NewSephoraBRExtractor())
 	registry.RegisterExtractor(beauty.NewPrimorPTExtractor())
 	registry.RegisterExtractor(beauty.NewPerfumesECompanhiaPTExtractor())
+	registry.RegisterExtractor(beauty.NewWellsPTExtractor())
+	registry.RegisterExtractor(beauty.NewSephoraPTExtractor())
 
 	// appliances category extractors
 	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())

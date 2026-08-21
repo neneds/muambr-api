@@ -182,6 +182,8 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
 | `primor_pt_v1` | beauty | PT | beauty | Empathy JSON | Working — do **not** scrape `pt.primor.eu` HTML (AWS WAF) |
 | `perfumes_e_companhia_pt_v1` | beauty | PT | beauty | Doofinder JSON | Working — Origin required; do **not** scrape `/pt/pesquisa/` HTML (client-rendered) |
+| `wells_pt_v1` | beauty | PT | beauty | SFCC HTML impression JSON | Working — use `/resultados-pesquisa-wells` (not Search-Show ajax) |
+| `sephora_pt_v1` | beauty | PT | beauty | Constructor.io JSON | Working — do **not** scrape `/procurar` HTML (incomplete JSON-LD) |
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 | `fastshop_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 
