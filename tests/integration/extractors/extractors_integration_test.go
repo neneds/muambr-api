@@ -122,6 +122,81 @@ func TestExtractorIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("AsdaUKIntegration", func(t *testing.T) {
+		extractor := other.NewAsdaUKExtractor()
+
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+
+		go func() {
+			results, err = extractor.GetComparisons("iphone")
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Asda UK extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Asda UK extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Asda UK extraction timed out after %v", timeout)
+		}
+	})
+
+	t.Run("EbuyerUKIntegration", func(t *testing.T) {
+		extractor := other.NewEbuyerUKExtractor()
+
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+
+		go func() {
+			results, err = extractor.GetComparisons("iphone")
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Ebuyer UK extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Ebuyer UK extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Ebuyer UK extraction timed out after %v", timeout)
+		}
+	})
+
+	t.Run("PriceRunnerUKIntegration", func(t *testing.T) {
+		extractor := other.NewPriceRunnerUKExtractor()
+
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+
+		go func() {
+			results, err = extractor.GetComparisons("iphone")
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("PriceRunner UK extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("PriceRunner UK extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("PriceRunner UK extraction timed out after %v", timeout)
+		}
+	})
+
 	t.Run("WalmartUSAIntegration", func(t *testing.T) {
 		extractor := other.NewWalmartUSAExtractor()
 

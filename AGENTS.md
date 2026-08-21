@@ -178,6 +178,9 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `americanas_br_v1` | other | BR | other | VTEX JSON | Working |
 | `kuantokusta_v2` | other | PT | other | HTML/JSON | Working |
 | `auchan_pt_v1` | other | PT | other | SFCC HTML GTM JSON | Working — use `/pt/pesquisa` (not Search-Show ajax) |
+| `asda_uk_v1` | other | GB | other | Algolia JSON | Working — do **not** scrape asda.com HTML (Cloudflare challenge) |
+| `ebuyer_uk_v1` | other | GB | other | Algolia JSON | Working — do **not** scrape search HTML (client-rendered / Akamai) |
+| `pricerunner_uk_v1` | other | GB | other | Instant-search JSON | Working — do **not** scrape pricerunner.com HTML (Klarna SPA; use `/uk/api/instant-search-edge-rest/public/search/suggest/UK`) |
 | `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
 | `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
 | `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
@@ -187,10 +190,11 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `sephora_pt_v1` | beauty | PT | beauty | Constructor.io JSON | Working — do **not** scrape `/procurar` HTML (incomplete JSON-LD) |
 | `cultbeauty_uk_v1` | beauty | GB | beauty | GraphQL InstantSearch | Working — Origin required; do **not** scrape search HTML (redirect / skeletons) |
 | `boots_uk_v1` | beauty | GB | beauty | Algolia JSON | Working — do **not** scrape `/sitesearch` or brand CMS HTML |
+| `druni_es_v1` | beauty | ES | beauty | Doofinder JSON | Working — Origin required; do **not** scrape Magento `/catalogsearch` (HTTP 406) |
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 | `fastshop_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 
-No `electronics/` or `fashion/` extractors yet. No Spain store extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
+No `electronics/` or `fashion/` extractors yet. No Spain generic (`other`) extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
 
 `FetchHTML` treats HTTP **200 and 206** as success (VTEX pagination).
 

@@ -75,4 +75,8 @@ func TestBeautyExtractorsIntegration(t *testing.T) {
 	runBeautyExtractorTest(t, "BootsUKIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
 		return beauty.NewBootsUKExtractor().GetComparisons(searchQuery)
 	})
+
+	runBeautyExtractorTest(t, "DruniESIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
+		return beauty.NewDruniESExtractor().GetComparisons(searchQuery)
+	})
 }

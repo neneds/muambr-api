@@ -55,6 +55,9 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(other.NewAcharPromoExtractorV2())
 	registry.RegisterExtractor(other.NewAmericanasBRExtractor())
 	registry.RegisterExtractor(other.NewAuchanPTExtractor())
+	registry.RegisterExtractor(other.NewAsdaUKExtractor())
+	registry.RegisterExtractor(other.NewEbuyerUKExtractor())
+	registry.RegisterExtractor(other.NewPriceRunnerUKExtractor())
 	registry.RegisterExtractor(other.NewWalmartUSAExtractor())
 
 	// beauty category extractors
@@ -66,6 +69,7 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(beauty.NewSephoraPTExtractor())
 	registry.RegisterExtractor(beauty.NewCultBeautyUKExtractor())
 	registry.RegisterExtractor(beauty.NewBootsUKExtractor())
+	registry.RegisterExtractor(beauty.NewDruniESExtractor())
 
 	// appliances category extractors
 	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())
