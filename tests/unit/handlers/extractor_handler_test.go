@@ -158,6 +158,9 @@ func TestExtractorHandler_DetectCountryCode_ValidCountry(t *testing.T) {
 		{"BR", models.CountryBrazil},
 		{"PT", models.CountryPortugal},
 		{"ES", models.CountrySpain},
+		{"GB", models.CountryUK},
+		{"UK", models.CountryUK},
+		{"uk", models.CountryUK},
 		{"br", models.CountryBrazil}, // Should handle lowercase
 		{"pt", models.CountryPortugal},
 	}

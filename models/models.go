@@ -9,12 +9,13 @@ import (
 type Country string
 
 const (
-	CountryBrazil   Country = "BR"
-	CountryUS       Country = "US"
-	CountryPortugal Country = "PT"
-	CountrySpain    Country = "ES"
-	CountryUK       Country = "GB"
-	CountryGermany  Country = "DE"
+	CountryBrazil      Country = "BR"
+	CountryUS          Country = "US"
+	CountryPortugal    Country = "PT"
+	CountrySpain       Country = "ES"
+	CountryUK          Country = "GB"
+	CountryGermany     Country = "DE"
+	CountryNetherlands Country = "NL"
 )
 
 // MacroRegion represents broader regions for countries
@@ -73,7 +74,7 @@ func (c Country) GetCurrencyCode() string {
 		return "BRL"
 	case CountryUS:
 		return "USD"
-	case CountryPortugal, CountrySpain, CountryGermany:
+	case CountryPortugal, CountrySpain, CountryGermany, CountryNetherlands:
 		return "EUR"
 	case CountryUK:
 		return "GBP"
@@ -89,7 +90,7 @@ func (c Country) GetMacroRegion() MacroRegion {
 		return MacroRegionLATAM
 	case CountryUS:
 		return MacroRegionNA
-	case CountryPortugal, CountrySpain, CountryGermany:
+	case CountryPortugal, CountrySpain, CountryGermany, CountryNetherlands:
 		return MacroRegionEU
 	case CountryUK:
 		return MacroRegionEU
@@ -113,6 +114,8 @@ func (c Country) GetCountryName() string {
 		return "United Kingdom"
 	case CountryGermany:
 		return "Germany"
+	case CountryNetherlands:
+		return "Netherlands"
 	default:
 		return "Unknown"
 	}
@@ -121,7 +124,7 @@ func (c Country) GetCountryName() string {
 // GetCountriesInMacroRegion returns all countries that belong to the specified macro region
 func GetCountriesInMacroRegion(region MacroRegion) []Country {
 	var countries []Country
-	allCountries := []Country{CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany}
+	allCountries := []Country{CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany, CountryNetherlands}
 
 	for _, country := range allCountries {
 		if country.GetMacroRegion() == region {
@@ -132,11 +135,16 @@ func GetCountriesInMacroRegion(region MacroRegion) []Country {
 	return countries
 }
 
-// ParseCountryFromISO parses an ISO country code string into a Country enum
+// ParseCountryFromISO parses an ISO country code string into a Country enum.
+// "UK" is accepted as an alias of ISO 3166-1 "GB".
 func ParseCountryFromISO(isoCode string) (Country, error) {
-	switch Country(strings.ToUpper(isoCode)) {
-	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany:
-		return Country(strings.ToUpper(isoCode)), nil
+	code := strings.ToUpper(strings.TrimSpace(isoCode))
+	if code == "UK" {
+		return CountryUK, nil
+	}
+	switch Country(code) {
+	case CountryBrazil, CountryUS, CountryPortugal, CountrySpain, CountryUK, CountryGermany, CountryNetherlands:
+		return Country(code), nil
 	default:
 		return "", fmt.Errorf("unsupported country ISO code: %s", isoCode)
 	}

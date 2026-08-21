@@ -40,16 +40,16 @@ type LinkPreviewRequest struct {
 
 // LinkPreviewResponse represents the response with parsed data
 type LinkPreviewResponse struct {
-	ProductData *linkparsers.ParsedProductData   `json:"productData"`
-	Country     string                           `json:"country,omitempty"`
-	Comparison  *models.ProductComparisonResult  `json:"comparison,omitempty"`
+	ProductData *linkparsers.ParsedProductData  `json:"productData"`
+	Country     string                          `json:"country,omitempty"`
+	Comparison  *models.ProductComparisonResult `json:"comparison,omitempty"`
 }
 
 // GetLinkPreview handles GET /api/v1/linkpreview?url=...&baseCountry=PT&addComparisons=true
 //
 // Query Parameters:
 // - url (required): URL to parse
-// - baseCountry (optional): User's base country ISO code (PT, US, ES, DE, GB, BR)
+// - baseCountry (optional): User's base country ISO code (PT, US, ES, DE, GB, BR, NL)
 // - addComparisons (optional): When true, run a full product comparison using extracted title/price
 // - category (optional): electronics | beauty | appliances | fashion | other
 // - limit (optional): max results per country (default 10)
@@ -252,6 +252,8 @@ func guessCountryFromURL(pageURL *url.URL) models.Country {
 		return models.CountrySpain
 	} else if containsAny(host, []string{".uk", ".gb", "britain", "co.uk"}) {
 		return models.CountryUK
+	} else if containsAny(host, []string{".nl"}) {
+		return models.CountryNetherlands
 	} else if containsString(host, ".de") {
 		return models.CountryGermany
 	}

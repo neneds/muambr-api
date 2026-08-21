@@ -6,8 +6,8 @@
     },
     "errors": {
       "product_name_required": "Nome do produto é obrigatório",
-      "base_country_required": "Código ISO do país base é obrigatório (ex: PT, US, ES, DE, GB, BR)",
-      "invalid_country_code": "Código ISO do país inválido. Códigos suportados: PT, US, ES, DE, GB, BR",
+      "base_country_required": "Código ISO do país base é obrigatório (ex: PT, US, ES, DE, GB, BR, NL)",
+      "invalid_country_code": "Código ISO do país inválido. Códigos suportados: PT, US, ES, DE, GB, BR, NL",
       "unsupported_country_iso": "código ISO do país não suportado: {{code}}",
       "invalid_country_iso": "Código ISO do país inválido: {{code}}",
       "failed_get_comparisons": "Falha ao obter comparações de produtos",
@@ -53,6 +53,7 @@
       "spain": "Espanha",
       "united_kingdom": "Reino Unido",
       "germany": "Alemanha",
+      "netherlands": "Países Baixos",
       "unknown": "Desconhecido"
     },
     "codes": {
@@ -61,7 +62,8 @@
       "PT": "PT",
       "ES": "ES",
       "GB": "GB",
-      "DE": "DE"
+      "DE": "DE",
+      "NL": "NL"
     }
   },
   "currencies": {
@@ -90,7 +92,7 @@
   },
   "validation": {
     "messages": {
-      "supported_codes_hint": "Códigos suportados: PT, US, ES, DE, GB, BR"
+      "supported_codes_hint": "Códigos suportados: PT, US, ES, DE, GB, BR, NL"
     }
   },
   "store_names": {

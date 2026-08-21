@@ -6,6 +6,7 @@ import (
 	"muambr-api/extractors"
 	appliances "muambr-api/extractors/appliances"
 	beauty "muambr-api/extractors/beauty"
+	electronics "muambr-api/extractors/electronics"
 	other "muambr-api/extractors/other"
 	"muambr-api/models"
 	"muambr-api/utils"
@@ -70,10 +71,15 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(beauty.NewCultBeautyUKExtractor())
 	registry.RegisterExtractor(beauty.NewBootsUKExtractor())
 	registry.RegisterExtractor(beauty.NewDruniESExtractor())
+	registry.RegisterExtractor(beauty.NewBoozyshopNLExtractor())
 
 	// appliances category extractors
 	registry.RegisterExtractor(appliances.NewCarrefourBRExtractor())
 	registry.RegisterExtractor(appliances.NewFastshopBRExtractor())
+
+	// electronics category extractors
+	registry.RegisterExtractor(electronics.NewParadigitNLExtractor())
+	registry.RegisterExtractor(electronics.NewAlternateNLExtractor())
 
 	utils.Info("All V2 extractors registered successfully")
 }
@@ -89,7 +95,7 @@ func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Countr
 	if err != nil {
 		return "", &CountryValidationError{
 			Code:           countryParam,
-			SupportedCodes: []string{"PT", "US", "ES", "DE", "GB", "BR"},
+			SupportedCodes: []string{"PT", "US", "ES", "DE", "GB", "BR", "NL"},
 		}
 	}
 

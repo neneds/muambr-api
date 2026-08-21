@@ -195,9 +195,18 @@ func (b *BaseHTMLParser) ParsePriceText(priceText string, defaultCurrency string
 			cleanedPrice = strings.ReplaceAll(cleanedPrice, ",", ".")
 		}
 	} else {
-		// European/US format: 1,234.56 -> 1234.56
+		// EUR and others: 1.234,56 (EU) or 1,234.56 (US). Last separator is the decimal.
 		if strings.Contains(cleanedPrice, ",") && strings.Contains(cleanedPrice, ".") {
-			cleanedPrice = strings.ReplaceAll(cleanedPrice, ",", "")
+			lastComma := strings.LastIndex(cleanedPrice, ",")
+			lastDot := strings.LastIndex(cleanedPrice, ".")
+			if lastComma > lastDot {
+				cleanedPrice = strings.ReplaceAll(cleanedPrice, ".", "")
+				cleanedPrice = strings.ReplaceAll(cleanedPrice, ",", ".")
+			} else {
+				cleanedPrice = strings.ReplaceAll(cleanedPrice, ",", "")
+			}
+		} else if strings.Contains(cleanedPrice, ",") {
+			cleanedPrice = strings.ReplaceAll(cleanedPrice, ",", ".")
 		}
 	}
 
@@ -215,8 +224,7 @@ func (b *BaseHTMLParser) ParsePriceText(priceText string, defaultCurrency string
 
 // ExtractJSONLD extracts structured data from JSON-LD scripts
 func (b *BaseHTMLParser) ExtractJSONLD(html string) ([]map[string]interface{}, error) {
-	pattern := `<script[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>`
-	re := regexp.MustCompile("(?i)" + pattern)
+	re := regexp.MustCompile(`(?is)<script[^>]*type=["']application/ld\+json["'][^>]*>(.*?)</script>`)
 	matches := re.FindAllStringSubmatch(html, -1)
 
 	var results []map[string]interface{}

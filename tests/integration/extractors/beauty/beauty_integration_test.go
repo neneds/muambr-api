@@ -79,4 +79,8 @@ func TestBeautyExtractorsIntegration(t *testing.T) {
 	runBeautyExtractorTest(t, "DruniESIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
 		return beauty.NewDruniESExtractor().GetComparisons(searchQuery)
 	})
+
+	runBeautyExtractorTest(t, "BoozyshopNLIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
+		return beauty.NewBoozyshopNLExtractor().GetComparisons("loreal")
+	})
 }
