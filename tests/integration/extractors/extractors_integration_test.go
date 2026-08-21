@@ -97,6 +97,31 @@ func TestExtractorIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("AuchanPTIntegration", func(t *testing.T) {
+		extractor := other.NewAuchanPTExtractor()
+
+		timeout := 30 * time.Second
+		done := make(chan bool, 1)
+		var results []models.ProductComparison
+		var err error
+
+		go func() {
+			results, err = extractor.GetComparisons("leite")
+			done <- true
+		}()
+
+		select {
+		case <-done:
+			if err != nil {
+				t.Logf("Auchan PT extraction failed (this may be expected due to anti-bot protection): %v", err)
+			} else {
+				t.Logf("Auchan PT extraction succeeded with %d results", len(results))
+			}
+		case <-time.After(timeout):
+			t.Errorf("Auchan PT extraction timed out after %v", timeout)
+		}
+	})
+
 	t.Run("WalmartUSAIntegration", func(t *testing.T) {
 		extractor := other.NewWalmartUSAExtractor()
 

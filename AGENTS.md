@@ -177,6 +177,7 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `acharpromo_v2` | other | BR | other | SSE/JSON | Working |
 | `americanas_br_v1` | other | BR | other | VTEX JSON | Working |
 | `kuantokusta_v2` | other | PT | other | HTML/JSON | Working |
+| `auchan_pt_v1` | other | PT | other | SFCC HTML GTM JSON | Working — use `/pt/pesquisa` (not Search-Show ajax) |
 | `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
 | `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
 | `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
@@ -184,6 +185,8 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `perfumes_e_companhia_pt_v1` | beauty | PT | beauty | Doofinder JSON | Working — Origin required; do **not** scrape `/pt/pesquisa/` HTML (client-rendered) |
 | `wells_pt_v1` | beauty | PT | beauty | SFCC HTML impression JSON | Working — use `/resultados-pesquisa-wells` (not Search-Show ajax) |
 | `sephora_pt_v1` | beauty | PT | beauty | Constructor.io JSON | Working — do **not** scrape `/procurar` HTML (incomplete JSON-LD) |
+| `cultbeauty_uk_v1` | beauty | GB | beauty | GraphQL InstantSearch | Working — Origin required; do **not** scrape search HTML (redirect / skeletons) |
+| `boots_uk_v1` | beauty | GB | beauty | Algolia JSON | Working — do **not** scrape `/sitesearch` or brand CMS HTML |
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 | `fastshop_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 

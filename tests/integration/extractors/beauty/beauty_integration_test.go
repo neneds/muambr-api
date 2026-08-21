@@ -67,4 +67,12 @@ func TestBeautyExtractorsIntegration(t *testing.T) {
 	runBeautyExtractorTest(t, "SephoraPTIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
 		return beauty.NewSephoraPTExtractor().GetComparisons(searchQuery)
 	})
+
+	runBeautyExtractorTest(t, "CultBeautyUKIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
+		return beauty.NewCultBeautyUKExtractor().GetComparisons(searchQuery)
+	})
+
+	runBeautyExtractorTest(t, "BootsUKIntegration", 30*time.Second, func() ([]models.ProductComparison, error) {
+		return beauty.NewBootsUKExtractor().GetComparisons(searchQuery)
+	})
 }
