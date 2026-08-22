@@ -18,31 +18,40 @@ const (
 	MatchConfidenceMedium = 0.75
 )
 
+// CountryRunMeta tracks extractor outcomes for one comparison country.
+type CountryRunMeta struct {
+	Attempted int
+	Succeeded int
+	Failed    int
+}
+
 // ExtractionMeta tracks provider execution outcomes for partial-result status.
 type ExtractionMeta struct {
 	ProvidersAttempted int
 	ProvidersSucceeded int
 	ProvidersFailed    int
 	FailedProviders    []string
+	ByCountry          map[string]CountryRunMeta
 }
 
 // ComparisonEngineInput is everything needed to build a product-aligned comparison result.
 type ComparisonEngineInput struct {
-	ProductName      string
-	Brand            string
-	Model            string
-	Category         *models.ProductCategory
-	CategoryConfidence float64
-	BaseCountry      models.Country
-	CurrentCountry   models.Country
-	NormalizedCurrency string
-	Observed         *models.ObservedPriceInput
-	Sections         []models.CountrySection
-	Comparisons      []models.ProductComparison
-	Meta             ExtractionMeta
-	EntryMethod      string
-	ExchangeRate     *models.ExchangeRateInfo
-	Now              time.Time
+	ProductName         string
+	Brand               string
+	Model               string
+	Category            *models.ProductCategory
+	CategoryConfidence  float64
+	BaseCountry         models.Country
+	CurrentCountry      models.Country
+	NormalizedCurrency  string
+	Observed            *models.ObservedPriceInput
+	Sections            []models.CountrySection
+	Comparisons         []models.ProductComparison
+	ComparisonCountries []models.ComparisonCountrySpec
+	Meta                ExtractionMeta
+	EntryMethod         string
+	ExchangeRate        *models.ExchangeRateInfo
+	Now                 time.Time
 }
 
 // ComparisonEngine builds savings, deal scores, and structured comparison responses.
@@ -97,7 +106,10 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 	avgMatch := averageMatchConfidence(prices)
 	dealScore := e.calculateDealScore(savings, avgMatch)
 
-	status := e.resolveStatus(len(prices), in.Meta, avgMatch)
+	comparisonCountries := e.buildCountryComparisons(in, prices, capturedAt)
+	bestDeal := e.buildBestDeal(comparisonCountries, bestBase, in.NormalizedCurrency)
+
+	status := e.resolveStatus(len(prices), in.Meta, avgMatch, comparisonCountries)
 	totalResults := 0
 	for _, s := range in.Sections {
 		totalResults += s.ResultsCount
@@ -122,17 +134,17 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 	}
 
 	result := models.ProductComparisonResult{
-		Success:                 true,
-		ComparisonID:            comparisonID,
-		Status:                  status,
+		Success:      true,
+		ComparisonID: comparisonID,
+		Status:       status,
 		Product: models.ProductSummary{
 			Name:     in.ProductName,
 			Brand:    in.Brand,
 			Model:    in.Model,
 			Category: in.Category,
 		},
-		Category:                categoryInfo,
-		Observed:                observed,
+		Category: categoryInfo,
+		Observed: observed,
 		BaseCountry: models.CountryInfo{
 			Country:  string(in.BaseCountry),
 			Currency: in.BaseCountry.GetCurrencyCode(),
@@ -145,6 +157,8 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 		},
 		Prices:                  prices,
 		Sections:                in.Sections,
+		ComparisonCountries:     comparisonCountries,
+		BestDeal:                bestDeal,
 		BestCurrentCountryPrice: bestCurrent,
 		BestBaseCountryPrice:    bestBase,
 		Savings:                 savings,
@@ -173,17 +187,128 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 	return result
 }
 
-func (e *ComparisonEngine) resolveStatus(priceCount int, meta ExtractionMeta, avgMatch float64) models.ComparisonStatus {
+func (e *ComparisonEngine) resolveStatus(priceCount int, meta ExtractionMeta, avgMatch float64, countries []models.CountryComparison) models.ComparisonStatus {
 	if priceCount == 0 {
 		return models.ComparisonStatusEmpty
 	}
 	if avgMatch > 0 && avgMatch < MatchConfidenceMedium {
 		return models.ComparisonStatusLowConfidence
 	}
+	hasOK := false
+	hasGap := false
+	for _, c := range countries {
+		switch c.Status {
+		case models.CountryStatusOK:
+			hasOK = true
+		case models.CountryStatusNoPrices, models.CountryStatusProviderFailed, models.CountryStatusMatchUnavailable:
+			hasGap = true
+		}
+	}
+	if hasOK && hasGap {
+		return models.ComparisonStatusPartial
+	}
 	if meta.ProvidersFailed > 0 && meta.ProvidersSucceeded > 0 {
 		return models.ComparisonStatusPartial
 	}
 	return models.ComparisonStatusComplete
+}
+
+func (e *ComparisonEngine) comparisonSpecs(in ComparisonEngineInput) []models.ComparisonCountrySpec {
+	if len(in.ComparisonCountries) > 0 {
+		return in.ComparisonCountries
+	}
+	return models.ResolveComparisonSet(models.ComparisonSetInput{
+		BaseCountry:     in.BaseCountry,
+		ProductLocation: in.CurrentCountry,
+	})
+}
+
+func (e *ComparisonEngine) buildCountryComparisons(in ComparisonEngineInput, prices []models.PriceOffer, capturedAt string) []models.CountryComparison {
+	specs := e.comparisonSpecs(in)
+	out := make([]models.CountryComparison, 0, len(specs))
+	for _, spec := range specs {
+		code := string(spec.Country)
+		best := e.bestPriceInCountry(in.Sections, code, in.NormalizedCurrency, capturedAt)
+		storeCount := 0
+		var confSum float64
+		for _, p := range prices {
+			if strings.EqualFold(p.Country, code) {
+				storeCount++
+				confSum += p.MatchConfidence
+			}
+		}
+
+		status := models.CountryStatusNoPrices
+		run := in.Meta.ByCountry[code]
+		if best != nil {
+			status = models.CountryStatusOK
+		} else if run.Failed > 0 && run.Succeeded == 0 {
+			status = models.CountryStatusProviderFailed
+		}
+
+		var match *float64
+		if storeCount > 0 {
+			v := round2(confSum / float64(storeCount))
+			match = &v
+		} else if best != nil && best.MatchConfidence != nil {
+			match = best.MatchConfidence
+		}
+
+		roles := spec.Roles
+		if roles == nil {
+			roles = []string{}
+		}
+		out = append(out, models.CountryComparison{
+			Country:         code,
+			Roles:           roles,
+			Status:          status,
+			BestPrice:       best,
+			StoreCount:      storeCount,
+			MatchConfidence: match,
+		})
+	}
+	return out
+}
+
+func (e *ComparisonEngine) buildBestDeal(countries []models.CountryComparison, bestBase *models.MoneyAmount, currency string) *models.BestDeal {
+	var winner *models.CountryComparison
+	var winnerAmt float64
+	for i := range countries {
+		c := &countries[i]
+		if c.Status != models.CountryStatusOK || c.BestPrice == nil {
+			continue
+		}
+		amt := c.BestPrice.ComparableAmount()
+		if amt <= 0 {
+			continue
+		}
+		if winner == nil || amt < winnerAmt {
+			winner = c
+			winnerAmt = amt
+		}
+	}
+	if winner == nil {
+		return nil
+	}
+
+	deal := &models.BestDeal{
+		Country:         winner.Country,
+		NormalizedPrice: round2(winnerAmt),
+		Currency:        currency,
+		Store:           winner.BestPrice.Store,
+	}
+	if bestBase != nil {
+		baseAmt := bestBase.ComparableAmount()
+		if baseAmt > 0 {
+			savings := round2(baseAmt - winnerAmt)
+			if savings > 0 {
+				pct := round2((savings / baseAmt) * 100)
+				deal.SavingsVsBase = &savings
+				deal.SavingsPercentageVsBase = &pct
+			}
+		}
+	}
+	return deal
 }
 
 func (e *ComparisonEngine) flattenOffers(sections []models.CountrySection, normalizedCurrency, capturedAt string) []models.PriceOffer {

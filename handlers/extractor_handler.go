@@ -119,74 +119,67 @@ func (h *ExtractorHandler) GetProductComparisons(searchTerm string, baseCountry 
 
 // GetProductComparisonsWithMeta retrieves comparisons plus provider success/failure metadata.
 func (h *ExtractorHandler) GetProductComparisonsWithMeta(searchTerm string, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, useMacroRegion bool, category *models.ProductCategory) (*ExtractionOutcome, error) {
-	if sanitized := utils.SanitizeSearchQuery(searchTerm); sanitized != searchTerm {
+	searchTerm = applySearchQuery(searchTerm)
+
+	location := models.Country("")
+	if currentCountry != nil {
+		location = *currentCountry
+	}
+	specs := models.ResolveComparisonSet(models.ComparisonSetInput{
+		BaseCountry:       baseCountry,
+		ProductLocation:   location,
+		ExpandMicroregion: useMacroRegion,
+	})
+	return h.getComparisonsForCountries(searchTerm, specs, baseCountry, currentCountry, targetCurrency, category, useMacroRegion)
+}
+
+// GetProductComparisonsForCountries runs extractors for an explicit comparison-country set.
+func (h *ExtractorHandler) GetProductComparisonsForCountries(searchTerm string, specs []models.ComparisonCountrySpec, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, category *models.ProductCategory) (*ExtractionOutcome, error) {
+	searchTerm = applySearchQuery(searchTerm)
+	return h.getComparisonsForCountries(searchTerm, specs, baseCountry, currentCountry, targetCurrency, category, false)
+}
+
+func applySearchQuery(searchTerm string) string {
+	sanitized := utils.SearchQuery(searchTerm)
+	if sanitized != searchTerm {
 		utils.Info("Sanitized search query",
 			utils.String("original", searchTerm),
 			utils.String("sanitized", sanitized))
-		searchTerm = sanitized
 	}
+	return sanitized
+}
 
+func (h *ExtractorHandler) getComparisonsForCountries(searchTerm string, specs []models.ComparisonCountrySpec, baseCountry models.Country, currentCountry *models.Country, targetCurrency string, category *models.ProductCategory, useMacroRegion bool) (*ExtractionOutcome, error) {
+	countries := models.CountriesFromSpecs(specs)
 	utils.Info("GetProductComparisons called",
 		utils.String("searchTerm", searchTerm),
 		utils.String("baseCountry", string(baseCountry)),
 		utils.Any("currentCountry", currentCountry),
+		utils.Any("comparisonCountries", countries),
 		utils.String("targetCurrency", targetCurrency),
 		utils.Bool("useMacroRegion", useMacroRegion),
 		utils.Any("category", category))
 
 	allResults := make([]models.ProductComparison, 0)
-
-	// Use a map to track extractors by their identifier to prevent duplicates
 	extractorMap := make(map[string]extractors.Extractor)
+	byCountry := make(map[string]utils.CountryRunMeta, len(countries))
 
-	// Always use extractors from the base country (country parameter)
-	baseCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(baseCountry, category)
-	for _, extractor := range baseCountryExtractors {
-		extractorMap[extractor.GetIdentifier()] = extractor
-	}
-	utils.Info("Added base country extractors",
-		utils.String("baseCountry", string(baseCountry)),
-		utils.Int("count", len(baseCountryExtractors)))
-
-	// Add extractors from current country if different from base country
-	if currentCountry != nil && *currentCountry != baseCountry {
-		currentCountryExtractors := h.extractorRegistry.GetExtractorsForCountry(*currentCountry, category)
-		for _, extractor := range currentCountryExtractors {
+	for _, country := range countries {
+		code := string(country)
+		run := utils.CountryRunMeta{}
+		for _, extractor := range h.extractorRegistry.GetExtractorsForCountry(country, category) {
 			extractorMap[extractor.GetIdentifier()] = extractor
+			run.Attempted++
 		}
-		utils.Info("Added current country extractors",
-			utils.String("currentCountry", string(*currentCountry)),
-			utils.Int("count", len(currentCountryExtractors)))
-	}
-
-	// If macro region is enabled, add extractors from all countries in the current user's macro region
-	if useMacroRegion && currentCountry != nil {
-		macroRegion := currentCountry.GetMacroRegion()
-		countriesInRegion := models.GetCountriesInMacroRegion(macroRegion)
-		utils.Info("Processing macro region",
-			utils.String("macroRegion", string(macroRegion)),
-			utils.String("currentCountry", string(*currentCountry)),
-			utils.Int("countries", len(countriesInRegion)))
-
-		for _, country := range countriesInRegion {
-			regionExtractors := h.extractorRegistry.GetExtractorsForCountry(country, category)
-			for _, extractor := range regionExtractors {
-				extractorMap[extractor.GetIdentifier()] = extractor
-			}
-		}
-		utils.Info("Added macro region extractors",
-			utils.String("macroRegion", string(macroRegion)),
-			utils.Int("totalCountries", len(countriesInRegion)),
-			utils.Int("totalExtractors", len(extractorMap)))
+		byCountry[code] = run
 	}
 
 	// If a specific category has no registered providers, fall back to generic ("other").
-	// Matches product rule: unknown / unavailable category → generic comparison strategy.
 	if len(extractorMap) == 0 && category != nil && *category != models.CategoryOther {
 		utils.Info("No extractors for requested category — falling back to generic providers",
 			utils.String("requestedCategory", string(*category)))
 		fallback := models.CategoryOther
-		return h.GetProductComparisonsWithMeta(searchTerm, baseCountry, currentCountry, targetCurrency, useMacroRegion, &fallback)
+		return h.getComparisonsForCountries(searchTerm, specs, baseCountry, currentCountry, targetCurrency, &fallback, useMacroRegion)
 	}
 
 	extractorsToUse := make([]extractors.Extractor, 0, len(extractorMap))
@@ -229,9 +222,13 @@ func (h *ExtractorHandler) GetProductComparisonsWithMeta(searchTerm string, base
 	meta := utils.ExtractionMeta{
 		ProvidersAttempted: len(extractorsToUse),
 		FailedProviders:    make([]string, 0),
+		ByCountry:          byCountry,
 	}
 	for _, result := range runResults {
+		run := byCountry[result.ExtractorCountry]
 		if result.Error != nil {
+			run.Failed++
+			byCountry[result.ExtractorCountry] = run
 			meta.ProvidersFailed++
 			meta.FailedProviders = append(meta.FailedProviders, result.ExtractorName)
 			utils.Warn("Extractor failed during product search - continuing with remaining extractors",
@@ -244,6 +241,8 @@ func (h *ExtractorHandler) GetProductComparisonsWithMeta(searchTerm string, base
 				utils.Error(result.Error))
 			continue
 		}
+		run.Succeeded++
+		byCountry[result.ExtractorCountry] = run
 		meta.ProvidersSucceeded++
 		utils.Info("Extractor successfully completed product search",
 			utils.String("search_term", searchTerm),

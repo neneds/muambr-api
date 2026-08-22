@@ -20,6 +20,13 @@ func TestSanitizeSearchQuery(t *testing.T) {
 		{name: "accents kept", in: "Água de Colónia Nº5", want: "água de colónia nº5"},
 		{name: "only symbols", in: "!!! ***", want: ""},
 		{name: "empty", in: "   ", want: ""},
+		{
+			name: "olaplex camera title",
+			in:   "OLAPLEX Olaplex No. 3 Hair Perfector - 250ml Brazil",
+			want: "olaplex no 3 hair perfector 250ml",
+		},
+		{name: "duplicate brand tokens", in: "Nike Nike Air Max", want: "nike air max"},
+		{name: "keeps size tokens", in: "Olaplex No.3 100ml", want: "olaplex no 3 100ml"},
 	}
 
 	for _, tc := range tests {
@@ -29,5 +36,14 @@ func TestSanitizeSearchQuery(t *testing.T) {
 				t.Errorf("SanitizeSearchQuery(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestSearchQuery_KeepsOriginalWhenSanitizeEmpties(t *testing.T) {
+	if got := utils.SearchQuery("!!! ***"); got != "!!! ***" {
+		t.Errorf("SearchQuery(symbols) = %q, want original", got)
+	}
+	if got := utils.SearchQuery("OLAPLEX Olaplex No. 3 Hair Perfector - 250ml Brazil"); got != "olaplex no 3 hair perfector 250ml" {
+		t.Errorf("SearchQuery(olaplex) = %q", got)
 	}
 }

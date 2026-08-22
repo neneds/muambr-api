@@ -32,12 +32,12 @@ func TestComparisonEngine_BuildResult_SavingsAndDealScore(t *testing.T) {
 			CountryName: "Brazil",
 			Comparisons: []models.ProductComparison{
 				{
-					ID:          "1",
-					ProductName: "Sony WH-1000XM6",
-					Price:       2499,
-					Currency:    "BRL",
-					StoreName:   "Amazon BR",
-					Country:     "BR",
+					ID:              "1",
+					ProductName:     "Sony WH-1000XM6",
+					Price:           2499,
+					Currency:        "BRL",
+					StoreName:       "Amazon BR",
+					Country:         "BR",
 					MatchConfidence: &conf,
 				},
 			},
@@ -124,6 +124,13 @@ func TestComparisonEngine_BuildResult_SavingsAndDealScore(t *testing.T) {
 	assert.Equal(t, "retail", result.Metadata.PriceType)
 	require.NotNil(t, result.Category)
 	assert.Equal(t, models.CategoryElectronics, result.Category.ID)
+	require.Len(t, result.ComparisonCountries, 2)
+	require.NotNil(t, result.BestDeal)
+	assert.Equal(t, "US", result.BestDeal.Country)
+	assert.InDelta(t, 1891.58, result.BestDeal.NormalizedPrice, 0.01)
+	assert.Equal(t, "BRL", result.BestDeal.Currency)
+	require.NotNil(t, result.BestDeal.SavingsVsBase)
+	assert.InDelta(t, 607.42, *result.BestDeal.SavingsVsBase, 0.1)
 }
 
 func TestComparisonEngine_BuildResult_PartialStatus(t *testing.T) {
@@ -196,12 +203,12 @@ func TestComparisonEngine_SavingsWithoutObservedUsesBestCurrent(t *testing.T) {
 			Country: "US",
 			Comparisons: []models.ProductComparison{
 				{
-					ProductName: "X",
-					Price:       300,
-					Currency:    "USD",
+					ProductName:    "X",
+					Price:          300,
+					Currency:       "USD",
 					ConvertedPrice: &models.ConvertedPrice{Price: 1500, Currency: "BRL"},
-					Country:     "US",
-					StoreName:   "US Store",
+					Country:        "US",
+					StoreName:      "US Store",
 				},
 			},
 			ResultsCount: 1,
@@ -332,4 +339,79 @@ func TestComparisonEngine_ObservedForeignCurrencyIsNormalized(t *testing.T) {
 	require.NotNil(t, result.Observed.NormalizedCurrency)
 	assert.Equal(t, "BRL", *result.Observed.NormalizedCurrency)
 	assert.InDelta(t, 523.57, *result.Observed.NormalizedAmount, 0.01)
+}
+
+func TestComparisonEngine_KeepsEmptyCountryAndRanksBestDeal(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	conf := 0.9
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "Milka strawberry 250g",
+		BaseCountry:        models.CountryBrazil,
+		CurrentCountry:     models.CountryUK,
+		NormalizedCurrency: "BRL",
+		Observed: &models.ObservedPriceInput{
+			Amount:   4.99,
+			Currency: "GBP",
+			Country:  "GB",
+		},
+		ComparisonCountries: []models.ComparisonCountrySpec{
+			{Country: models.CountryBrazil, Roles: []string{"base"}},
+			{Country: models.CountryUK, Roles: []string{"current", "journey"}},
+			{Country: models.CountryNetherlands, Roles: []string{"journey"}},
+			{Country: models.CountryPortugal, Roles: []string{"journey"}},
+		},
+		Sections: []models.CountrySection{
+			{
+				Country: "BR",
+				Comparisons: []models.ProductComparison{
+					{ProductName: "Milka strawberry 250g", Price: 2499, Currency: "BRL", Country: "BR", StoreName: "Americanas", MatchConfidence: &conf},
+				},
+				ResultsCount: 1,
+			},
+			{
+				Country: "NL",
+				Comparisons: []models.ProductComparison{
+					{
+						ProductName:     "Milka strawberry 250g",
+						Price:           399,
+						Currency:        "EUR",
+						ConvertedPrice:  &models.ConvertedPrice{Price: 1980, Currency: "BRL"},
+						Country:         "NL",
+						StoreName:       "Bol.com",
+						MatchConfidence: &conf,
+					},
+				},
+				ResultsCount: 1,
+			},
+		},
+		Meta: utils.ExtractionMeta{
+			ProvidersAttempted: 4,
+			ProvidersSucceeded: 3,
+			ProvidersFailed:    1,
+			ByCountry: map[string]utils.CountryRunMeta{
+				"BR": {Attempted: 1, Succeeded: 1},
+				"GB": {Attempted: 1, Succeeded: 1},
+				"NL": {Attempted: 1, Succeeded: 1},
+				"PT": {Attempted: 1, Failed: 1},
+			},
+		},
+		Now: time.Now().UTC(),
+	})
+
+	require.Len(t, result.ComparisonCountries, 4)
+	assert.Equal(t, models.CountryStatusOK, result.ComparisonCountries[0].Status)
+	assert.Equal(t, models.CountryStatusNoPrices, result.ComparisonCountries[1].Status)
+	assert.Nil(t, result.ComparisonCountries[1].BestPrice)
+	assert.Equal(t, 0, result.ComparisonCountries[1].StoreCount)
+	assert.Equal(t, models.CountryStatusOK, result.ComparisonCountries[2].Status)
+	assert.Equal(t, "NL", result.ComparisonCountries[2].Country)
+	assert.Equal(t, models.CountryStatusProviderFailed, result.ComparisonCountries[3].Status)
+	require.NotNil(t, result.BestDeal)
+	assert.Equal(t, "NL", result.BestDeal.Country)
+	assert.InDelta(t, 1980.0, result.BestDeal.NormalizedPrice, 0.01)
+	require.NotNil(t, result.BestDeal.SavingsVsBase)
+	assert.InDelta(t, 519.0, *result.BestDeal.SavingsVsBase, 0.01)
+	assert.Equal(t, models.ComparisonStatusPartial, result.Status)
+	require.NotNil(t, result.Observed)
+	assert.Equal(t, 4.99, result.Observed.Amount)
 }

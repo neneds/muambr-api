@@ -32,15 +32,18 @@ func NewProductComparisonHandler() *ProductComparisonHandler {
 
 // CreateProductComparisonRequest is the POST /api/v1/product-comparisons body.
 type CreateProductComparisonRequest struct {
-	Product         models.ProductIdentityInput  `json:"product"`
-	ObservedPrice   *models.ObservedPriceInput   `json:"observedPrice,omitempty"`
-	CurrentCountry  string                       `json:"currentCountry"`
-	BaseCountry     string                       `json:"baseCountry"`
-	Currency        string                       `json:"currency,omitempty"`
-	Limit           int                          `json:"limit,omitempty"`
-	UseMacroRegion  bool                         `json:"useMacroRegion,omitempty"`
-	Source          *models.ComparisonSourceInput `json:"source,omitempty"`
-	ProductURL      string                       `json:"productURL,omitempty"`
+	Product             models.ProductIdentityInput   `json:"product"`
+	ObservedPrice       *models.ObservedPriceInput    `json:"observedPrice,omitempty"`
+	CurrentCountry      string                        `json:"currentCountry"`
+	BaseCountry         string                        `json:"baseCountry"`
+	Currency            string                        `json:"currency,omitempty"`
+	Limit               int                           `json:"limit,omitempty"`
+	UseMacroRegion      bool                          `json:"useMacroRegion,omitempty"`
+	Source              *models.ComparisonSourceInput `json:"source,omitempty"`
+	ProductURL          string                        `json:"productURL,omitempty"`
+	ProductLocation     *models.ProductLocationInput  `json:"productLocation,omitempty"`
+	ComparisonCountries []string                      `json:"comparisonCountries,omitempty"`
+	ComparisonScope     *models.ComparisonScopeInput  `json:"comparisonScope,omitempty"`
 }
 
 // CreateProductComparison handles POST /api/v1/product-comparisons
@@ -89,8 +92,10 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 			if entryMethod == "manual" {
 				entryMethod = "url"
 			}
-			// Infer current country from URL host when not provided
-			if req.CurrentCountry == "" {
+			// Infer current country from URL only when the client did not send
+			// productLocation.country or currentCountry. URL country must not
+			// override product location.
+			if req.CurrentCountry == "" && (req.ProductLocation == nil || strings.TrimSpace(req.ProductLocation.Country) == "") {
 				if u, err := url.Parse(productURL); err == nil {
 					req.CurrentCountry = string(guessCountryFromURL(u))
 				}
@@ -114,14 +119,46 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	}
 
 	currentCountry := baseCountry
-	if req.CurrentCountry != "" {
-		detected, err := h.extractorHandler.DetectCountryCode(strings.ToUpper(req.CurrentCountry))
+	if req.ProductLocation != nil && strings.TrimSpace(req.ProductLocation.Country) != "" {
+		detected, err := h.extractorHandler.DetectCountryCode(req.ProductLocation.Country)
+		if err != nil || detected == "" {
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
+			return
+		}
+		currentCountry = detected
+	} else if req.CurrentCountry != "" {
+		detected, err := h.extractorHandler.DetectCountryCode(req.CurrentCountry)
 		if err != nil || detected == "" {
 			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
 			return
 		}
 		currentCountry = detected
 	}
+
+	explicitCountries, err := parseCountryList(req.ComparisonCountries)
+	if err != nil {
+		h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
+		return
+	}
+	var journeyCountries []models.Country
+	if req.ComparisonScope != nil {
+		journeyCountries, err = parseCountryList(req.ComparisonScope.JourneyCountries)
+		if err != nil {
+			h.sendError(c, http.StatusBadRequest, models.ErrorCodeCountryUnknown, "api.errors.invalid_country_code")
+			return
+		}
+	}
+	expandMicroregion := req.UseMacroRegion
+	if req.ComparisonScope != nil && req.ComparisonScope.MicroregionEnabled != nil {
+		expandMicroregion = expandMicroregion || *req.ComparisonScope.MicroregionEnabled
+	}
+	comparisonSpecs := models.ResolveComparisonSet(models.ComparisonSetInput{
+		BaseCountry:       baseCountry,
+		ProductLocation:   currentCountry,
+		ExplicitCountries: explicitCountries,
+		JourneyCountries:  journeyCountries,
+		ExpandMicroregion: expandMicroregion,
+	})
 
 	normalizedCurrency := req.Currency
 	if normalizedCurrency == "" {
@@ -154,37 +191,34 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 
 	var category *models.ProductCategory
 	categoryConfidence := 0.0
-	if req.Product.Category != nil {
-		parsed, err := models.ParseCategoryFromString(string(*req.Product.Category))
-		if err != nil {
-			h.sendError(c, http.StatusBadRequest, models.ErrorCodeInvalidRequest, "api.errors.invalid_category")
-			return
+	if req.Product.Category != nil && strings.TrimSpace(string(*req.Product.Category)) != "" {
+		parsed, parseErr := models.ParseCategoryFromString(string(*req.Product.Category))
+		if parseErr != nil {
+			// Unknown category (e.g. grocery) → generic providers
+			other := models.CategoryOther
+			category = &other
+			categoryConfidence = 0.5
+		} else {
+			category = &parsed
+			categoryConfidence = 1.0
 		}
-		category = &parsed
-		categoryConfidence = 1.0
 	} else {
-		// Unknown category → generic (other) providers
 		other := models.CategoryOther
 		category = &other
 		categoryConfidence = 0.5
 	}
 
 	currentCountryPtr := &currentCountry
-	outcome, err := h.extractorHandler.GetProductComparisonsWithMeta(
+	outcome, err := h.extractorHandler.GetProductComparisonsForCountries(
 		productName,
+		comparisonSpecs,
 		baseCountry,
 		currentCountryPtr,
 		normalizedCurrency,
-		req.UseMacroRegion,
 		category,
 	)
 	if err != nil {
 		h.sendError(c, http.StatusInternalServerError, models.ErrorCodeInternalError, "api.errors.failed_get_comparisons")
-		return
-	}
-
-	if outcome.Meta.ProvidersAttempted == 0 {
-		h.sendError(c, http.StatusNotFound, models.ErrorCodeNoComparisonSources, "api.errors.no_comparison_sources")
 		return
 	}
 
@@ -201,26 +235,46 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 	}
 
 	result := h.comparisonEngine.BuildResult(utils.ComparisonEngineInput{
-		ProductName:        productName,
-		Brand:              req.Product.Brand,
-		Model:              req.Product.Model,
-		Category:           category,
-		CategoryConfidence: categoryConfidence,
-		BaseCountry:        baseCountry,
-		CurrentCountry:     currentCountry,
-		NormalizedCurrency: normalizedCurrency,
-		Observed:           req.ObservedPrice,
-		Sections:           sections,
-		Comparisons:        outcome.Comparisons,
-		Meta:               outcome.Meta,
-		EntryMethod:        entryMethod,
-		ExchangeRate:       exchangeRateInfo,
-		Now:                time.Now().UTC(),
+		ProductName:         productName,
+		Brand:               req.Product.Brand,
+		Model:               req.Product.Model,
+		Category:            category,
+		CategoryConfidence:  categoryConfidence,
+		BaseCountry:         baseCountry,
+		CurrentCountry:      currentCountry,
+		NormalizedCurrency:  normalizedCurrency,
+		Observed:            req.ObservedPrice,
+		Sections:            sections,
+		Comparisons:         outcome.Comparisons,
+		ComparisonCountries: comparisonSpecs,
+		Meta:                outcome.Meta,
+		EntryMethod:         entryMethod,
+		ExchangeRate:        exchangeRateInfo,
+		Now:                 time.Now().UTC(),
 	})
 
 	localizeEmptyComparisonMessage(c, &result)
 
 	c.JSON(http.StatusOK, result)
+}
+
+func parseCountryList(codes []string) ([]models.Country, error) {
+	if len(codes) == 0 {
+		return nil, nil
+	}
+	out := make([]models.Country, 0, len(codes))
+	for _, raw := range codes {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		country, err := models.ParseCountryFromISO(raw)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, country)
+	}
+	return out, nil
 }
 
 func localizeEmptyComparisonMessage(c *gin.Context, result *models.ProductComparisonResult) {

@@ -88,7 +88,7 @@ Request (JSON):
 ```
 product.name                 # required unless productURL yields a title
 product.brand / model        # optional
-product.category             # electronics | beauty | appliances | fashion | other
+product.category             # electronics | beauty | appliances | fashion | other (unknown → other)
 observedPrice.amount         # recommended — price the user found
 observedPrice.currency
 currentCountry               # ISO; defaults to baseCountry
@@ -96,10 +96,15 @@ baseCountry                  # required ISO
 currency                     # normalization target; defaults to baseCountry currency
 limit / useMacroRegion
 source.type                  # manual | url | camera | barcode
-productURL                   # optional — extracts title/price/country
+productURL                   # optional — extracts title/price; does not override productLocation
+productLocation.country      # preferred source of current / found-in country
+comparisonCountries[]        # explicit set (source of truth); always includes baseCountry
+comparisonScope.journeyCountries / microregionEnabled / journeyId
 ```
 
-Response: `models.ProductComparisonResult` — `comparisonId`, `status`, `observed`, `prices`, `sections`, `bestCurrentCountryPrice`, `bestBaseCountryPrice`, `savings`, `dealScore`, `exchangeRate`, `metadata`, `capturedAt`, `expiresAt`.
+`comparisonCountries` is the source of truth when non-empty. Otherwise fall back to `currentCountry` + `baseCountry` + microregion expansion. Product location prefers `productLocation.country`, else `currentCountry`. URL country must not replace product location. Microregion only **adds** countries.
+
+Response: `models.ProductComparisonResult` — `comparisonId`, `status`, `observed`, `prices`, `sections`, `comparisonCountries`, `bestDeal`, `bestCurrentCountryPrice`, `bestBaseCountryPrice`, `savings`, `dealScore`, `exchangeRate`, `metadata`, `capturedAt`, `expiresAt`.
 
 `status`: `complete` | `partial` | `empty` | `low_confidence`.
 
@@ -349,12 +354,12 @@ Do not commit debug-only logs.
 
 ## Extractor Selection
 
-1. Always include `baseCountry` extractors.
-2. If `currentCountry` differs from `baseCountry`:
-   - `useMacroRegion=true` → all extractors in `currentCountry`’s macro region
-   - else → `currentCountry` only
+1. Resolve the comparison-country set (`comparisonCountries` or legacy `base` + `current` + optional microregion). Always include `baseCountry`. De-duplicate.
+2. Run extractors for every country in that set (not only current vs base).
 3. If `category` is set, keep matching `GetCategory()`; if none, fall back to `other`.
 4. `nil` category → all categories for those countries.
+5. Keep countries with no prices in `comparisonCountries[]` (`ok` / `no_prices` / `provider_failed`). Do not fail the whole request.
+6. `bestDeal` is the cheapest country best-price in the request currency. Observed is never a country’s best store price.
 
 ---
 

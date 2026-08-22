@@ -14,17 +14,17 @@ const (
 type APIErrorCode string
 
 const (
-	ErrorCodeProductNotFound          APIErrorCode = "PRODUCT_NOT_FOUND"
+	ErrorCodeProductNotFound           APIErrorCode = "PRODUCT_NOT_FOUND"
 	ErrorCodeProductMatchLowConfidence APIErrorCode = "PRODUCT_MATCH_LOW_CONFIDENCE"
-	ErrorCodePriceNotFound            APIErrorCode = "PRICE_NOT_FOUND"
-	ErrorCodeCurrencyUnknown          APIErrorCode = "CURRENCY_UNKNOWN"
-	ErrorCodeCountryUnknown           APIErrorCode = "COUNTRY_UNKNOWN"
-	ErrorCodeNoComparisonSources      APIErrorCode = "NO_COMPARISON_SOURCES"
-	ErrorCodeProviderTimeout          APIErrorCode = "PROVIDER_TIMEOUT"
-	ErrorCodeExchangeRateUnavailable  APIErrorCode = "EXCHANGE_RATE_UNAVAILABLE"
-	ErrorCodeComparisonTimeout        APIErrorCode = "COMPARISON_TIMEOUT"
-	ErrorCodeInvalidRequest           APIErrorCode = "INVALID_REQUEST"
-	ErrorCodeInternalError            APIErrorCode = "INTERNAL_ERROR"
+	ErrorCodePriceNotFound             APIErrorCode = "PRICE_NOT_FOUND"
+	ErrorCodeCurrencyUnknown           APIErrorCode = "CURRENCY_UNKNOWN"
+	ErrorCodeCountryUnknown            APIErrorCode = "COUNTRY_UNKNOWN"
+	ErrorCodeNoComparisonSources       APIErrorCode = "NO_COMPARISON_SOURCES"
+	ErrorCodeProviderTimeout           APIErrorCode = "PROVIDER_TIMEOUT"
+	ErrorCodeExchangeRateUnavailable   APIErrorCode = "EXCHANGE_RATE_UNAVAILABLE"
+	ErrorCodeComparisonTimeout         APIErrorCode = "COMPARISON_TIMEOUT"
+	ErrorCodeInvalidRequest            APIErrorCode = "INVALID_REQUEST"
+	ErrorCodeInternalError             APIErrorCode = "INTERNAL_ERROR"
 )
 
 // DealScoreLabel is a human-readable interpretation of DealScore.Value.
@@ -75,6 +75,52 @@ type ObservedPriceInput struct {
 	Store    string  `json:"store,omitempty"`
 }
 
+// ProductLocationInput is where the product was found (request body).
+type ProductLocationInput struct {
+	Country   string   `json:"country"`
+	Source    string   `json:"source,omitempty"` // device | manual
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+	Address   string   `json:"address,omitempty"`
+}
+
+// ComparisonScopeInput is Journey / microregion metadata (request body).
+type ComparisonScopeInput struct {
+	JourneyCountries   []string `json:"journeyCountries,omitempty"`
+	MicroregionEnabled *bool    `json:"microregionEnabled,omitempty"`
+	JourneyID          string   `json:"journeyId,omitempty"`
+}
+
+// CountryComparisonStatus is the per-country outcome in comparisonCountries[].
+type CountryComparisonStatus string
+
+const (
+	CountryStatusOK               CountryComparisonStatus = "ok"
+	CountryStatusNoPrices         CountryComparisonStatus = "no_prices"
+	CountryStatusProviderFailed   CountryComparisonStatus = "provider_failed"
+	CountryStatusMatchUnavailable CountryComparisonStatus = "match_unavailable"
+)
+
+// CountryComparison is one compared country, including empty / failed ones.
+type CountryComparison struct {
+	Country         string                  `json:"country"`
+	Roles           []string                `json:"roles"`
+	Status          CountryComparisonStatus `json:"status"`
+	BestPrice       *MoneyAmount            `json:"bestPrice"`
+	StoreCount      int                     `json:"storeCount"`
+	MatchConfidence *float64                `json:"matchConfidence,omitempty"`
+}
+
+// BestDeal is the cheapest valid country in the set, ranked in base currency.
+type BestDeal struct {
+	Country                 string   `json:"country"`
+	NormalizedPrice         float64  `json:"normalizedPrice"`
+	Currency                string   `json:"currency"`
+	SavingsVsBase           *float64 `json:"savingsVsBase,omitempty"`
+	SavingsPercentageVsBase *float64 `json:"savingsPercentageVsBase,omitempty"`
+	Store                   string   `json:"store,omitempty"`
+}
+
 // ProductIdentityInput describes the product being compared (request body).
 type ProductIdentityInput struct {
 	Name     string           `json:"name"`
@@ -106,39 +152,39 @@ type CountryInfo struct {
 
 // SavingsResult is the primary savings calculation vs the base country.
 type SavingsResult struct {
-	Amount             float64 `json:"amount"`
-	Currency           string  `json:"currency"`
-	Percentage         float64 `json:"percentage"`
-	IsCheaper          bool    `json:"isCheaper"`
-	ComparedAgainst    string  `json:"comparedAgainst"` // "observed" | "best_current"
-	Explanation        string  `json:"explanation"`
+	Amount          float64 `json:"amount"`
+	Currency        string  `json:"currency"`
+	Percentage      float64 `json:"percentage"`
+	IsCheaper       bool    `json:"isCheaper"`
+	ComparedAgainst string  `json:"comparedAgainst"` // "observed" | "best_current"
+	Explanation     string  `json:"explanation"`
 }
 
 // DealScore is a normalized 0–100 score with a label and short explanation.
 type DealScore struct {
-	Value       int            `json:"value"`
-	Label       DealScoreLabel `json:"label"`
-	Explanation string         `json:"explanation"`
-	IsDefinitive bool          `json:"isDefinitive"` // false when match confidence is low
+	Value        int            `json:"value"`
+	Label        DealScoreLabel `json:"label"`
+	Explanation  string         `json:"explanation"`
+	IsDefinitive bool           `json:"isDefinitive"` // false when match confidence is low
 }
 
 // ExchangeRateInfo exposes the rate used for normalization.
 type ExchangeRateInfo struct {
-	Base           string  `json:"base"`
-	Target         string  `json:"target"`
-	Rate           float64 `json:"rate"`
-	Source         string  `json:"source"`
-	Timestamp      string  `json:"timestamp"`
+	Base      string  `json:"base"`
+	Target    string  `json:"target"`
+	Rate      float64 `json:"rate"`
+	Source    string  `json:"source"`
+	Timestamp string  `json:"timestamp"`
 }
 
 // ComparisonMetadata carries lifecycle and provider diagnostics.
 type ComparisonMetadata struct {
-	ProvidersAttempted  int      `json:"providersAttempted"`
-	ProvidersSucceeded  int      `json:"providersSucceeded"`
-	ProvidersFailed     int      `json:"providersFailed"`
-	FailedProviders     []string `json:"failedProviders,omitempty"`
-	PriceType           string   `json:"priceType"` // "retail" — V1 does not include landed cost
-	EntryMethod         string   `json:"entryMethod,omitempty"`
+	ProvidersAttempted int      `json:"providersAttempted"`
+	ProvidersSucceeded int      `json:"providersSucceeded"`
+	ProvidersFailed    int      `json:"providersFailed"`
+	FailedProviders    []string `json:"failedProviders,omitempty"`
+	PriceType          string   `json:"priceType"` // "retail" — V1 does not include landed cost
+	EntryMethod        string   `json:"entryMethod,omitempty"`
 }
 
 // PriceOffer is a single store price in the comparison result.
@@ -162,27 +208,29 @@ type PriceOffer struct {
 // ProductComparisonResult is the V1 product-aligned comparison response.
 // Used by POST /api/v1/product-comparisons.
 type ProductComparisonResult struct {
-	Success                 bool              `json:"success"`
-	Code                    *APIErrorCode     `json:"code,omitempty"`
-	Message                 *string           `json:"message,omitempty"`
-	ComparisonID            string            `json:"comparisonId"`
-	Status                  ComparisonStatus  `json:"status"`
-	Product                 ProductSummary    `json:"product"`
-	Category                *CategoryInfo     `json:"category,omitempty"`
-	Observed                *MoneyAmount      `json:"observed,omitempty"`
-	BaseCountry             CountryInfo       `json:"baseCountry"`
-	CurrentCountry          CountryInfo       `json:"currentCountry"`
-	Prices                  []PriceOffer      `json:"prices"`
-	Sections                []CountrySection  `json:"sections"`
-	BestCurrentCountryPrice *MoneyAmount      `json:"bestCurrentCountryPrice,omitempty"`
-	BestBaseCountryPrice    *MoneyAmount      `json:"bestBaseCountryPrice,omitempty"`
-	Savings                 *SavingsResult    `json:"savings,omitempty"`
-	DealScore               *DealScore        `json:"dealScore,omitempty"`
-	ExchangeRate            *ExchangeRateInfo `json:"exchangeRate,omitempty"`
-	Metadata                ComparisonMetadata `json:"metadata"`
-	CapturedAt              string            `json:"capturedAt"`
-	ExpiresAt               string            `json:"expiresAt"`
-	TotalResults            int               `json:"totalResults"`
+	Success                 bool                `json:"success"`
+	Code                    *APIErrorCode       `json:"code,omitempty"`
+	Message                 *string             `json:"message,omitempty"`
+	ComparisonID            string              `json:"comparisonId"`
+	Status                  ComparisonStatus    `json:"status"`
+	Product                 ProductSummary      `json:"product"`
+	Category                *CategoryInfo       `json:"category,omitempty"`
+	Observed                *MoneyAmount        `json:"observed,omitempty"`
+	BaseCountry             CountryInfo         `json:"baseCountry"`
+	CurrentCountry          CountryInfo         `json:"currentCountry"`
+	Prices                  []PriceOffer        `json:"prices"`
+	Sections                []CountrySection    `json:"sections"`
+	ComparisonCountries     []CountryComparison `json:"comparisonCountries,omitempty"`
+	BestDeal                *BestDeal           `json:"bestDeal,omitempty"`
+	BestCurrentCountryPrice *MoneyAmount        `json:"bestCurrentCountryPrice,omitempty"`
+	BestBaseCountryPrice    *MoneyAmount        `json:"bestBaseCountryPrice,omitempty"`
+	Savings                 *SavingsResult      `json:"savings,omitempty"`
+	DealScore               *DealScore          `json:"dealScore,omitempty"`
+	ExchangeRate            *ExchangeRateInfo   `json:"exchangeRate,omitempty"`
+	Metadata                ComparisonMetadata  `json:"metadata"`
+	CapturedAt              string              `json:"capturedAt"`
+	ExpiresAt               string              `json:"expiresAt"`
+	TotalResults            int                 `json:"totalResults"`
 }
 
 // ProductSummary is the normalized product identity returned to clients.

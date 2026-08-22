@@ -130,4 +130,55 @@ func TestCreateProductComparison_ValidRequestShape(t *testing.T) {
 	assert.Equal(t, "USD", resp.Observed.Currency)
 	require.NotNil(t, resp.Observed.NormalizedCurrency)
 	assert.Equal(t, "BRL", *resp.Observed.NormalizedCurrency)
+	require.NotEmpty(t, resp.ComparisonCountries)
+	assert.Equal(t, "BR", resp.ComparisonCountries[0].Country)
+}
+
+func TestCreateProductComparison_ComparisonCountriesUnknown(t *testing.T) {
+	router := setupProductComparisonRouter()
+	body := `{
+		"baseCountry":"BR",
+		"product":{"name":"Milka strawberry 250g"},
+		"comparisonCountries":["BR","ZZ"]
+	}`
+	req, _ := http.NewRequest("POST", "/api/v1/product-comparisons", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp models.ProductComparisonResult
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.NotNil(t, resp.Code)
+	assert.Equal(t, models.ErrorCodeCountryUnknown, *resp.Code)
+}
+
+func TestCreateProductComparison_ProductLocationWinsOverCurrentCountry(t *testing.T) {
+	router := setupProductComparisonRouter()
+	body := `{
+		"baseCountry":"BR",
+		"currentCountry":"US",
+		"productLocation":{"country":"GB","source":"device"},
+		"comparisonCountries":["BR","GB"],
+		"product":{"name":"Milka strawberry 250g","category":"grocery"}
+	}`
+	req, _ := http.NewRequest("POST", "/api/v1/product-comparisons", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var resp models.ProductComparisonResult
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.True(t, resp.Success)
+	assert.Equal(t, "GB", resp.CurrentCountry.Country)
+	require.Len(t, resp.ComparisonCountries, 2)
+	assert.Equal(t, "BR", resp.ComparisonCountries[0].Country)
+	assert.Contains(t, resp.ComparisonCountries[0].Roles, "base")
+	assert.Equal(t, "GB", resp.ComparisonCountries[1].Country)
+	assert.Contains(t, resp.ComparisonCountries[1].Roles, "current")
+	require.NotNil(t, resp.Category)
+	assert.Equal(t, models.CategoryOther, resp.Category.ID)
 }
