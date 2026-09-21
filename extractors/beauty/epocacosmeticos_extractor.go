@@ -16,11 +16,11 @@ import (
 // so the parser methods are never called.
 type epocaCosmeticosNoopParser struct{ *extractors.BaseHTMLParser }
 
-func (p *epocaCosmeticosNoopParser) GetProductSelectors() []string                   { return nil }
-func (p *epocaCosmeticosNoopParser) GetNameSelectors() []string                      { return nil }
-func (p *epocaCosmeticosNoopParser) GetPriceSelectors() []string                     { return nil }
-func (p *epocaCosmeticosNoopParser) GetURLSelectors() []string                       { return nil }
-func (p *epocaCosmeticosNoopParser) ParseProductName(html string) string             { return "" }
+func (p *epocaCosmeticosNoopParser) GetProductSelectors() []string       { return nil }
+func (p *epocaCosmeticosNoopParser) GetNameSelectors() []string          { return nil }
+func (p *epocaCosmeticosNoopParser) GetPriceSelectors() []string         { return nil }
+func (p *epocaCosmeticosNoopParser) GetURLSelectors() []string           { return nil }
+func (p *epocaCosmeticosNoopParser) ParseProductName(html string) string { return "" }
 func (p *epocaCosmeticosNoopParser) ParsePrice(html string) (float64, string, error) {
 	return 0, "", fmt.Errorf("not implemented")
 }
@@ -82,6 +82,7 @@ type vtexProduct struct {
 	ProductName string     `json:"productName"`
 	Brand       string     `json:"brand"`
 	Link        string     `json:"link"`
+	LinkText    string     `json:"linkText"`
 	Description string     `json:"description"`
 	Items       []vtexItem `json:"items"`
 }
@@ -147,8 +148,7 @@ func (e *EpocaCosmeticosExtractor) parseVTEXResponse(body string) ([]models.Prod
 			Category:    &category,
 		}
 
-		if p.Link != "" {
-			link := p.Link
+		if link := e.storefrontURL(p.Link, p.LinkText); link != "" {
 			comparison.StoreURL = &link
 		}
 
@@ -166,4 +166,22 @@ func (e *EpocaCosmeticosExtractor) parseVTEXResponse(body string) ([]models.Prod
 
 	utils.Info("Época Cosméticos extraction completed", utils.Int("results", len(results)))
 	return results, nil
+}
+
+// storefrontURL maps a VTEX catalog product onto the public FastStore PDP.
+// The catalog `link` host is vtexcommercestable (admin login). Storefront
+// PDPs are https://www.epocacosmeticos.com.br/{linkText}/p.
+func (e *EpocaCosmeticosExtractor) storefrontURL(link, linkText string) string {
+	slug := strings.Trim(linkText, "/")
+	if slug != "" {
+		if strings.HasSuffix(slug, "/p") {
+			return e.GetBaseURL() + "/" + slug
+		}
+		return e.GetBaseURL() + "/" + slug + "/p"
+	}
+	u, err := url.Parse(strings.TrimSpace(link))
+	if err != nil || u.Path == "" || u.Path == "/" {
+		return ""
+	}
+	return e.GetBaseURL() + u.Path
 }

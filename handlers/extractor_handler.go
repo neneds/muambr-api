@@ -84,6 +84,11 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	utils.Info("All V2 extractors registered successfully")
 }
 
+// Extractors returns a snapshot of every registered extractor.
+func (h *ExtractorHandler) Extractors() []extractors.Extractor {
+	return h.extractorRegistry.All()
+}
+
 // DetectCountryCode detects and validates the country code for the currentCountry parameter
 func (h *ExtractorHandler) DetectCountryCode(countryParam string) (models.Country, error) {
 	if countryParam == "" {

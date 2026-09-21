@@ -55,6 +55,15 @@ func (r *ExtractorRegistry) GetExtractorsForCountry(country models.Country, cate
 	return filterByCategory(all, *category)
 }
 
+// All returns every registered extractor. Order is not guaranteed.
+func (r *ExtractorRegistry) All() []Extractor {
+	var out []Extractor
+	for _, list := range r.extractors {
+		out = append(out, list...)
+	}
+	return out
+}
+
 // filterByCategory returns only the extractors whose category matches the given value
 func filterByCategory(extractors []Extractor, category models.ProductCategory) []Extractor {
 	var result []Extractor

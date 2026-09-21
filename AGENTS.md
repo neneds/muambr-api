@@ -187,7 +187,7 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `ebuyer_uk_v1` | other | GB | other | Algolia JSON | Working — do **not** scrape search HTML (client-rendered / Akamai) |
 | `pricerunner_uk_v1` | other | GB | other | Instant-search JSON | Working — do **not** scrape pricerunner.com HTML (Klarna SPA; use `/uk/api/instant-search-edge-rest/public/search/suggest/UK`) |
 | `walmart_usa` | other | US | other | HTML | **WAF** (PerimeterX `/blocked`) — often empty |
-| `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) |
+| `epocacosmeticos_v1` | beauty | BR | beauty | VTEX JSON | Working (HTTP 206 is valid) — PDP URL is `/{linkText}/p` on www; catalog `link` is vtexcommercestable (login) |
 | `sephora_br_v1` | beauty | BR | beauty | SFCC AJAX JSON | Working |
 | `primor_pt_v1` | beauty | PT | beauty | Empathy JSON | Working — do **not** scrape `pt.primor.eu` HTML (AWS WAF) |
 | `perfumes_e_companhia_pt_v1` | beauty | PT | beauty | Doofinder JSON | Working — Origin required; do **not** scrape `/pt/pesquisa/` HTML (client-rendered) |
@@ -369,6 +369,11 @@ Do not commit debug-only logs.
 make test              # unit tests
 make test-all          # unit + integration
 make test-coverage     # HTML report in coverage/
+make check-extractors  # live probe every registered extractor (needs network)
+
+go run ./cmd/check-extractors            # same as make check-extractors
+go run ./cmd/check-extractors -id boots_uk_v1
+go run ./cmd/check-extractors -q "olaplex no 3"
 
 INTEGRATION_TESTS=true go test ./tests/integration/...
 ```

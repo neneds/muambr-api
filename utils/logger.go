@@ -157,6 +157,11 @@ func (z *ZapLogger) Sync() error {
 // Global logger instance
 var globalLogger Logger
 
+// InitNopLogger installs a logger that discards all output.
+func InitNopLogger() {
+	globalLogger = &ZapLogger{logger: zap.NewNop()}
+}
+
 // InitDevelopmentLogger initializes the global logger for development
 func InitDevelopmentLogger() error {
 	logger, err := NewDevelopmentZapLogger()
