@@ -266,6 +266,24 @@ func loadTestHTML(filename string) (string, error) {
 	return string(data), nil
 }
 
+func TestRegisteredHostsHaveProbeOrAreAlias(t *testing.T) {
+	for _, host := range RegisteredHosts() {
+		name := ParserName(host)
+		if name == "ShareHTMLParser" {
+			t.Errorf("registered host %s selected ShareHTMLParser", host)
+		}
+		if host == "a.co" {
+			if _, ok := ProbeURL(host); ok {
+				t.Errorf("a.co should not have a stable probe URL")
+			}
+			continue
+		}
+		if _, ok := ProbeURL(host); !ok {
+			t.Errorf("registered host %s has no probe URL", host)
+		}
+	}
+}
+
 func getParserType(parser Parser) string {
 	switch parser.(type) {
 	case *AmazonParser:

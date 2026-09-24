@@ -202,7 +202,7 @@ To add a country: constant in `models/models.go`, every `Country` switch (`GetCu
 | `carrefour_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 | `fastshop_br_v1` | appliances | BR | appliances | VTEX JSON | Working |
 
-No `fashion/` extractors yet. No Spain generic (`other`) extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
+No `fashion/` extractors yet. No Spain generic (`other`) extractor (Amazon.es is WAF-blocked). `amazon.es` is **not** in `siteParserRegistry` (buy-box price is not in SSR HTML). `mercadolivre.com.br` is **not** in `siteParserRegistry` (cold fetch 302 → `/gz/account-verification`). `olx.com.br` and `olx.pt` are **not** in `siteParserRegistry` (Cloudflare / CloudFront 403). `fnac.pt` is **not** in `siteParserRegistry` (could not reach). `worten.pt` is **not** in `siteParserRegistry` (Cloudflare 403 challenge). `magazineluiza.com.br` is **not** in `siteParserRegistry` (cold fetch 403). `primark.com` is **not** in `siteParserRegistry` (cold fetch 403 maintenance; PDP is Next.js RSC). `primor.eu` is **not** in `siteParserRegistry` (AWS WAF HTTP 202 — use Empathy search extractor, not HTML preview). `vinted.pt` is in `siteParserRegistry` (Product JSON-LD in the item HTML; `server: cloudflare` with HTTP 200 is OK). `zara.com` is **not** in `siteParserRegistry` (Akamai Bot Manager interstitial). No working US generic extractor (`walmart_usa` is PerimeterX-blocked). Unknown / empty category → `other`, then generic fallback if a requested category has zero providers.
 
 `FetchHTML` treats HTTP **200 and 206** as success (VTEX pagination).
 
@@ -333,6 +333,8 @@ When a hostname is proposed: **do not implement yet**. `curl` a real product URL
 
 Site-specific extractors first, then `ShareHTMLParser`. Register hostname (no `www.`) in `linkparsers/site_parsers.go` `siteParserRegistry`. Unmatched hosts fall back to `ShareHTMLParser`.
 
+`amazon.co.uk` fetches set a London delivery postcode (`SW1A1AA`) and GBP before reading the product page. A Brazil delivery location hides UK offers.
+
 ---
 
 ## Utilities
@@ -374,6 +376,10 @@ make check-extractors  # live probe every registered extractor (needs network)
 go run ./cmd/check-extractors            # same as make check-extractors
 go run ./cmd/check-extractors -id boots_uk_v1
 go run ./cmd/check-extractors -q "olaplex no 3"
+
+make check-linkparsers                 # live product-page probe for each link parser
+go run ./cmd/check-linkparsers -host perfumesecompanhia.pt
+go run ./cmd/check-linkparsers -url 'https://www.example.com/p'
 
 INTEGRATION_TESTS=true go test ./tests/integration/...
 ```

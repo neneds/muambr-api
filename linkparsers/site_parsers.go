@@ -18,6 +18,7 @@ var siteParserRegistry = map[string]func() Parser{
 	"electrolux.com.br":     func() Parser { return &ElectroluxBRParser{} },
 	"perfumesecompanhia.pt": func() Parser { return &PerfumesECompanhiaParser{} },
 	"walmart.com":           func() Parser { return &WalmartParser{} },
+	"vinted.pt":             func() Parser { return &VintedPTParser{} },
 }
 
 // createParser creates the appropriate parser for the URL

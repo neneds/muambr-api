@@ -1,6 +1,6 @@
 # Makefile for muambr-api test management
 
-.PHONY: test test-unit test-integration test-extractors test-coverage test-bench check-extractors clean-tests help
+.PHONY: test test-unit test-integration test-extractors test-coverage test-bench check-extractors check-linkparsers clean-tests help
 
 # Default target
 test: test-unit
@@ -54,6 +54,11 @@ check-extractors:
 	@echo "Checking live extractors..."
 	go run ./cmd/check-extractors
 
+# Live-check every registered link parser (network required)
+check-linkparsers:
+	@echo "Checking live link parsers..."
+	go run ./cmd/check-linkparsers
+
 # Lint tests (requires golangci-lint)
 lint-tests:
 	@echo "Linting test files..."
@@ -74,6 +79,7 @@ help:
 	@echo "  make test-coverage   - Run tests with coverage reports"
 	@echo "  make test-bench      - Run benchmark tests"
 	@echo "  make check-extractors - Live-check every registered extractor"
+	@echo "  make check-linkparsers - Live-check every registered link parser"
 	@echo "  make test-all        - Run all tests"
 	@echo "  make clean-tests     - Clean test artifacts"
 	@echo "  make lint-tests      - Lint test files"
