@@ -3,6 +3,7 @@ package other
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -208,27 +209,49 @@ func (e *KuantoKustaExtractorV2) BuildSearchURL(productName string) (string, err
 	return searchURL, nil
 }
 
-// GetComparisons overrides the base implementation to use KuantoKusta-specific logic
+const kuantoKustaAPI = "https://api.kuantokusta.pt"
+
+type kkSearchResponse struct {
+	Data []kkProduct `json:"data"`
+}
+
+type kkProduct struct {
+	ID       int64    `json:"id"`
+	Name     string   `json:"name"`
+	PriceMin float64  `json:"priceMin"`
+	URL      string   `json:"url"`
+	Images   []string `json:"images"`
+}
+
+// GetComparisons calls the public products API. The HTML search page is behind
+// Akamai and returns 403 to this client; api.kuantokusta.pt returns the same
+// name / priceMin / url fields the page used to embed in __NEXT_DATA__.
 func (e *KuantoKustaExtractorV2) GetComparisons(productName string) ([]models.ProductComparison, error) {
-	utils.Info("� Starting KuantoKusta product extraction",
+	utils.Info("Starting KuantoKusta product extraction",
 		utils.String("product", productName),
 		utils.String("extractor", e.GetIdentifier()),
 		utils.String("country", string(e.GetCountryCode())))
 
-	// Build KuantoKusta search URL
-	searchURL, err := e.BuildSearchURL(productName)
+	params := url.Values{}
+	params.Set("q", productName)
+	params.Set("page", "1")
+	params.Set("rows", "24")
+	apiURL := kuantoKustaAPI + "/products?" + params.Encode()
+
+	resp, err := utils.MakeAntiBotRequest(apiURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build search URL: %w", err)
+		return nil, fmt.Errorf("failed to fetch products: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read products response: %w", err)
 	}
 
-	// Fetch HTML using base functionality
-	html, err := e.FetchHTML(searchURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch HTML: %w", err)
-	}
-
-	// Extract products using KuantoKusta-specific logic
-	comparisons, err := e.GetComparisonsFromHTML(html)
+	comparisons, err := e.GetComparisonsFromHTML(string(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract comparisons: %w", err)
 	}
@@ -242,7 +265,12 @@ func (e *KuantoKustaExtractorV2) GetComparisons(productName string) ([]models.Pr
 
 // GetComparisonsFromHTML overrides base implementation for KuantoKusta-specific logic
 func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.ProductComparison, error) {
-	utils.Info("� Parsing KuantoKusta HTML", utils.Int("size", len(html)))
+	trimmed := strings.TrimSpace(html)
+	if strings.HasPrefix(trimmed, "{") {
+		return parseKuantoKustaProductsJSON(trimmed)
+	}
+
+	utils.Info("Parsing KuantoKusta HTML", utils.Int("size", len(html)))
 
 	var comparisons []models.ProductComparison
 
@@ -370,6 +398,48 @@ func (e *KuantoKustaExtractorV2) GetComparisonsFromHTML(html string) ([]models.P
 	}
 
 	utils.Info("Extracted KuantoKusta products from JSON data", utils.Int("count", len(comparisons)))
+	return comparisons, nil
+}
+
+func parseKuantoKustaProductsJSON(body string) ([]models.ProductComparison, error) {
+	var payload kkSearchResponse
+	if err := json.Unmarshal([]byte(body), &payload); err != nil {
+		return nil, fmt.Errorf("failed to parse KuantoKusta products JSON: %w", err)
+	}
+
+	comparisons := make([]models.ProductComparison, 0, len(payload.Data))
+	for _, product := range payload.Data {
+		name := strings.TrimSpace(product.Name)
+		if name == "" || product.PriceMin <= 0 {
+			continue
+		}
+
+		var storeURL *string
+		if product.URL != "" {
+			full := product.URL
+			if strings.HasPrefix(full, "/") {
+				full = "https://www.kuantokusta.pt" + full
+			}
+			storeURL = &full
+		}
+
+		var imageURL *string
+		if len(product.Images) > 0 && strings.TrimSpace(product.Images[0]) != "" {
+			img := product.Images[0]
+			imageURL = &img
+		}
+
+		comparisons = append(comparisons, models.ProductComparison{
+			ID:          strconv.FormatInt(product.ID, 10),
+			ProductName: name,
+			Price:       product.PriceMin,
+			Currency:    "EUR",
+			StoreName:   "KuantoKusta - PT",
+			StoreURL:    storeURL,
+			Country:     string(models.CountryPortugal),
+			ImageURL:    imageURL,
+		})
+	}
 	return comparisons, nil
 }
 

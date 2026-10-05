@@ -4,9 +4,11 @@
 //	go run ./cmd/check-extractors
 //	go run ./cmd/check-extractors -id boots_uk_v1
 //	go run ./cmd/check-extractors -q "olaplex no 3"
+//	go run ./cmd/check-extractors -json results.json
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -32,15 +34,17 @@ const (
 )
 
 type result struct {
-	id       string
-	country  string
-	category string
-	query    string
-	status   status
-	count    int
-	sample   string
-	err      string
-	duration time.Duration
+	id          string
+	country     string
+	category    string
+	query       string
+	status      status
+	count       int
+	rawCount    int
+	sample      string
+	err         string
+	duration    time.Duration
+	comparisons []models.ProductComparison
 }
 
 func main() {
@@ -49,6 +53,7 @@ func main() {
 	timeoutFlag := flag.Duration("timeout", 30*time.Second, "per-extractor timeout")
 	parallelFlag := flag.Int("parallel", 4, "max concurrent extractors")
 	verboseFlag := flag.Bool("v", false, "print extractor errors")
+	jsonFlag := flag.String("json", "", "write full results as JSON to this path")
 	flag.Parse()
 
 	utils.InitNopLogger()
@@ -94,6 +99,13 @@ func main() {
 	wg.Wait()
 
 	printTable(out, *verboseFlag)
+	if *jsonFlag != "" {
+		if err := writeJSON(*jsonFlag, out); err != nil {
+			fmt.Fprintf(os.Stderr, "write json: %v\n", err)
+			os.Exit(2)
+		}
+		fmt.Printf("\nwrote %s\n", *jsonFlag)
+	}
 	if unhealthy(out) > 0 {
 		os.Exit(1)
 	}
@@ -128,9 +140,15 @@ func runOne(e extractors.Extractor, queryOverride string, timeout time.Duration)
 			done <- got
 			return
 		}
+		if comparisons == nil {
+			comparisons = []models.ProductComparison{}
+		}
 		priced := 0
 		var sample string
-		for _, c := range comparisons {
+		for i := range comparisons {
+			conf := utils.MatchConfidence(r.query, comparisons[i].ProductName)
+			comparisons[i].MatchConfidence = &conf
+			c := comparisons[i]
 			if strings.TrimSpace(c.ProductName) == "" || c.Price <= 0 {
 				continue
 			}
@@ -139,6 +157,8 @@ func runOne(e extractors.Extractor, queryOverride string, timeout time.Duration)
 				sample = fmt.Sprintf("%s  %.2f %s", truncate(c.ProductName, 48), c.Price, c.Currency)
 			}
 		}
+		got.comparisons = comparisons
+		got.rawCount = len(comparisons)
 		got.count = priced
 		got.sample = sample
 		if priced == 0 {
@@ -181,6 +201,84 @@ func queryFor(e extractors.Extractor, override string) string {
 	default:
 		return "iphone"
 	}
+}
+
+type resultJSON struct {
+	ID          string                     `json:"id"`
+	Country     string                     `json:"country"`
+	Category    string                     `json:"category"`
+	Query       string                     `json:"query"`
+	Status      string                     `json:"status"`
+	Count       int                        `json:"count"`
+	RawCount    int                        `json:"raw_count"`
+	Sample      string                     `json:"sample,omitempty"`
+	Error       string                     `json:"error,omitempty"`
+	DurationMS  int64                      `json:"duration_ms"`
+	Comparisons []models.ProductComparison `json:"comparisons"`
+}
+
+type reportJSON struct {
+	GeneratedAt string       `json:"generated_at"`
+	Working     int          `json:"working"`
+	Empty       int          `json:"empty"`
+	Error       int          `json:"error"`
+	Timeout     int          `json:"timeout"`
+	Total       int          `json:"total"`
+	NeedsFix    []string     `json:"needs_fix"`
+	Results     []resultJSON `json:"results"`
+}
+
+func writeJSON(path string, rows []result) error {
+	ok, empty, errored, timed := 0, 0, 0, 0
+	needsFix := make([]string, 0)
+	out := make([]resultJSON, 0, len(rows))
+	for _, r := range rows {
+		switch r.status {
+		case statusOK:
+			ok++
+		case statusEmpty:
+			empty++
+			needsFix = append(needsFix, r.id)
+		case statusError:
+			errored++
+			needsFix = append(needsFix, r.id)
+		case statusTimeout:
+			timed++
+			needsFix = append(needsFix, r.id)
+		}
+		comparisons := r.comparisons
+		if comparisons == nil {
+			comparisons = []models.ProductComparison{}
+		}
+		out = append(out, resultJSON{
+			ID:          r.id,
+			Country:     r.country,
+			Category:    r.category,
+			Query:       r.query,
+			Status:      string(r.status),
+			Count:       r.count,
+			RawCount:    r.rawCount,
+			Sample:      r.sample,
+			Error:       r.err,
+			DurationMS:  r.duration.Milliseconds(),
+			Comparisons: comparisons,
+		})
+	}
+	payload := reportJSON{
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		Working:     ok,
+		Empty:       empty,
+		Error:       errored,
+		Timeout:     timed,
+		Total:       len(rows),
+		NeedsFix:    needsFix,
+		Results:     out,
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 func printTable(rows []result, verbose bool) {

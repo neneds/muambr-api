@@ -16,6 +16,11 @@ const (
 
 	MatchConfidenceHigh   = 0.90
 	MatchConfidenceMedium = 0.75
+	// MatchConfidenceBestPriceMin is the floor for using an offer as a country's
+	// best comparable price. Short queries like "iphone" score ~0.64 against a
+	// real phone; accessory titles are penalized well below this.
+	MatchConfidenceBestPriceMin = 0.40
+	accessoryConfidencePenalty  = 0.30
 )
 
 // CountryRunMeta tracks extractor outcomes for one comparison country.
@@ -244,6 +249,8 @@ func (e *ComparisonEngine) buildCountryComparisons(in ComparisonEngineInput, pri
 			status = models.CountryStatusOK
 		} else if run.Failed > 0 && run.Succeeded == 0 {
 			status = models.CountryStatusProviderFailed
+		} else if storeCount > 0 {
+			status = models.CountryStatusMatchUnavailable
 		}
 
 		var match *float64
@@ -361,6 +368,9 @@ func (e *ComparisonEngine) bestPriceInCountry(sections []models.CountrySection, 
 			c := &section.Comparisons[i]
 			effective := e.processor.getEffectivePrice(*c)
 			if effective <= 0 {
+				continue
+			}
+			if c.MatchConfidence != nil && *c.MatchConfidence < MatchConfidenceBestPriceMin {
 				continue
 			}
 			if best == nil || effective < bestEffective {
@@ -560,10 +570,53 @@ func MatchConfidence(query, productName string) float64 {
 	coverage := float64(intersection) / float64(len(qSet))
 
 	score := 0.4*jaccard + 0.6*coverage
+	if looksLikeAccessory(qTokens, pTokens) {
+		score *= accessoryConfidencePenalty
+	}
 	if score > 1 {
 		score = 1
 	}
 	return round2(score)
+}
+
+// accessoryExact are whole tokens that mark add-ons rather than the searched product.
+var accessoryExact = map[string]struct{}{
+	"adapter": {}, "adaptador": {}, "bumper": {}, "cabo": {}, "cable": {},
+	"capa": {}, "carregador": {}, "case": {}, "cases": {}, "charger": {},
+	"chargeur": {}, "coque": {}, "cover": {}, "covers": {}, "cristal": {},
+	"custodia": {}, "dock": {}, "etui": {}, "folio": {}, "funda": {},
+	"glass": {}, "hoesje": {}, "hulle": {}, "hülle": {}, "lanyard": {},
+	"pelicula": {}, "película": {}, "pouch": {}, "protector": {}, "protetor": {},
+	"screen": {}, "skin": {}, "sleeve": {}, "stand": {}, "strap": {},
+}
+
+// accessoryFrags match inside compound words (siliconenhoesje, telefoonhoesje).
+var accessoryFrags = []string{"hoesje", "telefoonhoes", "pelicula", "película"}
+
+func looksLikeAccessory(queryTokens, productTokens []string) bool {
+	for _, t := range queryTokens {
+		if tokenIsAccessory(t) {
+			return false // user searched for the accessory itself
+		}
+	}
+	for _, t := range productTokens {
+		if tokenIsAccessory(t) {
+			return true
+		}
+	}
+	return false
+}
+
+func tokenIsAccessory(tok string) bool {
+	if _, ok := accessoryExact[tok]; ok {
+		return true
+	}
+	for _, frag := range accessoryFrags {
+		if strings.Contains(tok, frag) {
+			return true
+		}
+	}
+	return false
 }
 
 func tokenize(s string) []string {

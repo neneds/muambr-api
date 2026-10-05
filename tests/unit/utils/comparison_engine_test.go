@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,21 @@ func TestMatchConfidence_ExactTokens(t *testing.T) {
 func TestMatchConfidence_Unrelated(t *testing.T) {
 	score := utils.MatchConfidence("iPhone 15 Pro", "Kitchen Blender 500W")
 	assert.Less(t, score, 0.5)
+}
+
+func TestMatchConfidence_PenalizesAccessoryWhenQueryIsTheDevice(t *testing.T) {
+	phone := utils.MatchConfidence("iphone", "Apple iPhone 15 Pro Max smartphone")
+	caseScore := utils.MatchConfidence("iphone", "Apple Siliconenhoesje met MagSafe voor iPhone 15 Plus telefoonhoesje")
+	assert.GreaterOrEqual(t, phone, utils.MatchConfidenceBestPriceMin)
+	assert.Less(t, caseScore, utils.MatchConfidenceBestPriceMin)
+	assert.Greater(t, phone, caseScore)
+}
+
+func TestMatchConfidence_DoesNotPenalizeWhenQueryIsTheAccessory(t *testing.T) {
+	name := "Apple Siliconenhoesje met MagSafe voor iPhone 15 Plus telefoonhoesje"
+	asDevice := utils.MatchConfidence("iphone", name)
+	asAccessory := utils.MatchConfidence("iphone case", name)
+	assert.Greater(t, asAccessory, asDevice)
 }
 
 func TestComparisonEngine_BuildResult_SavingsAndDealScore(t *testing.T) {
@@ -414,4 +430,53 @@ func TestComparisonEngine_KeepsEmptyCountryAndRanksBestDeal(t *testing.T) {
 	assert.Equal(t, models.ComparisonStatusPartial, result.Status)
 	require.NotNil(t, result.Observed)
 	assert.Equal(t, 4.99, result.Observed.Amount)
+}
+
+func TestComparisonEngine_BestPriceIgnoresAccessoryOffers(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "iphone",
+		BaseCountry:        models.CountryNetherlands,
+		CurrentCountry:     models.CountryNetherlands,
+		NormalizedCurrency: "EUR",
+		Sections: []models.CountrySection{
+			{
+				Country: "NL",
+				Comparisons: []models.ProductComparison{
+					{
+						ProductName: "Apple Siliconenhoesje met MagSafe voor iPhone 15 Plus telefoonhoesje",
+						Price:       29.99,
+						Currency:    "EUR",
+						Country:     "NL",
+						StoreName:   "Alternate",
+					},
+					{
+						ProductName: "Apple iPhone 15 Pro Max smartphone",
+						Price:       1199,
+						Currency:    "EUR",
+						Country:     "NL",
+						StoreName:   "Alternate",
+					},
+				},
+				ResultsCount: 2,
+			},
+		},
+		Meta: utils.ExtractionMeta{ProvidersAttempted: 1, ProvidersSucceeded: 1},
+		Now:  time.Now().UTC(),
+	})
+
+	require.NotNil(t, result.BestCurrentCountryPrice)
+	assert.Equal(t, 1199.0, result.BestCurrentCountryPrice.Amount)
+	require.Len(t, result.Prices, 2)
+	var caseConf, phoneConf float64
+	for _, p := range result.Prices {
+		switch {
+		case strings.Contains(strings.ToLower(p.ProductName), "hoesje"):
+			caseConf = p.MatchConfidence
+		case strings.Contains(strings.ToLower(p.ProductName), "smartphone"):
+			phoneConf = p.MatchConfidence
+		}
+	}
+	assert.Less(t, caseConf, utils.MatchConfidenceBestPriceMin)
+	assert.GreaterOrEqual(t, phoneConf, utils.MatchConfidenceBestPriceMin)
 }

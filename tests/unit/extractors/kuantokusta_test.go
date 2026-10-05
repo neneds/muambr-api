@@ -3,7 +3,43 @@ package extractors_test
 import (
 	"strings"
 	"testing"
+
+	other "muambr-api/extractors/other"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestKuantoKustaProductsJSON(t *testing.T) {
+	body := `{
+	  "data": [
+	    {
+	      "id": 11928783,
+	      "images": ["https://s1.kuantokusta.pt/img.jpg"],
+	      "name": "Apple iPhone 17 Pro Max 6.9\" 256GB Silver",
+	      "priceMin": 1170,
+	      "url": "/p/11928783/apple-iphone-17-pro-max-69-256gb-silver"
+	    },
+	    {"id": 1, "name": "Missing price", "priceMin": 0, "url": "/p/1/x"}
+	  ],
+	  "page": 1,
+	  "rows": 24,
+	  "total": 2
+	}`
+
+	got, err := other.NewKuantoKustaExtractorV2().GetComparisonsFromHTML(body)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "11928783", got[0].ID)
+	assert.Equal(t, "Apple iPhone 17 Pro Max 6.9\" 256GB Silver", got[0].ProductName)
+	assert.Equal(t, 1170.0, got[0].Price)
+	assert.Equal(t, "EUR", got[0].Currency)
+	assert.Equal(t, "PT", got[0].Country)
+	require.NotNil(t, got[0].StoreURL)
+	assert.Equal(t, "https://www.kuantokusta.pt/p/11928783/apple-iphone-17-pro-max-69-256gb-silver", *got[0].StoreURL)
+	require.NotNil(t, got[0].ImageURL)
+	assert.Equal(t, "https://s1.kuantokusta.pt/img.jpg", *got[0].ImageURL)
+}
 
 func TestKuantoKustaExtractorReal(t *testing.T) {
 	// Note: This assumes KuantoKustaExtractor exists
