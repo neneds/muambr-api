@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -28,15 +29,18 @@ func (p *priceRunnerUKNoopParser) ParsePrice(html string) (float64, string, erro
 func (p *priceRunnerUKNoopParser) ParseURL(html string, baseURL string) string { return "" }
 func (p *priceRunnerUKNoopParser) ParseStore(html string) string               { return "" }
 
-const priceRunnerUKSuggestPath = "/uk/api/instant-search-edge-rest/public/search/suggest/UK"
+const (
+	priceRunnerUKSuggestPath = "/uk/api/instant-search-edge-rest/public/search/suggest/UK"
+	priceRunnerImageHost     = "https://owp.klarna.com"
+)
+
+var priceRunnerStateScript = regexp.MustCompile(`(?s)<script[^>]*type="application/json"[^>]*>(.*?)</script>`)
 
 // PriceRunnerUKExtractor extracts generic UK offers from PriceRunner.
 //
-// Storefront HTML is a Klarna SPA; category search needs numeric IDs. Results
-// come from the public instant-search JSON API (name + lowestPrice). Do not
-// scrape pricerunner.com HTML.
-//
-// Endpoint: GET https://www.pricerunner.com/uk/api/instant-search-edge-rest/public/search/suggest/UK?q={q}
+// Suggest (/uk/api/.../search/suggest/UK) returns a handful of autocomplete
+// products plus FEATURE links such as /cl/1/Mobile-Phones?attr_.... The category
+// page embeds the real listing in __DEHYDRATED_QUERY_STATE__ (cl-list-data-query).
 type PriceRunnerUKExtractor struct {
 	*extractors.BaseGoExtractor
 }
@@ -65,7 +69,7 @@ func (e *PriceRunnerUKExtractor) BuildSearchURL(productName string) (string, err
 	return e.GetBaseURL() + priceRunnerUKSuggestPath + "?" + params.Encode(), nil
 }
 
-// GetComparisons fetches products from instant-search and returns comparisons.
+// GetComparisons fetches suggest results, then the best matching category listing.
 func (e *PriceRunnerUKExtractor) GetComparisons(productName string) ([]models.ProductComparison, error) {
 	searchURL, err := e.BuildSearchURL(productName)
 	if err != nil {
@@ -77,11 +81,55 @@ func (e *PriceRunnerUKExtractor) GetComparisons(productName string) ([]models.Pr
 		return nil, fmt.Errorf("pricerunner_uk: failed to fetch API: %w", err)
 	}
 
-	return e.parseSuggestResponse(body)
+	suggestProducts, featureURL, err := e.parseSuggestResponse(body, productName)
+	if err != nil {
+		return nil, err
+	}
+
+	if featureURL != "" {
+		listingURL := e.absoluteURL(featureURL)
+		html, fetchErr := e.FetchHTML(listingURL)
+		if fetchErr != nil {
+			utils.Warn("PriceRunner category listing failed, using suggest products",
+				utils.String("url", listingURL),
+				utils.Error(fetchErr))
+		} else if listing, parseErr := e.parseCategoryListing(html); parseErr != nil {
+			utils.Warn("PriceRunner category listing parse failed, using suggest products",
+				utils.String("url", listingURL),
+				utils.Error(parseErr))
+		} else if len(listing) > 0 {
+			utils.Info("PriceRunner UK extraction completed",
+				utils.Int("results", len(listing)),
+				utils.String("source", "category"))
+			return listing, nil
+		}
+	}
+
+	utils.Info("PriceRunner UK extraction completed",
+		utils.Int("results", len(suggestProducts)),
+		utils.String("source", "suggest"))
+	return suggestProducts, nil
+}
+
+// GetComparisonsFromHTML parses either a suggest JSON body or a category page.
+func (e *PriceRunnerUKExtractor) GetComparisonsFromHTML(body string) ([]models.ProductComparison, error) {
+	trimmed := strings.TrimSpace(body)
+	if strings.HasPrefix(trimmed, "{") {
+		products, _, err := e.parseSuggestResponse(trimmed, "")
+		return products, err
+	}
+	return e.parseCategoryListing(body)
 }
 
 type priceRunnerSuggestResponse struct {
-	Products []priceRunnerProduct `json:"products"`
+	Products    []priceRunnerProduct    `json:"products"`
+	Suggestions []priceRunnerSuggestion `json:"suggestions"`
+}
+
+type priceRunnerSuggestion struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 type priceRunnerProduct struct {
@@ -103,57 +151,131 @@ type priceRunnerImage struct {
 	Path string `json:"path"`
 }
 
-func (e *PriceRunnerUKExtractor) parseSuggestResponse(body string) ([]models.ProductComparison, error) {
+func (e *PriceRunnerUKExtractor) parseSuggestResponse(body, query string) ([]models.ProductComparison, string, error) {
 	var resp priceRunnerSuggestResponse
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		return nil, fmt.Errorf("pricerunner_uk: failed to parse API response: %w", err)
+		return nil, "", fmt.Errorf("pricerunner_uk: failed to parse API response: %w", err)
 	}
 
-	category := models.CategoryOther
 	results := make([]models.ProductComparison, 0, len(resp.Products))
-
 	for _, p := range resp.Products {
-		if p.OutOfStock {
+		if c, ok := e.productToComparison(p); ok {
+			results = append(results, c)
+		}
+	}
+	return results, pickFeatureURL(query, resp.Suggestions), nil
+}
+
+func pickFeatureURL(query string, suggestions []priceRunnerSuggestion) string {
+	bestURL := ""
+	bestScore := 0.0
+	for _, s := range suggestions {
+		if !strings.EqualFold(s.Type, "FEATURE") || !strings.Contains(s.URL, "/cl/") {
 			continue
 		}
-		name := strings.TrimSpace(p.Name)
-		price, err := strconv.ParseFloat(string(p.LowestPrice.Amount), 64)
-		if name == "" || err != nil || price <= 0 {
-			continue
+		score := utils.MatchConfidence(query, s.Name)
+		if score > bestScore {
+			bestScore = score
+			bestURL = s.URL
 		}
+	}
+	return bestURL
+}
 
-		currency := strings.TrimSpace(p.LowestPrice.Currency)
-		if currency == "" {
-			currency = "GBP"
-		}
+type priceRunnerPageState struct {
+	Dehydrated struct {
+		Queries []priceRunnerQuery `json:"queries"`
+	} `json:"__DEHYDRATED_QUERY_STATE__"`
+}
 
-		id := strings.TrimSpace(p.ID)
-		if id == "" {
-			id = utils.GenerateUUID()
-		}
+type priceRunnerQuery struct {
+	QueryKey []json.RawMessage `json:"queryKey"`
+	State    struct {
+		Data json.RawMessage `json:"data"`
+	} `json:"state"`
+}
 
-		comparison := models.ProductComparison{
-			ID:          id,
-			ProductName: name,
-			Price:       price,
-			Currency:    currency,
-			StoreName:   "PriceRunner",
-			Country:     string(models.CountryUK),
-			Category:    &category,
-		}
+type priceRunnerListData struct {
+	Pages []struct {
+		Products []priceRunnerProduct `json:"products"`
+	} `json:"pages"`
+}
 
-		if link := e.absoluteURL(p.URL); link != "" {
-			comparison.StoreURL = &link
-		}
-		if img := e.imageURL(p.Image); img != "" {
-			comparison.ImageURL = &img
-		}
-
-		results = append(results, comparison)
+func (e *PriceRunnerUKExtractor) parseCategoryListing(html string) ([]models.ProductComparison, error) {
+	matches := priceRunnerStateScript.FindAllStringSubmatch(html, -1)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("pricerunner_uk: category page has no JSON state")
 	}
 
-	utils.Info("PriceRunner UK extraction completed", utils.Int("results", len(results)))
+	var products []priceRunnerProduct
+	for _, match := range matches {
+		if !strings.Contains(match[1], "cl-list-data-query") {
+			continue
+		}
+		var state priceRunnerPageState
+		if err := json.Unmarshal([]byte(match[1]), &state); err != nil {
+			return nil, fmt.Errorf("pricerunner_uk: failed to parse category state: %w", err)
+		}
+		for _, q := range state.Dehydrated.Queries {
+			if len(q.QueryKey) == 0 || string(q.QueryKey[0]) != `"cl-list-data-query"` {
+				continue
+			}
+			var listing priceRunnerListData
+			if err := json.Unmarshal(q.State.Data, &listing); err != nil {
+				return nil, fmt.Errorf("pricerunner_uk: failed to parse category products: %w", err)
+			}
+			for _, page := range listing.Pages {
+				products = append(products, page.Products...)
+			}
+		}
+	}
+	if len(products) == 0 {
+		return nil, fmt.Errorf("pricerunner_uk: category listing has no products")
+	}
+
+	results := make([]models.ProductComparison, 0, len(products))
+	for _, p := range products {
+		if c, ok := e.productToComparison(p); ok {
+			results = append(results, c)
+		}
+	}
 	return results, nil
+}
+
+func (e *PriceRunnerUKExtractor) productToComparison(p priceRunnerProduct) (models.ProductComparison, bool) {
+	if p.OutOfStock {
+		return models.ProductComparison{}, false
+	}
+	name := strings.TrimSpace(p.Name)
+	price, err := strconv.ParseFloat(string(p.LowestPrice.Amount), 64)
+	if name == "" || err != nil || price <= 0 {
+		return models.ProductComparison{}, false
+	}
+	currency := strings.TrimSpace(p.LowestPrice.Currency)
+	if currency == "" {
+		currency = "GBP"
+	}
+	id := strings.TrimSpace(p.ID)
+	if id == "" {
+		id = utils.GenerateUUID()
+	}
+	category := models.CategoryOther
+	comparison := models.ProductComparison{
+		ID:          id,
+		ProductName: name,
+		Price:       price,
+		Currency:    currency,
+		StoreName:   "PriceRunner",
+		Country:     string(models.CountryUK),
+		Category:    &category,
+	}
+	if link := e.absoluteURL(p.URL); link != "" {
+		comparison.StoreURL = &link
+	}
+	if img := e.imageURL(p.Image); img != "" {
+		comparison.ImageURL = &img
+	}
+	return comparison, true
 }
 
 func (e *PriceRunnerUKExtractor) absoluteURL(raw string) string {
@@ -174,5 +296,9 @@ func (e *PriceRunnerUKExtractor) imageURL(img priceRunnerImage) string {
 	if strings.TrimSpace(img.URL) != "" {
 		return e.absoluteURL(img.URL)
 	}
-	return e.absoluteURL(img.Path)
+	path := strings.TrimSpace(img.Path)
+	if strings.HasPrefix(path, "/product/") {
+		return priceRunnerImageHost + path
+	}
+	return e.absoluteURL(path)
 }

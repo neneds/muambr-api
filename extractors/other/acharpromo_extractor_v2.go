@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"muambr-api/extractors"
@@ -25,6 +28,7 @@ type acharPromoProduct struct {
 	URL            string  `json:"url"`
 	Source         string  `json:"source"`
 	ProductID      string  `json:"product_id"`
+	ProductToken   string  `json:"product_token"`
 	IsRecommended  bool    `json:"isRecommended"`
 }
 
@@ -162,6 +166,7 @@ func (e *AcharPromoExtractorV2) GetComparisons(productName string) ([]models.Pro
 		return nil, fmt.Errorf("chat API request failed: %w", err)
 	}
 
+	e.resolveMerchantLinks(products)
 	comparisons := e.convertProducts(products)
 
 	utils.Info("Extraction completed",
@@ -277,9 +282,8 @@ func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []
 		}
 
 		var storeURL, imageURL *string
-		if p.URL != "" {
-			u := p.URL
-			storeURL = &u
+		if link := preferredStoreURL(p); link != "" {
+			storeURL = &link
 		}
 		if p.Image != "" {
 			img := p.Image
@@ -299,6 +303,281 @@ func (e *AcharPromoExtractorV2) convertProducts(products []acharPromoProduct) []
 	}
 
 	return comparisons
+}
+
+var redirectActionIDPattern = regexp.MustCompile(`(?s)createServerReference\)\("([0-9a-f]+)".{0,200}"getRedirectUrl"`)
+
+func isGoogleHost(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return false
+	}
+	host := strings.TrimPrefix(strings.ToLower(parsed.Hostname()), "www.")
+	return host == "google.com" || strings.HasSuffix(host, ".google.com")
+}
+
+func isGoogleShoppingURL(raw string) bool {
+	if !isGoogleHost(raw) {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	return parsed.Query().Get("ibp") == "oshop"
+}
+
+// preferredStoreURL keeps direct merchant links. Google Shopping "oshop" URLs
+// open an empty results page, so those fall back to AcharPromo's redirect,
+// which resolves product_token into a store link.
+func preferredStoreURL(p acharPromoProduct) string {
+	if p.URL != "" && !isGoogleShoppingURL(p.URL) {
+		return p.URL
+	}
+	if p.ProductToken != "" {
+		return "https://achar.promo/redirect?product_token=" + url.QueryEscape(p.ProductToken)
+	}
+	if p.ProductID != "" {
+		values := url.Values{}
+		values.Set("product_id", p.ProductID)
+		if p.Source != "" {
+			values.Set("source", p.Source)
+		}
+		return "https://achar.promo/redirect?" + values.Encode()
+	}
+	return ""
+}
+
+func (e *AcharPromoExtractorV2) resolveMerchantLinks(products []acharPromoProduct) {
+	indexes := make([]int, 0)
+	for i, p := range products {
+		if p.ProductToken == "" && p.ProductID == "" {
+			continue
+		}
+		if p.URL != "" && !isGoogleHost(p.URL) {
+			continue
+		}
+		indexes = append(indexes, i)
+	}
+	if len(indexes) == 0 {
+		return
+	}
+
+	actionID, err := e.lookupRedirectActionID()
+	if err != nil {
+		utils.Warn("AcharPromo: could not resolve merchant links", utils.Error(err))
+		return
+	}
+
+	sem := make(chan struct{}, 6)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for _, idx := range indexes {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			link, err := e.fetchRedirectURL(actionID, products[idx])
+			if err != nil || link == "" || isGoogleHost(link) {
+				return
+			}
+			mu.Lock()
+			products[idx].URL = link
+			mu.Unlock()
+		}(idx)
+	}
+	wg.Wait()
+}
+
+func (e *AcharPromoExtractorV2) lookupRedirectActionID() (string, error) {
+	client := utils.CreateAntiBotClient()
+	client.Timeout = 20 * time.Second
+	req, err := http.NewRequest(http.MethodGet, e.GetBaseURL()+"/redirect", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", utils.DefaultUserAgent)
+	req.Header.Set("Accept", "text/html")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	html := string(body)
+	if id := redirectActionIDPattern.FindStringSubmatch(html); len(id) == 2 {
+		return id[1], nil
+	}
+
+	scriptSrc := regexp.MustCompile(`src="([^"]+\.js[^"]*)"`)
+	var actionID string
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	for _, match := range scriptSrc.FindAllStringSubmatch(html, -1) {
+		src := match[1]
+		if !strings.Contains(src, "/_next/static/chunks/") {
+			continue
+		}
+		if strings.HasPrefix(src, "/") {
+			src = e.GetBaseURL() + src
+		}
+		wg.Add(1)
+		go func(src string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			mu.Lock()
+			done := actionID != ""
+			mu.Unlock()
+			if done {
+				return
+			}
+			id, err := fetchActionID(client, src)
+			if err != nil || id == "" {
+				return
+			}
+			mu.Lock()
+			if actionID == "" {
+				actionID = id
+			}
+			mu.Unlock()
+		}(src)
+	}
+	wg.Wait()
+	if actionID == "" {
+		return "", fmt.Errorf("getRedirectUrl action id not found")
+	}
+	return actionID, nil
+}
+
+func fetchActionID(client *http.Client, scriptURL string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, scriptURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", utils.DefaultUserAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	match := redirectActionIDPattern.FindSubmatch(body)
+	if len(match) != 2 {
+		return "", nil
+	}
+	return string(match[1]), nil
+}
+
+type acharPromoRedirectOffer struct {
+	AffiliateLink string `json:"affiliateLink"`
+	Link          string `json:"link"`
+	Merchant      struct {
+		Name string `json:"name"`
+	} `json:"merchant"`
+}
+
+type acharPromoRedirectResult struct {
+	Success    bool                      `json:"success"`
+	URL        string                    `json:"url"`
+	ShowOffers bool                      `json:"showOffers"`
+	Offers     []acharPromoRedirectOffer `json:"offers"`
+}
+
+func (e *AcharPromoExtractorV2) fetchRedirectURL(actionID string, product acharPromoProduct) (string, error) {
+	var productURL any
+	if product.URL != "" && !isGoogleHost(product.URL) {
+		productURL = product.URL
+	}
+	var productID any
+	if product.ProductID != "" {
+		productID = product.ProductID
+	}
+	var token any
+	if product.ProductToken != "" {
+		token = product.ProductToken
+	}
+	payload, err := json.Marshal([]any{productURL, productID, product.IsRecommended, product.Source, token})
+	if err != nil {
+		return "", err
+	}
+
+	client := utils.CreateAntiBotClient()
+	client.Timeout = 20 * time.Second
+	req, err := http.NewRequest(http.MethodPost, e.GetBaseURL()+"/redirect", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "text/plain;charset=UTF-8")
+	req.Header.Set("Accept", "text/x-component")
+	req.Header.Set("Next-Action", actionID)
+	req.Header.Set("Origin", e.GetBaseURL())
+	req.Header.Set("Referer", e.GetBaseURL()+"/redirect")
+	req.Header.Set("User-Agent", utils.DefaultUserAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("redirect action HTTP %d", resp.StatusCode)
+	}
+	return pickRedirectLink(string(body), product.Source)
+}
+
+func pickRedirectLink(body, source string) (string, error) {
+	for _, line := range strings.Split(body, "\n") {
+		idx := strings.Index(line, ":")
+		if idx < 0 {
+			continue
+		}
+		payload := strings.TrimSpace(line[idx+1:])
+		if !strings.Contains(payload, `"success"`) {
+			continue
+		}
+		var result acharPromoRedirectResult
+		if err := json.Unmarshal([]byte(payload), &result); err != nil {
+			continue
+		}
+		if !result.Success {
+			return "", fmt.Errorf("redirect action unsuccessful")
+		}
+		if result.URL != "" && !isGoogleShoppingURL(result.URL) {
+			return result.URL, nil
+		}
+		source = strings.ToLower(strings.TrimSpace(source))
+		var fallback string
+		for _, offer := range result.Offers {
+			link := offer.AffiliateLink
+			if link == "" {
+				link = offer.Link
+			}
+			if link == "" || isGoogleShoppingURL(link) {
+				continue
+			}
+			if source != "" && strings.Contains(strings.ToLower(offer.Merchant.Name), source) {
+				return link, nil
+			}
+			if fallback == "" {
+				fallback = link
+			}
+		}
+		return fallback, nil
+	}
+	return "", fmt.Errorf("redirect action returned no link")
 }
 
 // GetCategory returns the product category this extractor is optimised for

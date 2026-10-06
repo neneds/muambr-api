@@ -197,4 +197,21 @@ data: {"type":"finish","finishReason":"stop"}
 			t.Errorf("Expected 1 comparison (skipping zero-price), got %d", len(comparisons))
 		}
 	})
+
+	t.Run("ReplacesEmptyGoogleShoppingURL", func(t *testing.T) {
+		sse := `data: {"type":"tool-output-available","toolCallId":"call_1","output":{"products":[{"id":"1","title":"Apple iPhone 17","extracted_price":6044.8,"url":"https://www.google.com/search?ibp=oshop&q=iphone+17","source":"LG Importados","product_token":"abc token","isRecommended":false}]}}
+`
+		comparisons, err := extractor.GetComparisonsFromHTML(sse)
+		if err != nil {
+			t.Fatalf("GetComparisonsFromHTML returned error: %v", err)
+		}
+		if len(comparisons) != 1 || comparisons[0].StoreURL == nil {
+			t.Fatal("expected a store URL")
+		}
+		got := *comparisons[0].StoreURL
+		want := "https://achar.promo/redirect?product_token=abc+token"
+		if got != want {
+			t.Errorf("store URL = %q, want %q", got, want)
+		}
+	})
 }
