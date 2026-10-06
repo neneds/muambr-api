@@ -107,9 +107,9 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 		observed = e.normalizeObserved(in.Observed, in.CurrentCountry, in.NormalizedCurrency, in.ExchangeRate, capturedAt)
 	}
 
-	savings := e.calculateSavings(observed, bestBase, bestCurrent, in.NormalizedCurrency)
+	savings := e.calculateSavings(observed, confidentPrice(bestBase), confidentPrice(bestCurrent), in.NormalizedCurrency)
 	avgMatch := averageMatchConfidence(prices)
-	dealScore := e.calculateDealScore(savings, avgMatch)
+	dealScore := e.calculateDealScore(savings, avgMatch, len(prices))
 
 	comparisonCountries := e.buildCountryComparisons(in, prices, capturedAt)
 	bestDeal := e.buildBestDeal(comparisonCountries, bestBase, in.NormalizedCurrency)
@@ -285,6 +285,9 @@ func (e *ComparisonEngine) buildBestDeal(countries []models.CountryComparison, b
 		if c.Status != models.CountryStatusOK || c.BestPrice == nil {
 			continue
 		}
+		if c.BestPrice.MatchConfidence != nil && *c.BestPrice.MatchConfidence < MatchConfidenceBestPriceMin {
+			continue
+		}
 		amt := c.BestPrice.ComparableAmount()
 		if amt <= 0 {
 			continue
@@ -356,9 +359,25 @@ func (e *ComparisonEngine) flattenOffers(sections []models.CountrySection, norma
 	return offers
 }
 
+// confidentPrice drops a displayed offer from savings and deal scoring when its
+// match is too weak to treat as the same product. The offer stays on the
+// country row so the client can still show a price.
+func confidentPrice(best *models.MoneyAmount) *models.MoneyAmount {
+	if best == nil || best.MatchConfidence == nil {
+		return best
+	}
+	if *best.MatchConfidence < MatchConfidenceBestPriceMin {
+		return nil
+	}
+	return best
+}
+
 func (e *ComparisonEngine) bestPriceInCountry(sections []models.CountrySection, country, normalizedCurrency, capturedAt string) *models.MoneyAmount {
-	var best *models.ProductComparison
-	var bestEffective float64
+	var strict *models.ProductComparison
+	var strictEffective float64
+	var fallback *models.ProductComparison
+	var fallbackConfidence float64
+	var fallbackEffective float64
 
 	for _, section := range sections {
 		if !strings.EqualFold(section.Country, country) {
@@ -370,14 +389,29 @@ func (e *ComparisonEngine) bestPriceInCountry(sections []models.CountrySection, 
 			if effective <= 0 {
 				continue
 			}
-			if c.MatchConfidence != nil && *c.MatchConfidence < MatchConfidenceBestPriceMin {
+			conf := 0.0
+			if c.MatchConfidence != nil {
+				conf = *c.MatchConfidence
+			}
+			if conf >= MatchConfidenceBestPriceMin {
+				if strict == nil || effective < strictEffective {
+					strict = c
+					strictEffective = effective
+				}
 				continue
 			}
-			if best == nil || effective < bestEffective {
-				best = c
-				bestEffective = effective
+			// No strong match: keep the closest name, then the cheaper one.
+			if fallback == nil || conf > fallbackConfidence || (conf == fallbackConfidence && effective < fallbackEffective) {
+				fallback = c
+				fallbackConfidence = conf
+				fallbackEffective = effective
 			}
 		}
+	}
+
+	best := strict
+	if best == nil {
+		best = fallback
 	}
 
 	if best == nil {
@@ -482,9 +516,17 @@ func (e *ComparisonEngine) calculateSavings(
 	}
 }
 
-func (e *ComparisonEngine) calculateDealScore(savings *models.SavingsResult, avgMatch float64) *models.DealScore {
+func (e *ComparisonEngine) calculateDealScore(savings *models.SavingsResult, avgMatch float64, priceCount int) *models.DealScore {
 	if savings == nil {
-		return nil
+		if priceCount == 0 {
+			return nil
+		}
+		return &models.DealScore{
+			Value:        50,
+			Label:        models.DealLabelUncertain,
+			Explanation:  "Prices were found, but there isn't a reliable base-country comparison to score yet.",
+			IsDefinitive: false,
+		}
 	}
 
 	// Map savings percentage into 0–100. 0% savings → 50, +50% → 100, -50% → 0.

@@ -480,3 +480,58 @@ func TestComparisonEngine_BestPriceIgnoresAccessoryOffers(t *testing.T) {
 	assert.Less(t, caseConf, utils.MatchConfidenceBestPriceMin)
 	assert.GreaterOrEqual(t, phoneConf, utils.MatchConfidenceBestPriceMin)
 }
+
+func TestComparisonEngine_WeakMatchesStillExposeCountryPricesAndScore(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "iphone 17 pro max",
+		BaseCountry:        models.CountryBrazil,
+		CurrentCountry:     models.CountryUK,
+		NormalizedCurrency: "BRL",
+		Sections: []models.CountrySection{
+			{
+				Country: "BR",
+				Comparisons: []models.ProductComparison{
+					{
+						ProductName: "Capa iPhone",
+						Price:       49,
+						Currency:    "BRL",
+						Country:     "BR",
+						StoreName:   "Americanas",
+					},
+				},
+				ResultsCount: 1,
+			},
+			{
+				Country: "GB",
+				Comparisons: []models.ProductComparison{
+					{
+						ProductName: "iPhone screen protector",
+						Price:       9,
+						Currency:    "GBP",
+						Country:     "GB",
+						StoreName:   "Asda",
+					},
+				},
+				ResultsCount: 1,
+			},
+		},
+		Meta: utils.ExtractionMeta{ProvidersAttempted: 2, ProvidersSucceeded: 2},
+		Now:  time.Now().UTC(),
+	})
+
+	require.NotNil(t, result.BestBaseCountryPrice)
+	assert.Equal(t, 49.0, result.BestBaseCountryPrice.Amount)
+	require.NotNil(t, result.BestCurrentCountryPrice)
+	assert.Equal(t, 9.0, result.BestCurrentCountryPrice.Amount)
+	require.Len(t, result.ComparisonCountries, 2)
+	for _, country := range result.ComparisonCountries {
+		require.NotNil(t, country.BestPrice, country.Country)
+		assert.Greater(t, country.BestPrice.Amount, 0.0)
+	}
+	assert.Nil(t, result.Savings)
+	assert.Nil(t, result.BestDeal)
+	require.NotNil(t, result.DealScore)
+	assert.False(t, result.DealScore.IsDefinitive)
+	assert.Equal(t, models.DealLabelUncertain, result.DealScore.Label)
+}
