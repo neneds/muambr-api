@@ -1,33 +1,41 @@
 package utils
 
 import (
-	"muambr-api/models"
 	"sort"
+	"strings"
+
+	"muambr-api/models"
+)
+
+const (
+	// Keep prices within this band of the country median. A phone case is far
+	// below a phone median; an import-shop listing is far above a soda median.
+	priceOutlierLowFactor  = 0.20
+	priceOutlierHighFactor = 3.0
+	// Need several name matches before those offers, rather than every offer, set the median.
+	priceOutlierMinMatches = 3
 )
 
 // ComparisonProcessor handles the processing and filtering of product comparisons
-type ComparisonProcessor struct {
-	priceOutlierThreshold float64 // Threshold for filtering outlier prices (e.g., 0.6 for 60% below)
-}
+type ComparisonProcessor struct{}
 
 // NewComparisonProcessor creates a new ComparisonProcessor with default settings
 func NewComparisonProcessor() *ComparisonProcessor {
-	return &ComparisonProcessor{
-		priceOutlierThreshold: 0.6, // 60% below average price threshold
-	}
+	return &ComparisonProcessor{}
 }
 
-// ProcessComparisons processes raw comparisons and returns organized country sections
-func (cp *ComparisonProcessor) ProcessComparisons(comparisons []models.ProductComparison, limit int) []models.CountrySection {
+// ProcessComparisons processes raw comparisons and returns organized country sections.
+// query is the searched product name, used so the price band follows matching offers.
+func (cp *ComparisonProcessor) ProcessComparisons(comparisons []models.ProductComparison, query string, limit int) []models.CountrySection {
 	if len(comparisons) == 0 {
 		return []models.CountrySection{}
 	}
 
-	// Step 1: Filter out price outliers (values 60% below average)
-	filteredComparisons := cp.filterPriceOutliers(comparisons)
-
-	// Step 2: Group comparisons by country
-	countryGroups := cp.groupComparisonsByCountry(filteredComparisons)
+	// Group first so one country's prices do not set the band for another.
+	countryGroups := cp.groupComparisonsByCountry(comparisons)
+	for countryCode, countryComparisons := range countryGroups {
+		countryGroups[countryCode] = cp.filterPriceOutliers(countryComparisons, query)
+	}
 
 	// Step 3: Process each country group: sort by price and apply per-country limit
 	var sections []models.CountrySection
@@ -48,51 +56,89 @@ func (cp *ComparisonProcessor) ProcessComparisons(comparisons []models.ProductCo
 	return sections
 }
 
-// filterPriceOutliers removes products with prices that are 60% below the average price
-func (cp *ComparisonProcessor) filterPriceOutliers(comparisons []models.ProductComparison) []models.ProductComparison {
+// filterPriceOutliers drops prices far below or far above the median.
+// The median comes from offers that match the query when there are enough of them,
+// so a few expensive imports do not hide a cheap real product, and a cheap
+// accessory still falls outside a cluster of expensive matches.
+func (cp *ComparisonProcessor) filterPriceOutliers(comparisons []models.ProductComparison, query string) []models.ProductComparison {
 	if len(comparisons) <= 2 {
-		// Don't filter if we have too few comparisons
 		return comparisons
 	}
 
-	// Calculate average price using effective prices (converted if available)
-	var totalPrice float64
-	var validPrices []float64
+	type pricedOffer struct {
+		comparison models.ProductComparison
+		price      float64
+		confidence float64
+	}
 
+	offers := make([]pricedOffer, 0, len(comparisons))
 	for _, comparison := range comparisons {
-		effectivePrice := cp.getEffectivePrice(comparison)
-		if effectivePrice > 0 { // Only consider positive prices
-			totalPrice += effectivePrice
-			validPrices = append(validPrices, effectivePrice)
+		price := cp.getEffectivePrice(comparison)
+		if price <= 0 {
+			continue
+		}
+		confidence := 0.5
+		if strings.TrimSpace(query) != "" {
+			confidence = MatchConfidence(query, comparison.ProductName)
+		}
+		offers = append(offers, pricedOffer{comparison: comparison, price: price, confidence: confidence})
+	}
+	if len(offers) <= 2 {
+		return comparisons
+	}
+
+	sample := make([]float64, 0, len(offers))
+	for _, offer := range offers {
+		if offer.confidence >= MatchConfidenceBestPriceMin {
+			sample = append(sample, offer.price)
+		}
+	}
+	if len(sample) < priceOutlierMinMatches {
+		sample = sample[:0]
+		for _, offer := range offers {
+			sample = append(sample, offer.price)
 		}
 	}
 
-	if len(validPrices) == 0 {
-		return comparisons // Return original if no valid prices found
+	mid := medianPrice(sample)
+	if mid <= 0 {
+		return comparisons
 	}
+	minAcceptable := mid * priceOutlierLowFactor
+	maxAcceptable := mid * priceOutlierHighFactor
 
-	averagePrice := totalPrice / float64(len(validPrices))
-	minAcceptablePrice := averagePrice * cp.priceOutlierThreshold
-
-	// Filter out products with prices below the threshold
-	var filteredComparisons []models.ProductComparison
-	for _, comparison := range comparisons {
-		effectivePrice := cp.getEffectivePrice(comparison)
-		if effectivePrice >= minAcceptablePrice {
-			filteredComparisons = append(filteredComparisons, comparison)
-		} else {
-			// Log filtered out products for debugging
-			Info("Filtering out price outlier",
-				String("product_name", comparison.ProductName),
-				String("store_name", comparison.StoreName),
-				String("country", comparison.Country),
-				Float64("effective_price", effectivePrice),
-				Float64("average_price", averagePrice),
-				Float64("min_acceptable_price", minAcceptablePrice))
+	filtered := make([]models.ProductComparison, 0, len(offers))
+	for _, offer := range offers {
+		if offer.price >= minAcceptable && offer.price <= maxAcceptable {
+			filtered = append(filtered, offer.comparison)
+			continue
 		}
+		Info("Filtering out price outlier",
+			String("product_name", offer.comparison.ProductName),
+			String("store_name", offer.comparison.StoreName),
+			String("country", offer.comparison.Country),
+			Float64("effective_price", offer.price),
+			Float64("median_price", mid),
+			Float64("min_acceptable_price", minAcceptable),
+			Float64("max_acceptable_price", maxAcceptable))
 	}
+	if len(filtered) == 0 {
+		return comparisons
+	}
+	return filtered
+}
 
-	return filteredComparisons
+func medianPrice(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	mid := len(sorted) / 2
+	if len(sorted)%2 == 1 {
+		return sorted[mid]
+	}
+	return (sorted[mid-1] + sorted[mid]) / 2
 }
 
 // groupComparisonsByCountry groups product comparisons by country using the Country field

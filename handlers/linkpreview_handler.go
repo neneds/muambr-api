@@ -187,7 +187,7 @@ func (h *LinkPreviewHandler) buildComparisonFromPreview(
 		return nil, err
 	}
 
-	sections := h.comparisonProcessor.ProcessComparisons(outcome.Comparisons, limit)
+	sections := h.comparisonProcessor.ProcessComparisons(outcome.Comparisons, productData.Title, limit)
 
 	var observed *models.ObservedPriceInput
 	if productData.Price != nil && *productData.Price > 0 {

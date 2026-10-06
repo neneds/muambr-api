@@ -222,7 +222,7 @@ func (h *ProductComparisonHandler) CreateProductComparison(c *gin.Context) {
 		return
 	}
 
-	sections := h.comparisonProcessor.ProcessComparisons(outcome.Comparisons, limit)
+	sections := h.comparisonProcessor.ProcessComparisons(outcome.Comparisons, productName, limit)
 
 	exchangeRateInfo := h.buildExchangeRateInfo(req.ObservedPrice, normalizedCurrency)
 
