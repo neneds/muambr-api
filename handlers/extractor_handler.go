@@ -55,6 +55,7 @@ func initializeExtractors(registry *extractors.ExtractorRegistry) {
 	registry.RegisterExtractor(other.NewKuantoKustaExtractorV2())
 	registry.RegisterExtractor(other.NewAcharPromoExtractorV2())
 	registry.RegisterExtractor(other.NewAmericanasBRExtractor())
+	registry.RegisterExtractor(other.NewZoomBRExtractor())
 	registry.RegisterExtractor(other.NewAuchanPTExtractor())
 	registry.RegisterExtractor(other.NewAsdaUKExtractor())
 	registry.RegisterExtractor(other.NewEbuyerUKExtractor())

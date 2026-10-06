@@ -190,6 +190,8 @@ func queryFor(e extractors.Extractor, override string) string {
 		return "leite"
 	case "americanas_br_v1":
 		return "smart tv lg"
+	case "zoom_br_v1":
+		return "geladeira electrolux"
 	case "carrefour_br_v1", "fastshop_br_v1":
 		return "air fryer"
 	}
