@@ -21,6 +21,109 @@ func TestMatchConfidence_Unrelated(t *testing.T) {
 	assert.Less(t, score, 0.5)
 }
 
+func TestMatchConfidence_DropsUnrelatedPerfumeHits(t *testing.T) {
+	query := "issey miyake lumiere 50ml"
+	related := []string{
+		"Issey Miyake Lumière d'Issey Eau de Parfum 50ml",
+		"Perfume Issey Miyake Lumiere Feminino Eau de Parfum",
+		"Perfume Lumière D'Issey Issey Miyake Feminino EDP",
+	}
+	unrelated := []string{
+		"Caudalie Vinoperfect Brightening Dark Spot Serum 50ml",
+		"KAYALI Vanilla 28 Eau de Parfum - 50ml",
+		"This is Her! Eau de Parfum",
+		"ISSEY MIYAKE SEL D´ISSEY Eau de Toilette Coffret",
+		"Coffret L'Eau d'Issey Pour Homme - Eau de Toilette",
+		"L'Eau D'Issey pour Homme Eau&Cèdre - Eau de Toilette Amadeirada aquática",
+	}
+	for _, name := range related {
+		assert.GreaterOrEqual(t, utils.MatchConfidence(query, name), utils.MatchConfidenceMin, name)
+	}
+	for _, name := range unrelated {
+		assert.Less(t, utils.MatchConfidence(query, name), utils.MatchConfidenceMin, name)
+	}
+}
+
+func TestComparisonEngine_DropsUnrelatedOffers(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	sections := []models.CountrySection{
+		{
+			Country: "GB",
+			Comparisons: []models.ProductComparison{
+				{ProductName: "Caudalie Vinoperfect Brightening Dark Spot Serum 50ml", Price: 70, Currency: "GBP", Country: "GB", StoreName: "Cult Beauty"},
+				{ProductName: "Issey Miyake Lumière d'Issey Eau de Parfum 50ml", Price: 76.5, Currency: "GBP", Country: "GB", StoreName: "Boots"},
+			},
+			ResultsCount: 2,
+		},
+		{
+			Country: "PT",
+			Comparisons: []models.ProductComparison{
+				{ProductName: "This is Her! Eau de Parfum", Price: 59, Currency: "EUR", Country: "PT", StoreName: "Sephora"},
+				{ProductName: "Perfume Lumière D'Issey Issey Miyake Feminino EDP", Price: 66.94, Currency: "EUR", Country: "PT", StoreName: "Primor"},
+			},
+			ResultsCount: 2,
+		},
+	}
+
+	result := engine.BuildResult(utils.ComparisonEngineInput{
+		ProductName:        "issey miyake lumiere 50ml",
+		BaseCountry:        models.CountryBrazil,
+		CurrentCountry:     models.CountryBrazil,
+		NormalizedCurrency: "BRL",
+		Sections:           sections,
+		Meta:               utils.ExtractionMeta{ProvidersAttempted: 2, ProvidersSucceeded: 2},
+		Now:                time.Now().UTC(),
+	})
+
+	require.Len(t, result.Prices, 2)
+	names := []string{result.Prices[0].ProductName, result.Prices[1].ProductName}
+	assert.Contains(t, names, "Issey Miyake Lumière d'Issey Eau de Parfum 50ml")
+	assert.Contains(t, names, "Perfume Lumière D'Issey Issey Miyake Feminino EDP")
+	assert.Equal(t, 2, result.TotalResults)
+}
+
+func TestComparisonEngine_AppSnapshotsDropWrongProducts(t *testing.T) {
+	engine := utils.NewComparisonEngine()
+	cases := []struct {
+		query string
+		keep  string
+		drop  string
+	}{
+		{"fino premium touch hair mask", "Fino Premium Touch Hair Mask - Mascara Capilar 230g", "Fino Premium Touch Hair Oil - Oleo Capilar 70ml"},
+		{"issey miyake lumiere 50ml", "Issey Miyake Lumière d'Issey Eau de Parfum 50ml", "ISSEY MIYAKE LUMIÉRE D´ISSEY Creme de Duche"},
+		{"chanel no5 eau de parfum 100ml", "CHANEL N°5 Eau de Parfum Spray 100ml", "CHANEL CHANCE EAU DE PARFUM VAPORIZADOR"},
+		{"chanel no5 eau de parfum 100ml", "CHANEL N°5 Eau de Parfum Spray 100ml", "KAYALI Vanilla 28 Eau de Parfum - 100ml"},
+		{"nike air max ivo", "Nike Air Max IVO", "Nike Air Max 90 M - Black"},
+		{"olaplex no.3 31 ml", "Olaplex No.3 Hair Perfector 31ml", "Olaplex No.3 Hair Perfector 250ml"},
+		{"geladeira electrolux it70", "Geladeira Electrolux It70 Frost Free Inverter 480l Duplex - Branco", "Geladeira Electrolux Tf70s Frost Free 431l Duplex - Inox"},
+		{"ysl y parfum 100ml", "YSL Y Le Parfum 100ml", "KAYALI Vanilla 28 Eau de Parfum - 100ml"},
+		{"acqua di gio men 100ml", "Giorgio Armani Acqua Di Giò Eau de Toilette 100ml", "Giorgio Armani Acqua Di Giò Profondo Eau de Parfum 100ml"},
+		{"burberry goddess 50ml edp", "Burberry Goddess for Women Eau de Parfum 50ml", "Burberry Goddess Intense Eau de Parfum for Women 50ml"},
+		{"carolina herrera good girl 100ml", "Good Girl de Carolina Herrera Eau de Parfum Feminino", "Carolina Herrera Good Girl Body Mist Eau de Toillete 100ML"},
+		{"carolina herrera good girl 100ml", "Good Girl de Carolina Herrera Eau de Parfum Feminino", "BODY SPRAY GOOD GIRL CAROLINA HERRERA NEW YORK 100ML"},
+	}
+	for _, tc := range cases {
+		sections := []models.CountrySection{{
+			Country: "BR",
+			Comparisons: []models.ProductComparison{
+				{ProductName: tc.keep, Price: 10, Currency: "BRL", Country: "BR", StoreName: "A"},
+				{ProductName: tc.drop, Price: 5, Currency: "BRL", Country: "BR", StoreName: "B"},
+			},
+			ResultsCount: 2,
+		}}
+		result := engine.BuildResult(utils.ComparisonEngineInput{
+			ProductName:        tc.query,
+			BaseCountry:        models.CountryBrazil,
+			CurrentCountry:     models.CountryBrazil,
+			NormalizedCurrency: "BRL",
+			Sections:           sections,
+			Now:                time.Now().UTC(),
+		})
+		require.Len(t, result.Prices, 1, "query %q drop %q", tc.query, tc.drop)
+		assert.Equal(t, tc.keep, result.Prices[0].ProductName, tc.query)
+	}
+}
+
 func TestComparisonEngine_BuildResult_SavingsAndDealScore(t *testing.T) {
 	engine := utils.NewComparisonEngine()
 	category := models.CategoryElectronics

@@ -118,15 +118,36 @@ type druniESSearchResponse struct {
 	Results []druniESProduct `json:"results"`
 }
 
+// druniESID accepts Doofinder ids that arrive as either a JSON number or a string
+// such as "m304". json.Number rejects the string form and fails the whole search.
+type druniESID string
+
+func (id *druniESID) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(data, &text); err == nil {
+		*id = druniESID(text)
+		return nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err != nil {
+		return err
+	}
+	*id = druniESID(number.String())
+	return nil
+}
+
 type druniESProduct struct {
-	ID           json.Number `json:"id"`
-	Title        string      `json:"title"`
-	Price        float64     `json:"price"`
-	SalePrice    float64     `json:"sale_price"`
-	BestPrice    float64     `json:"best_price"`
-	Link         string      `json:"link"`
-	ImageLink    string      `json:"image_link"`
-	Availability string      `json:"availability"`
+	ID           druniESID `json:"id"`
+	Title        string    `json:"title"`
+	Price        float64   `json:"price"`
+	SalePrice    float64   `json:"sale_price"`
+	BestPrice    float64   `json:"best_price"`
+	Link         string    `json:"link"`
+	ImageLink    string    `json:"image_link"`
+	Availability string    `json:"availability"`
 }
 
 func (e *DruniESExtractor) parseDoofinderResponse(body string) ([]models.ProductComparison, error) {
@@ -159,7 +180,7 @@ func (e *DruniESExtractor) parseDoofinderResponse(body string) ([]models.Product
 			continue
 		}
 
-		id := strings.TrimSpace(p.ID.String())
+		id := strings.TrimSpace(string(p.ID))
 		if id == "" {
 			id = utils.GenerateUUID()
 		}

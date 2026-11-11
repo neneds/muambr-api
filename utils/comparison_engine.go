@@ -16,6 +16,9 @@ const (
 
 	MatchConfidenceHigh   = 0.90
 	MatchConfidenceMedium = 0.75
+	// MatchConfidenceMin is the lowest score kept in a comparison.
+	// A shared size ("50ml") or a single brand word is not enough.
+	MatchConfidenceMin = 0.50
 )
 
 // CountryRunMeta tracks extractor outcomes for one comparison country.
@@ -92,6 +95,7 @@ func (e *ComparisonEngine) BuildResult(in ComparisonEngineInput) models.ProductC
 			}
 		}
 	}
+	in.Sections = relevantComparisons(query, in.Sections)
 
 	prices := e.flattenOffers(in.Sections, in.NormalizedCurrency, capturedAt)
 	bestBase := e.bestPriceInCountry(in.Sections, string(in.BaseCountry), in.NormalizedCurrency, capturedAt)
@@ -527,6 +531,261 @@ func dealLabelForValue(value int) models.DealScoreLabel {
 	}
 }
 
+// relevantComparisons drops offers that do not share enough of the search query.
+// Store search APIs return loosely related products; those must not become a best price.
+func relevantComparisons(query string, sections []models.CountrySection) []models.CountrySection {
+	for i := range sections {
+		kept := sections[i].Comparisons[:0]
+		for _, c := range sections[i].Comparisons {
+			if offerMatchesQuery(query, c.ProductName) {
+				kept = append(kept, c)
+			}
+		}
+		sections[i].Comparisons = kept
+		sections[i].ResultsCount = len(kept)
+	}
+	return sections
+}
+
+// offerMatchesQuery reports whether a store title is the searched product.
+// Generic words (eau, parfum) do not count. A different size or a different
+// product form (oil vs mask, deodorant vs the fragrance) is rejected.
+func offerMatchesQuery(query, productName string) bool {
+	qTokens := tokenize(query)
+	pTokens := tokenize(productName)
+	if len(qTokens) == 0 || len(pTokens) == 0 {
+		return false
+	}
+	pSet := tokenSet(pTokens)
+
+	required := requiredTokens(qTokens)
+	if len(required) == 0 {
+		return MatchConfidence(query, productName) >= MatchConfidenceMin
+	}
+	for _, tok := range required {
+		if !tokenSatisfied(tok, pSet) {
+			return false
+		}
+	}
+	if quantityConflict(qTokens, pTokens) || formConflict(qTokens, pTokens) || genderConflict(qTokens, pTokens) || flankerConflict(qTokens, pTokens) || bodySprayConflict(qTokens, pTokens) {
+		return false
+	}
+	return true
+}
+
+func tokenSet(tokens []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		set[t] = struct{}{}
+	}
+	return set
+}
+
+func requiredTokens(tokens []string) []string {
+	out := make([]string, 0, len(tokens))
+	seen := map[string]struct{}{}
+	for _, t := range tokens {
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+		if isStopword(t) || isQuantityToken(t) || isGenderToken(t) {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+func tokenSatisfied(tok string, product map[string]struct{}) bool {
+	if _, ok := product[tok]; ok {
+		return true
+	}
+	for _, group := range synonymGroups {
+		if _, in := group[tok]; !in {
+			continue
+		}
+		for alt := range group {
+			if _, ok := product[alt]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func quantityConflict(query, product []string) bool {
+	qQty := quantityTokens(query)
+	pQty := quantityTokens(product)
+	if len(qQty) == 0 || len(pQty) == 0 {
+		return false
+	}
+	for q := range qQty {
+		if _, ok := pQty[q]; ok {
+			return false
+		}
+	}
+	return true
+}
+
+func quantityTokens(tokens []string) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, t := range tokens {
+		if isQuantityToken(t) {
+			out[t] = struct{}{}
+		}
+	}
+	return out
+}
+
+func isQuantityToken(tok string) bool {
+	i := 0
+	for i < len(tok) && tok[i] >= '0' && tok[i] <= '9' {
+		i++
+	}
+	if i == 0 || i == len(tok) {
+		return false
+	}
+	_, ok := quantityUnits[tok[i:]]
+	return ok
+}
+
+// bodySprayConflict rejects a body spray when the search is for the fragrance.
+// "Eau de Parfum Spray" still matches, because that spray is the perfume itself.
+func bodySprayConflict(query, product []string) bool {
+	pSet := tokenSet(product)
+	qSet := tokenSet(query)
+	if _, ok := pSet["spray"]; !ok {
+		return false
+	}
+	if _, ok := qSet["spray"]; ok {
+		return false
+	}
+	for _, fragrance := range []string{"parfum", "perfume", "edp", "edt", "eau"} {
+		if _, ok := pSet[fragrance]; ok {
+			return false
+		}
+	}
+	return true
+}
+
+func flankerConflict(query, product []string) bool {
+	qSet := tokenSet(query)
+	for _, tok := range product {
+		if _, flanker := flankerWords[tok]; !flanker {
+			continue
+		}
+		if _, inQuery := qSet[tok]; !inQuery {
+			return true
+		}
+	}
+	return false
+}
+
+func formConflict(query, product []string) bool {
+	return groupConflict(formGroups, query, product)
+}
+
+func genderConflict(query, product []string) bool {
+	qSet := tokenSet(query)
+	pSet := tokenSet(product)
+	qMale := groupHit(genderGroups[0], qSet)
+	qFemale := groupHit(genderGroups[1], qSet)
+	pMale := groupHit(genderGroups[0], pSet)
+	pFemale := groupHit(genderGroups[1], pSet)
+	if qMale && pFemale && !pMale {
+		return true
+	}
+	if qFemale && pMale && !pFemale {
+		return true
+	}
+	return false
+}
+
+func groupConflict(groups []map[string]struct{}, query, product []string) bool {
+	qSet := tokenSet(query)
+	pSet := tokenSet(product)
+	for _, group := range groups {
+		if groupHit(group, pSet) && !groupHit(group, qSet) {
+			return true
+		}
+	}
+	return false
+}
+
+func groupHit(group, tokens map[string]struct{}) bool {
+	for t := range tokens {
+		if _, ok := group[t]; ok {
+			return true
+		}
+		for _, syn := range synonymGroups {
+			if _, in := syn[t]; !in {
+				continue
+			}
+			for alt := range syn {
+				if _, ok := group[alt]; ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+var matchStopwords = map[string]struct{}{
+	"eau": {}, "de": {}, "do": {}, "da": {}, "du": {}, "le": {}, "la": {},
+	"parfum": {}, "perfume": {}, "edt": {}, "edp": {}, "toilette": {},
+	"the": {}, "and": {}, "of": {}, "com": {}, "para": {}, "for": {}, "with": {},
+	"pour": {}, "spray": {},
+}
+
+var synonymGroups = []map[string]struct{}{
+	{"men": {}, "man": {}, "homme": {}, "homem": {}, "masculino": {}},
+	{"women": {}, "woman": {}, "femme": {}, "feminino": {}},
+	{"mask": {}, "mascara": {}, "masque": {}},
+	{"oil": {}, "oleo": {}},
+}
+
+var genderGroups = []map[string]struct{}{
+	{"men": {}, "man": {}, "homme": {}, "homem": {}, "masculino": {}},
+	{"women": {}, "woman": {}, "femme": {}, "feminino": {}},
+}
+
+var formGroups = []map[string]struct{}{
+	{"deodorant": {}, "desodorizante": {}, "desodorante": {}, "deodorante": {}},
+	{"lotion": {}, "locao": {}, "creme": {}, "cream": {}},
+	{"gel": {}, "shower": {}, "duche": {}},
+	{"shampoo": {}},
+	{"condicionador": {}, "conditioner": {}},
+	{"serum": {}},
+	{"oil": {}, "oleo": {}},
+	{"coffret": {}, "estojo": {}, "kit": {}},
+	{"stick": {}},
+	{"mist": {}},
+	{"mask": {}, "mascara": {}, "masque": {}},
+}
+
+// flankerWords are variant names. "Profondo" is not "Acqua di Gio", and
+// "Intense" is not the original "Goddess".
+var flankerWords = map[string]struct{}{
+	"profondo": {}, "absolu": {}, "elixir": {}, "intense": {},
+	"amber": {}, "very": {},
+}
+
+func isStopword(tok string) bool {
+	_, ok := matchStopwords[tok]
+	return ok
+}
+
+func isGenderToken(tok string) bool {
+	for _, group := range genderGroups {
+		if _, ok := group[tok]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // MatchConfidence returns a 0–1 score based on token overlap between query and product name.
 func MatchConfidence(query, productName string) float64 {
 	qTokens := tokenize(query)
@@ -568,6 +827,9 @@ func MatchConfidence(query, productName string) float64 {
 
 func tokenize(s string) []string {
 	s = strings.ToLower(s)
+	// "N°5" and "no5" are the same perfume number.
+	s = strings.NewReplacer("n°", "no", "nº", "no").Replace(s)
+	s = foldAccents(s)
 	var tokens []string
 	var b strings.Builder
 	flush := func() {
@@ -576,8 +838,8 @@ func tokenize(s string) []string {
 		}
 		tok := b.String()
 		b.Reset()
-		// Skip very short noise tokens except digits/model fragments
-		if len(tok) < 2 && !isDigitToken(tok) {
+		// Keep single letters ("Y") and digits. Drop other one-character noise.
+		if len(tok) < 2 && !isDigitToken(tok) && !isLetterToken(tok) {
 			return
 		}
 		tokens = append(tokens, tok)
@@ -590,7 +852,51 @@ func tokenize(s string) []string {
 		}
 	}
 	flush()
-	return tokens
+	return glueQuantities(tokens)
+}
+
+// foldAccents makes "lumière" and "lumiere" the same token.
+func foldAccents(s string) string {
+	return strings.NewReplacer(
+		"à", "a", "á", "a", "â", "a", "ã", "a", "ä", "a",
+		"è", "e", "é", "e", "ê", "e", "ë", "e",
+		"ì", "i", "í", "i", "î", "i", "ï", "i",
+		"ò", "o", "ó", "o", "ô", "o", "õ", "o", "ö", "o",
+		"ù", "u", "ú", "u", "û", "u", "ü", "u",
+		"ç", "c", "ñ", "n",
+	).Replace(s)
+}
+
+var quantityUnits = map[string]struct{}{
+	"ml": {}, "cl": {}, "l": {}, "g": {}, "kg": {}, "mg": {}, "oz": {}, "gb": {}, "tb": {},
+}
+
+// glueQuantities turns "50" + "ml" into "50ml" so it matches a query written as one word.
+func glueQuantities(tokens []string) []string {
+	if len(tokens) < 2 {
+		return tokens
+	}
+	out := make([]string, 0, len(tokens))
+	for i := 0; i < len(tokens); i++ {
+		if i+1 < len(tokens) && isDigitToken(tokens[i]) {
+			if _, ok := quantityUnits[tokens[i+1]]; ok {
+				out = append(out, tokens[i]+tokens[i+1])
+				i++
+				continue
+			}
+		}
+		out = append(out, tokens[i])
+	}
+	return out
+}
+
+func isLetterToken(s string) bool {
+	for _, r := range s {
+		if !unicode.IsLetter(r) {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 func isDigitToken(s string) bool {
